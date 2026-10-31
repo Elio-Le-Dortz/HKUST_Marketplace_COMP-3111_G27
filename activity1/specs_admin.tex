@@ -1,0 +1,519 @@
+% =====================================================================
+% 3.3 Task 3: Admin Portal  (8 use-case specifications, Style 2)
+% =====================================================================
+
+
+% ---------------------------------------------------------------------
+\clearpage
+\sectionhead{3.3 Task 3: Admin Portal}
+\usecasetitle{Log In As Admin}{3.1}
+\ucsec{Brief Description}
+This use case describes how the Admin logs in to access the Admin Portal. The Admin has no registration screen: one admin account (username admin@ust.hk) is seeded in the system for development and demo.\par
+\ucsec{Use-case Diagram}
+\ucdiagram{uc_Log_In_As_Admin}
+\ucsec{Preconditions}
+The seeded admin account exists in the system.\par
+\ucsec{Basic Flow}
+\st{1.}{The use case begins when the Admin actor chooses to log in to the Admin Portal.}
+\st{2.}{The system displays the login screen, with no option to register.}
+\eppoint{Enter Credentials}
+\st{3.}{The Admin enters a username and password and submits them.}
+\eppoint{Validate Credentials}
+\st{4.}{The system checks the username and password against the seeded admin account.}
+\eppoint{Check Account Type}
+\st{5.}{The system checks that the account is the Admin account.}
+\st{6.}{The system informs the Admin that the login succeeded, starts an Admin session and displays the Admin dashboard.}
+\st{7.}{The use case ends.}
+\ucsec{Alternative Flows}
+\begin{flowblock}{A1: Empty Field}
+At \ep{Validate Credentials} if the username or password is empty,\par
+\st{1.}{The system informs the Admin that both fields are required.}
+\st{2.}{The flow of events is resumed at \ep{Enter Credentials}.}
+\end{flowblock}
+\begin{flowblock}{A2: Invalid Credentials}
+At \ep{Validate Credentials} if the username does not exist or the password is incorrect,\par
+\st{1.}{The system informs the Admin that the username or password is incorrect, without saying which one.}
+\st{2.}{The flow of events is resumed at \ep{Enter Credentials}.}
+\end{flowblock}
+\begin{flowblock}{A3: Wrong Account Type}
+At \ep{Check Account Type} if the account is a buyer or seller account,\par
+\st{1.}{The system informs the user that this account cannot log in to the Admin Portal and must use its own portal.}
+\st{2.}{The flow of events is resumed at \ep{Enter Credentials}.}
+\end{flowblock}
+\ucsec{Special Requirements}
+\begin{itemize}
+  \item The admin account is created by a seed script when the system is set up, with its password stored hashed; it cannot be created, deactivated or deleted from any portal.
+  \item Every Admin-only function checks the Admin session on the server side, so a buyer or seller session cannot call it even without the user interface.
+\end{itemize}
+
+% ---------------------------------------------------------------------
+\usecase{Review Pending Listings}{3.2}
+\ucsec{Brief Description}
+This use case describes how the Admin reviews the listings submitted by sellers and approves them, so that they become visible to buyers, or rejects them with a written reason.\par
+\ucsec{Use-case Diagram}
+\ucdiagram{uc_Review_Pending_Listings}
+\ucsec{Preconditions}
+The Admin is logged in.\par
+\ucsec{Basic Flow}
+\st{1.}{The use case begins when the Admin actor chooses to review the pending listings.}
+\st{2.}{The system displays all listings with status Pending Review, oldest first, each with its title, the seller's username and full name, the category, the photos, the listing type, the meet-up location, the submitted date and the status.}
+\eppoint{Select Listing}
+\st{3.}{While there is a pending listing the Admin wants to review}
+\sti{3.1.}{The Admin selects a listing and the system displays all its details.}
+\eppointi{Select Action}
+\sti{3.2.}{If APPROVE is selected}
+\stii{3.2.1.}{Perform subflow \subflowref{Approve Listing}.}
+\sti{3.3.}{If REJECT is selected}
+\stii{3.3.1.}{Perform subflow \subflowref{Reject Listing}.}
+\st{4.}{The use case ends.}
+\ucsec{Subflows}
+\begin{flowblock}{S1: Approve Listing}
+\eppoint{Begin Approving}
+\st{1.}{The system asks the Admin to confirm the approval.}
+\eppoint{Confirm Approve}
+\st{2.}{The Admin confirms the approval.}
+\eppoint{Check Listing Status}
+\st{3.}{The system checks that the listing still has status Pending Review.}
+\st{4.}{The system sets the listing status to Live, so that buyers can see it in the marketplace.}
+\st{5.}{The system notifies the seller that the listing has been approved.}
+\st{6.}{The system informs the Admin that the listing has been approved and removes it from the pending list.}
+\end{flowblock}
+\begin{flowblock}{S2: Reject Listing}
+\eppoint{Begin Rejecting}
+\st{1.}{The system asks the Admin to enter a written reason for the rejection.}
+\eppoint{Enter Reason}
+\st{2.}{The Admin enters the reason.}
+\eppoint{Confirm Reject}
+\st{3.}{The Admin confirms the rejection.}
+\eppoint{Validate Reason}
+\st{4.}{The system checks that the reason is not empty and that the listing still has status Pending Review.}
+\st{5.}{The system sets the listing status to Rejected and stores the reason with the listing.}
+\st{6.}{The system notifies the seller that the listing has been rejected, including the reason.}
+\st{7.}{The system informs the Admin that the listing has been rejected and removes it from the pending list.}
+\end{flowblock}
+\ucsec{Postconditions}
+If a listing is approved, its status is Live and it is visible to buyers. If it is rejected, its status is Rejected, the reason is stored, and the seller can see the reason and edit the listing to submit it again.\par
+\ucsec{Alternative Flows}
+\begin{flowblock}{A1: No Pending Listings}
+At \ep{Select Listing} if there are no listings with status Pending Review,\par
+\st{1.}{The system informs the Admin that there are no listings to review.}
+\st{2.}{The use case ends.}
+\end{flowblock}
+\begin{flowblock}{A2: Empty Reason}
+At \ep{Validate Reason} if the reason is empty,\par
+\st{1.}{The system informs the Admin that a reason is required to reject a listing.}
+\st{2.}{The flow of events is resumed at \ep{Enter Reason}.}
+\end{flowblock}
+\begin{flowblock}{A3: Listing No Longer Pending}
+At \ep{Select Action}, \ep{Check Listing Status} or \ep{Validate Reason} if the seller has deleted the listing or it no longer has status Pending Review,\par
+\st{1.}{The system informs the Admin that the listing is no longer pending and refreshes the list.}
+\st{2.}{The flow of events is resumed at \ep{Select Listing}.}
+\end{flowblock}
+\begin{flowblock}{A4: Cancel Action}
+At any point between \ep{Begin Approving} and \ep{Confirm Approve} or between \ep{Begin Rejecting} and \ep{Confirm Reject},\par
+\st{1.}{The Admin can cancel the action.}
+\st{2.}{The listing stays Pending Review and the flow of events is resumed at \ep{Select Listing}.}
+\end{flowblock}
+
+% ---------------------------------------------------------------------
+\usecase{Manage Users}{3.3}
+\ucsec{Brief Description}
+This use case describes how the Admin views, edits, deactivates, reactivates or permanently deletes any buyer or seller account.\par
+\ucsec{Use-case Diagram}
+\ucdiagram{uc_Manage_Users}
+\ucsec{Preconditions}
+The Admin is logged in.\par
+\ucsec{Basic Flow}
+\st{1.}{The use case begins when the Admin actor chooses to manage the users.}
+\st{2.}{The system displays all buyer and seller accounts, each with the username, full name, account type (Buyer or Seller) and account status (Active or Deactivated). The Admin can search by username or full name and filter by account type and status.}
+\eppoint{Select Activity}
+\st{3.}{While the Admin has an activity to perform}
+\sti{3.1.}{If EDIT is selected for an account}
+\stii{3.1.1.}{Perform subflow \subflowref{Edit User}.}
+\sti{3.2.}{If DEACTIVATE or REACTIVATE is selected for an account}
+\stii{3.2.1.}{Perform subflow \subflowref{Change Account Status}.}
+\sti{3.3.}{If DELETE is selected for an account}
+\stii{3.3.1.}{Perform subflow \subflowref{Delete User}.}
+\st{4.}{The use case ends.}
+\ucsec{Subflows}
+\begin{flowblock}{S1: Edit User}
+\eppoint{Begin Editing}
+\st{1.}{The system displays the account's username (not editable), full name, and residence (Buyer) or bio and preferred meet-up locations (Seller).}
+\eppoint{Edit Details}
+\st{2.}{The Admin changes the details.}
+\eppoint{Confirm Edit}
+\st{3.}{The Admin confirms the changes.}
+\eppoint{Validate Edit}
+\st{4.}{The system checks that the full name is not empty.}
+\st{5.}{The system saves the changes and notifies the user that the admin has updated their profile.}
+\st{6.}{The system informs the Admin that the account has been updated.}
+\end{flowblock}
+\begin{flowblock}{S2: Change Account Status}
+\eppoint{Begin Status Change}
+\st{1.}{The system asks the Admin to confirm the deactivation or reactivation of the account.}
+\eppoint{Confirm Status Change}
+\st{2.}{The Admin confirms.}
+\st{3.}{If the account is deactivated}
+\sti{3.1.}{The system sets the account status to Deactivated and ends any open session of the user, so that the user can no longer log in.}
+\st{4.}{If the account is reactivated}
+\sti{4.1.}{The system sets the account status to Active, so that the user can log in again.}
+\st{5.}{The system informs the Admin that the account status has been changed.}
+\end{flowblock}
+\begin{flowblock}{S3: Delete User}
+\eppoint{Begin Deleting}
+\st{1.}{The system warns the Admin that the deletion cannot be undone and shows what will happen to the user's listings, offers, deals, chats and reviews, and asks the Admin to confirm.}
+\eppoint{Confirm Delete}
+\st{2.}{The Admin confirms the deletion.}
+\eppoint{Check Active Deals}
+\st{3.}{The system checks that the user has no deal with status Active.}
+\st{4.}{The system sets the account status to Deleted and ends any open session of the user. The account is kept (soft delete) and its username stays reserved.}
+\st{5.}{If the user is a Seller}
+\sti{5.1.}{The system sets every Pending Review or Live listing of the Seller to Removed, declines their pending offers, borrow requests and claims, and notifies each affected buyer.}
+\st{6.}{If the user is a Buyer}
+\sti{6.1.}{The system withdraws the Buyer's pending offers, borrow requests and claims, and notifies each affected seller.}
+\st{7.}{The system keeps the user's completed deals, chat threads, messages and reviews for history, and shows the user as ``Deleted user'' in them.}
+\st{8.}{The system informs the Admin that the account has been deleted.}
+\end{flowblock}
+\ucsec{Postconditions}
+A deactivated user cannot log in until reactivated. A deleted user cannot log in, none of their listings or offers is active, and their past deals, chats and reviews are kept.\par
+\ucsec{Alternative Flows}
+\begin{flowblock}{A1: No Users}
+At \ep{Select Activity} if there are no buyer or seller accounts,\par
+\st{1.}{The system informs the Admin that there are no users.}
+\st{2.}{The use case ends.}
+\end{flowblock}
+\begin{flowblock}{A2: Empty Full Name}
+At \ep{Validate Edit} if the full name is empty,\par
+\st{1.}{The system informs the Admin that the full name is required.}
+\st{2.}{The flow of events is resumed at \ep{Edit Details}.}
+\end{flowblock}
+\begin{flowblock}{A3: User Has Active Deals}
+At \ep{Check Active Deals} if the user has one or more deals with status Active (for example a reserved sale or an item still lent),\par
+\st{1.}{The system informs the Admin that the account cannot be deleted until these deals are completed or returned, lists them, and suggests deactivating the account instead. Nothing is deleted.}
+\st{2.}{The flow of events is resumed at \ep{Select Activity}.}
+\end{flowblock}
+\begin{flowblock}{A4: Cancel Activity}
+At any point between \ep{Begin Editing} and \ep{Confirm Edit}, between \ep{Begin Status Change} and \ep{Confirm Status Change}, or between \ep{Begin Deleting} and \ep{Confirm Delete},\par
+\st{1.}{The Admin can cancel the activity.}
+\st{2.}{The flow of events is resumed at \ep{Select Activity}.}
+\end{flowblock}
+\ucsec{Special Requirements}
+\begin{itemize}
+  \item Each edit, deactivation, reactivation and deletion is recorded with the admin, the account concerned and a timestamp, and appears in the Admin notifications under User Accounts (audit log).
+  \item The admin account is not listed and cannot be changed in this use case.
+\end{itemize}
+
+% ---------------------------------------------------------------------
+\usecase{Manage Admin Profile}{3.4}
+\ucsec{Brief Description}
+This use case describes how the Admin updates their own full name and password.\par
+\ucsec{Use-case Diagram}
+\ucdiagram{uc_Manage_Admin_Profile}
+\ucsec{Preconditions}
+The Admin is logged in.\par
+\ucsec{Basic Flow}
+\st{1.}{The use case begins when the Admin actor chooses to manage their profile.}
+\st{2.}{The system displays the Admin's username (not editable) and full name.}
+\eppoint{Edit Profile}
+\st{3.}{The Admin changes the full name.}
+\st{4.}{If the Admin wants to change the password}
+\sti{4.1.}{The Admin enters the current password, the new password and the confirm password.}
+\eppoint{Save Profile}
+\st{5.}{The Admin saves the changes.}
+\eppoint{Validate Profile}
+\st{6.}{The system checks the changes.}
+\st{7.}{The system saves the changes, storing a new password in hashed form.}
+\st{8.}{The system confirms to the Admin that the profile has been updated.}
+\st{9.}{The use case ends.}
+\ucsec{Alternative Flows}
+\begin{flowblock}{A1: Empty Full Name}
+At \ep{Validate Profile} if the full name is empty,\par
+\st{1.}{The system informs the Admin that the full name is required.}
+\st{2.}{The flow of events is resumed at \ep{Edit Profile}.}
+\end{flowblock}
+\begin{flowblock}{A2: Wrong Current Password}
+At \ep{Validate Profile} if the Admin is changing the password and the current password is incorrect,\par
+\st{1.}{The system informs the Admin that the current password is incorrect, and saves nothing.}
+\st{2.}{The flow of events is resumed at \ep{Edit Profile}.}
+\end{flowblock}
+\begin{flowblock}{A3: Invalid New Password}
+At \ep{Validate Profile} if the new password does not meet the password rules or does not match the confirm password,\par
+\st{1.}{The system informs the Admin which rule is not met.}
+\st{2.}{The flow of events is resumed at \ep{Edit Profile}.}
+\end{flowblock}
+\begin{flowblock}{A4: Cancel Changes}
+At any point between \ep{Edit Profile} and \ep{Save Profile},\par
+\st{1.}{The Admin can cancel the changes.}
+\st{2.}{The system discards the changes and the use case ends.}
+\end{flowblock}
+\ucsec{Special Requirements}
+\begin{itemize}
+  \item The password rules are the same as for buyer and seller registration.
+\end{itemize}
+
+% ---------------------------------------------------------------------
+\usecase{View All Deals}{3.5}
+\ucsec{Brief Description}
+This use case describes how the Admin views a read-only record of all deals (sold, lent and given) across the system, with filtering and search for oversight.\par
+\ucsec{Use-case Diagram}
+\ucdiagram{uc_View_All_Deals}
+\ucsec{Preconditions}
+The Admin is logged in.\par
+\ucsec{Basic Flow}
+\st{1.}{The use case begins when the Admin actor chooses to view all deals.}
+\st{2.}{The system displays all deals, newest first, each with the item title, the buyer's username, the seller's username, the deal type (Sale, Loan or Giveaway), the start date, the return or complete date (the due date for an active loan), and the status (Active, Completed or Returned).}
+\eppoint{Select Deal}
+\st{3.}{The Admin selects a deal.}
+\eppoint{Show Deal Details}
+\st{4.}{The system displays the details of the deal: the listing, the accepted offer, the agreed price or borrow dates, and the buyer's rating and review if one was given.}
+\st{5.}{The use case ends.}
+\ucsec{Alternative Flows}
+\begin{flowblock}{A1: No Deals}
+At \ep{Select Deal} if there are no deals in the system,\par
+\st{1.}{The system informs the Admin that there are no deals yet.}
+\st{2.}{The use case ends.}
+\end{flowblock}
+\begin{flowblock}{A2: Filter And Search}
+At \ep{Select Deal} if the Admin enters a search text (item title, buyer or seller username), or chooses a deal type, a status or a date range,\par
+\st{1.}{The system displays only the deals that match all the chosen criteria.}
+\st{2.}{The flow of events is resumed at \ep{Select Deal}.}
+\end{flowblock}
+\begin{flowblock}{A3: No Matching Deals}
+At \ep{Select Deal} if no deal matches the search text and filters,\par
+\st{1.}{The system informs the Admin that no deals match, and offers to clear the filters.}
+\st{2.}{The flow of events is resumed at \ep{Select Deal}.}
+\end{flowblock}
+\begin{flowblock}{A4: Invalid Date Range}
+At \ep{Select Deal} if the end of the chosen date range is before its start,\par
+\st{1.}{The system informs the Admin that the date range is invalid and does not apply it.}
+\st{2.}{The flow of events is resumed at \ep{Select Deal}.}
+\end{flowblock}
+\begin{flowblock}{A5: Related Listing Removed}
+At \ep{Show Deal Details} if the listing or a user of the deal has been removed or deleted,\par
+\st{1.}{The system still displays the deal from its stored record, and marks the listing as removed or the user as ``Deleted user''.}
+\st{2.}{The use case ends.}
+\end{flowblock}
+
+% ---------------------------------------------------------------------
+\usecase{View Admin Notifications}{3.6}
+\ucsec{Brief Description}
+This use case describes how the Admin views the system notifications, such as new listing submissions awaiting review, reported listings, flagged reviews and user account changes, and resolves reports.\par
+\ucsec{Use-case Diagram}
+\ucdiagram{uc_View_Admin_Notifications}
+\ucsec{Preconditions}
+The Admin is logged in.\par
+\ucsec{Basic Flow}
+\st{1.}{The use case begins when the Admin actor chooses to view the notifications.}
+\st{2.}{The system displays the Admin's notifications, newest first, each with a timestamp, a category and a message. Unread notifications are highlighted. The categories are:}
+\begin{itemize}
+  \item Listing Submissions: new or edited listing awaiting review
+  \item Reports: listing reported by a buyer, requiring moderation
+  \item Flagged Reviews: review flagged by a seller as inappropriate
+  \item User Accounts: user account changed, deactivated, reactivated or deleted
+  \item Announcements: other important announcements
+\end{itemize}
+\eppoint{Select Notification}
+\st{3.}{The Admin selects a notification.}
+\eppoint{Show Related Item}
+\st{4.}{The system marks the notification as read and displays the related listing, report, review or user account.}
+\st{5.}{The use case ends.}
+\ucsec{Alternative Flows}
+\begin{flowblock}{A1: No Notifications}
+At \ep{Select Notification} if there are no notifications,\par
+\st{1.}{The system informs the Admin that there are no notifications.}
+\st{2.}{The use case ends.}
+\end{flowblock}
+\begin{flowblock}{A2: Filter By Category}
+At \ep{Select Notification} if the Admin chooses a category,\par
+\st{1.}{The system displays only the notifications in that category.}
+\st{2.}{The flow of events is resumed at \ep{Select Notification}.}
+\end{flowblock}
+\begin{flowblock}{A3: Resolve Report}
+At \ep{Show Related Item} if the related item is a report with status Open,\par
+\st{1.}{The system displays the report's reason, date, the buyer who filed it and the reported listing.}
+\st{2.}{The Admin can mark the report as resolved and confirm it.}
+\st{3.}{The system sets the report status to Resolved and notifies the buyer who filed it.}
+\st{4.}{The use case ends.}
+\end{flowblock}
+\begin{flowblock}{A4: Related Item No Longer Exists}
+At \ep{Show Related Item} if the related listing, review or user account has been deleted or removed,\par
+\st{1.}{The system marks the notification as read, displays its message, and informs the Admin that the item is no longer available.}
+\st{2.}{The use case ends.}
+\end{flowblock}
+
+% ---------------------------------------------------------------------
+\usecase{Manage All Listings}{3.7}
+\ucsec{Brief Description}
+This use case describes how the Admin manages every listing in the system regardless of status: editing any listing, adding a listing on behalf of a seller, and taking down a live listing with a reason.\par
+\ucsec{Use-case Diagram}
+\ucdiagram{uc_Manage_All_Listings}
+\ucsec{Preconditions}
+The Admin is logged in.\par
+\ucsec{Basic Flow}
+\st{1.}{The use case begins when the Admin actor chooses to manage all listings.}
+\st{2.}{The system displays all listings, each with the title, the seller's username, the category, the listing type, the posted date and the status (Pending Review, Live, Rejected, Reserved, Sold, Lent, Given or Removed). The Admin can search by title or seller and filter by status, category and listing type.}
+\eppoint{Select Activity}
+\st{3.}{While the Admin has an activity to perform}
+\sti{3.1.}{If ADD is selected}
+\stii{3.1.1.}{Perform subflow \subflowref{Add Listing}.}
+\sti{3.2.}{If EDIT is selected for a listing}
+\stii{3.2.1.}{Perform subflow \subflowref{Edit Listing}.}
+\sti{3.3.}{If TAKE DOWN is selected for a listing}
+\stii{3.3.1.}{Perform subflow \subflowref{Take Down Listing}.}
+\st{4.}{The use case ends.}
+\ucsec{Subflows}
+\begin{flowblock}{S1: Add Listing}
+\eppoint{Select Seller}
+\st{1.}{The Admin selects the seller on whose behalf the listing is added.}
+\eppoint{Enter Listing Details}
+\st{2.}{The Admin selects the listing type (Sell, Lend or Give Away) and enters the same details as a seller creating a listing: item name and description, category, condition, meet-up location, 1 to 6 photos, and the price (Sell) or the lending duration (Lend).}
+\eppoint{Confirm Add}
+\st{3.}{The Admin confirms the new listing.}
+\eppoint{Validate Listing}
+\st{4.}{The system checks that every field required for the selected type is filled in and valid.}
+\st{5.}{The system stores the listing for the selected seller with status Live, since it is added by the Admin, and notifies the seller.}
+\st{6.}{The system informs the Admin that the listing has been added.}
+\end{flowblock}
+\begin{flowblock}{S2: Edit Listing}
+\eppoint{Begin Editing}
+\st{1.}{The system displays the details of the selected listing in the listing form.}
+\eppoint{Edit Details}
+\st{2.}{The Admin changes the details.}
+\eppoint{Confirm Edit}
+\st{3.}{The Admin confirms the changes.}
+\eppoint{Validate Edit}
+\st{4.}{The system checks the changed fields with the same rules as a new listing.}
+\st{5.}{The system saves the changes, keeps the listing status, and notifies the seller that the admin has edited the listing.}
+\st{6.}{The system informs the Admin that the listing has been updated.}
+\end{flowblock}
+\begin{flowblock}{S3: Take Down Listing}
+\eppoint{Begin Take Down}
+\st{1.}{The system asks the Admin to enter a reason for taking down the listing.}
+\eppoint{Enter Reason}
+\st{2.}{The Admin enters the reason.}
+\eppoint{Confirm Take Down}
+\st{3.}{The Admin confirms the take down.}
+\eppoint{Validate Take Down}
+\st{4.}{The system checks that the reason is not empty and that the listing is still Live.}
+\st{5.}{The system sets the listing status to Removed and stores the reason, so that the listing no longer appears in the marketplace.}
+\st{6.}{The system declines all pending or countered offers, borrow requests and claims on the listing, so that they can no longer be accepted, and notifies each buyer who had one.}
+\st{7.}{The system notifies the seller that the listing has been taken down, including the reason.}
+\st{8.}{The system informs the Admin that the listing has been taken down.}
+\end{flowblock}
+\ucsec{Postconditions}
+An added listing is Live for its seller. A taken-down listing is Removed, its reason is stored, and none of its offers can be accepted.\par
+\ucsec{Alternative Flows}
+\begin{flowblock}{A1: No Listings}
+At \ep{Select Activity} if there are no listings and the Admin does not select ADD,\par
+\st{1.}{The system informs the Admin that there are no listings yet.}
+\st{2.}{The use case ends.}
+\end{flowblock}
+\begin{flowblock}{A2: Seller Not Active}
+At \ep{Select Seller} if the selected seller account is Deactivated or Deleted,\par
+\st{1.}{The system informs the Admin that listings can only be added for an active seller.}
+\st{2.}{The flow of events is resumed at \ep{Select Seller}.}
+\end{flowblock}
+\begin{flowblock}{A3: Missing Or Invalid Field}
+At \ep{Validate Listing} or \ep{Validate Edit} if a required field is empty, the price or lending duration is not positive, or the photos are missing, more than 6, or not images,\par
+\st{1.}{The system highlights the invalid fields.}
+\st{2.}{The flow of events is resumed at \ep{Enter Listing Details} or \ep{Edit Details}.}
+\end{flowblock}
+\begin{flowblock}{A4: Deal In Progress Or Completed}
+At \ep{Begin Editing} or \ep{Begin Take Down} if the listing is Reserved, Sold, Lent or Given,\par
+\st{1.}{The system informs the Admin that the listing cannot be changed because a deal is in progress or completed.}
+\st{2.}{The flow of events is resumed at \ep{Select Activity}.}
+\end{flowblock}
+\begin{flowblock}{A5: Listing Not Live}
+At \ep{Begin Take Down} if the listing is Pending Review, Rejected or already Removed,\par
+\st{1.}{The system informs the Admin that only a Live listing can be taken down (a pending listing is rejected in Review Pending Listings).}
+\st{2.}{The flow of events is resumed at \ep{Select Activity}.}
+\end{flowblock}
+\begin{flowblock}{A6: Empty Reason}
+At \ep{Validate Take Down} if the reason is empty,\par
+\st{1.}{The system informs the Admin that a reason is required to take down a listing.}
+\st{2.}{The flow of events is resumed at \ep{Enter Reason}.}
+\end{flowblock}
+\begin{flowblock}{A7: Cancel Activity}
+At any point between \ep{Select Seller} and \ep{Confirm Add}, between \ep{Begin Editing} and \ep{Confirm Edit}, or between \ep{Begin Take Down} and \ep{Confirm Take Down},\par
+\st{1.}{The Admin can cancel the activity.}
+\st{2.}{Nothing is changed and the flow of events is resumed at \ep{Select Activity}.}
+\end{flowblock}
+\ucsec{Special Requirements}
+\begin{itemize}
+  \item Taking down a listing is atomic with respect to accepting an offer: if the seller accepts an offer at the same time, only the first action succeeds.
+\end{itemize}
+
+% ---------------------------------------------------------------------
+\usecase{Manage Seller Ratings}{3.8}
+\ucsec{Brief Description}
+This use case describes how the Admin views all ratings and reviews given by buyers to sellers, filters them, and hides inappropriate ones.\par
+\ucsec{Use-case Diagram}
+\ucdiagram{uc_Manage_Seller_Ratings}
+\ucsec{Preconditions}
+The Admin is logged in.\par
+\ucsec{Basic Flow}
+\st{1.}{The use case begins when the Admin actor chooses to manage the seller ratings.}
+\st{2.}{The system displays all reviews, flagged reviews first and then newest first, each with the buyer, the seller, the listing, the star rating (1 to 5), the written review, the date, any reply, whether it is flagged (with the seller's reason) and whether it is hidden.}
+\eppoint{Select Review}
+\st{3.}{While the Admin has a review to handle}
+\sti{3.1.}{If HIDE is selected for a review}
+\stii{3.1.1.}{Perform subflow \subflowref{Hide Review}.}
+\sti{3.2.}{If UNHIDE is selected for a hidden review}
+\stii{3.2.1.}{Perform subflow \subflowref{Unhide Review}.}
+\sti{3.3.}{If DISMISS FLAG is selected for a flagged review}
+\stii{3.3.1.}{Perform subflow \subflowref{Dismiss Flag}.}
+\st{4.}{The use case ends.}
+\ucsec{Subflows}
+\begin{flowblock}{S1: Hide Review}
+\eppoint{Begin Hiding}
+\st{1.}{The system asks the Admin to confirm hiding the review.}
+\eppoint{Confirm Hide}
+\st{2.}{The Admin confirms.}
+\st{3.}{The system marks the review as hidden and clears its flag, so that it is excluded from the seller's average rating and review list.}
+\st{4.}{The system notifies the seller and the buyer who wrote the review that it has been hidden.}
+\st{5.}{The system informs the Admin that the review has been hidden.}
+\end{flowblock}
+\begin{flowblock}{S2: Unhide Review}
+\eppoint{Begin Unhiding}
+\st{1.}{The system asks the Admin to confirm showing the review again.}
+\eppoint{Confirm Unhide}
+\st{2.}{The Admin confirms.}
+\st{3.}{The system marks the review as not hidden, so that it counts again in the seller's average rating and review list.}
+\st{4.}{The system informs the Admin that the review is visible again.}
+\end{flowblock}
+\begin{flowblock}{S3: Dismiss Flag}
+\eppoint{Begin Dismissing}
+\st{1.}{The system asks the Admin to confirm that the flagged review is acceptable.}
+\eppoint{Confirm Dismiss}
+\st{2.}{The Admin confirms.}
+\st{3.}{The system clears the flag; the review stays visible.}
+\st{4.}{The system notifies the seller that the flag was reviewed and the review is kept.}
+\st{5.}{The system informs the Admin that the flag has been dismissed.}
+\end{flowblock}
+\ucsec{Postconditions}
+A hidden review is not shown to buyers or the seller and is not counted in the seller's average rating or statistics. No flagged review remains for a review that the Admin has handled.\par
+\ucsec{Alternative Flows}
+\begin{flowblock}{A1: No Reviews}
+At \ep{Select Review} if there are no reviews in the system,\par
+\st{1.}{The system informs the Admin that there are no ratings yet.}
+\st{2.}{The use case ends.}
+\end{flowblock}
+\begin{flowblock}{A2: Filter Reviews}
+At \ep{Select Review} if the Admin chooses a user (buyer or seller username), a rating score, a date range, or only flagged or hidden reviews,\par
+\st{1.}{The system displays only the reviews that match all the chosen criteria, or informs the Admin that none match.}
+\st{2.}{The flow of events is resumed at \ep{Select Review}.}
+\end{flowblock}
+\begin{flowblock}{A3: Invalid Date Range}
+At \ep{Select Review} if the end of the chosen date range is before its start,\par
+\st{1.}{The system informs the Admin that the date range is invalid and does not apply it.}
+\st{2.}{The flow of events is resumed at \ep{Select Review}.}
+\end{flowblock}
+\begin{flowblock}{A4: Cancel Action}
+At any point between \ep{Begin Hiding} and \ep{Confirm Hide}, between \ep{Begin Unhiding} and \ep{Confirm Unhide}, or between \ep{Begin Dismissing} and \ep{Confirm Dismiss},\par
+\st{1.}{The Admin can cancel the action.}
+\st{2.}{The flow of events is resumed at \ep{Select Review}.}
+\end{flowblock}
+\ucsec{Special Requirements}
+\begin{itemize}
+  \item A hidden review is kept in the system and is only excluded from display and averages, so the Admin can unhide it later.
+\end{itemize}

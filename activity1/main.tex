@@ -1,0 +1,222 @@
+% =====================================================================
+% COMP3111 F2026 - Activity 1 - HKUST Marketplace
+% Class diagram, use-case diagram and use-case specifications.
+%
+% Compile with pdflatex (twice), e.g.  latexmk -pdf main.tex
+% or upload the whole folder to Overleaf (compiler: pdfLaTeX).
+%
+% Files:  main.tex          cover, class diagram, use-case diagram, index
+%         specs_buyer.tex   3.1 Task 1 (Buyer)  - to be written by Person A
+%         specs_seller.tex  3.2 Task 2 (Seller) - done
+%         specs_admin.tex   3.3 Task 3 (Admin)  - to be written by Person C
+%         figures/          all diagrams (vector PDF), incl. one small
+%                           diagram per use case for all 28 use cases
+% =====================================================================
+\documentclass[10pt,a4paper]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[scaled=0.95]{helvet}
+\renewcommand{\familydefault}{\sfdefault}
+\usepackage[a4paper,top=17mm,bottom=20mm,left=18mm,right=18mm]{geometry}
+\usepackage[table]{xcolor}
+\usepackage{graphicx,array,tabularx,multicol,enumitem,fancyhdr,tcolorbox}
+\usepackage[hidelinks]{hyperref}
+
+% ---------------------------------------------------------------------
+% TEAM INFORMATION: replace the values below (used on the cover and in
+% the task allocation). Remove \fillin{...} once a value is filled in.
+% ---------------------------------------------------------------------
+\newcommand{\fillin}[1]{\colorbox{fillyellow}{\strut #1}}
+\newcommand{\GroupName}{HKUST Marketplace Group}
+\newcommand{\NameA}{Charles DUPOUY}   \newcommand{\IdA}{21431599}   \newcommand{\EmailA}{cerdupouy@connect.ust.hk}   % Task 1 Buyer
+\newcommand{\NameB}{Antoine LEPIN}    \newcommand{\IdB}{21431678}   \newcommand{\EmailB}{alepin@connect.ust.hk}      % Task 2 Seller
+\newcommand{\NameC}{Elio Le Dortz}    \newcommand{\IdC}{21431666}   \newcommand{\EmailC}{eledortz@connect.ust.hk}    % Task 3 Admin
+
+% ---------------------------------------------------------------------
+% Style (colours of the course's use-case specification template)
+% ---------------------------------------------------------------------
+\definecolor{ucred}{HTML}{B0001E}
+\definecolor{epblue}{HTML}{1F3BD6}
+\definecolor{fillyellow}{HTML}{FFF3A6}
+\definecolor{headpink}{HTML}{F3E6E8}
+\definecolor{rowgray}{HTML}{F2F2F2}
+
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{2pt}
+\linespread{1.1}
+\setlist{nosep,leftmargin=1.4em}
+
+\pagestyle{fancy}
+\fancyhf{}
+\renewcommand{\headrulewidth}{0pt}
+\fancyfoot[L]{\footnotesize\color{gray}\thepage}
+\fancyfoot[R]{\footnotesize\color{gray}COMP3111 F2026 \textperiodcentered{} Activity 1 \textperiodcentered{} HKUST Marketplace}
+
+% Section heading: large title with a red rule under it
+\newcommand{\sectionhead}[1]{%
+  {\fontsize{16}{19}\selectfont\bfseries #1\par}\vspace{-2pt}%
+  {\color{ucred}\rule{\linewidth}{1.2pt}}\par\vspace{5pt}}
+
+% ---- Use-case specification commands ----
+% \usecase{Name}{Task}  : new page + "Use Case: Name"
+\newcommand{\usecasetitle}[2]{%
+  {\color{ucred}\fontsize{14}{17}\selectfont\bfseries\underline{Use Case: #1}}%
+  \hspace{8pt}{\small\color{gray}Task #2}\par\vspace{2pt}}
+\newcommand{\usecase}[2]{\clearpage\usecasetitle{#1}{#2}}
+% Section of a specification (Brief Description, Basic Flow, ...)
+\newcommand{\ucsec}[1]{\par\vspace{7pt}{\color{ucred}\large\bfseries #1}\par\nopagebreak\vspace{1pt}}
+% Small use-case diagram from figures/
+\newcommand{\ucdiagram}[1]{\par\includegraphics[height=27mm]{figures/#1}\par}
+% Extension point {Name}: inline, on its own line, or indented one level
+\newcommand{\ep}[1]{\textcolor{epblue}{\textbf{\{#1\}}}}
+\newcommand{\eppoint}[1]{\par\vspace{2pt}\ep{#1}\par\nopagebreak}
+\newcommand{\eppointi}[1]{\par\vspace{2pt}\hspace*{2.2em}\ep{#1}\par\nopagebreak}
+% Name of a subflow when it is called ("Perform subflow ...")
+\newcommand{\subflowref}[1]{\textcolor{ucred}{\textbf{\textit{#1}}}}
+% Numbered steps: \st (1.), \sti (3.1.), \stii (3.1.1.)
+\newcommand{\st}[2]{\par\hangindent=1.9em\hangafter=1\makebox[1.9em][l]{#1}#2\par}
+\newcommand{\sti}[2]{\par\hangindent=5em\hangafter=1\hspace*{2.2em}\makebox[2.8em][l]{#1}#2\par}
+\newcommand{\stii}[2]{\par\hangindent=8em\hangafter=1\hspace*{4.4em}\makebox[3.6em][l]{#1}#2\par}
+% Subflow (S1: ...) or alternative flow (A1: ...), kept on one page
+\newenvironment{flowblock}[1]%
+  {\par\vspace{6pt}\noindent\begin{minipage}{\linewidth}\setlength{\parskip}{2pt}%
+   {\color{ucred}\bfseries\itshape #1}\par}%
+  {\end{minipage}\par}
+% Yellow box for parts that still have to be written
+\newtcolorbox{todobox}{colback=yellow!12,colframe=yellow!55!black,boxrule=0.8pt,arc=0pt,left=6pt,right=6pt}
+
+\begin{document}
+
+% =====================================================================
+% Cover
+% =====================================================================
+\thispagestyle{fancy}
+\begin{center}
+  \vspace*{4mm}
+  {\color{darkgray}COMP3111 Software Engineering \textperiodcentered{} Fall 2026}\par\vspace{7mm}
+  {\color{ucred}\fontsize{30}{34}\selectfont\bfseries Activity 1}\par\vspace{3mm}
+  {\fontsize{20}{24}\selectfont\bfseries HKUST Marketplace}\par\vspace{3mm}
+  {\color{darkgray}Class Diagram \textperiodcentered{} Use-Case Diagram \textperiodcentered{} Use-Case Specifications}
+\end{center}
+\vspace{6mm}
+
+{\color{ucred}\large\bfseries Team Information}\par\vspace{3pt}
+\renewcommand{\arraystretch}{1.35}
+\begin{tabularx}{\linewidth}{|p{0.22\linewidth}|p{0.17\linewidth}|X|p{0.22\linewidth}|}\hline
+\cellcolor{headpink}\textbf{Group} & \multicolumn{3}{l|}{\GroupName}\\\hline
+\rowcolor{headpink}\textbf{Member} & \textbf{Student ID} & \textbf{Email} & \textbf{Main task}\\\hline
+\NameA & \IdA & \EmailA & Task 1: Buyer Portal\\\hline
+\NameB & \IdB & \EmailB & Task 2: Seller Portal\\\hline
+\NameC & \IdC & \EmailC & Task 3: Admin Portal\\\hline
+\end{tabularx}
+
+\vspace{6mm}
+{\color{ucred}\large\bfseries Task Allocation}\par\vspace{3pt}
+\begin{tabularx}{\linewidth}{|X|p{0.26\linewidth}|p{0.14\linewidth}|}\hline
+\rowcolor{headpink}\textbf{Part of this document} & \textbf{Responsible} & \textbf{Score}\\\hline
+1. Class diagram & Whole team & Team\\\hline
+2. Use-case diagram & Whole team & Team\\\hline
+3.1 Use-case specifications, Task 1: Buyer Portal (11 use cases) & \NameA & Individual\\\hline
+3.2 Use-case specifications, Task 2: Seller Portal (9 use cases) & \NameB & Individual\\\hline
+3.3 Use-case specifications, Task 3: Admin Portal (8 use cases) & \NameC & Individual\\\hline
+\end{tabularx}
+\renewcommand{\arraystretch}{1}
+
+\vspace{6mm}
+{\color{ucred}\large\bfseries Contents}\par\vspace{3pt}
+1. Class Diagram\par
+2. Use-Case Diagram\par
+3. Use-Case Specifications\par
+\hspace*{1.5em}3.1 Task 1: Buyer Portal\par
+\hspace*{1.5em}3.2 Task 2: Seller Portal\par
+\hspace*{1.5em}3.3 Task 3: Admin Portal\par
+\vspace{5mm}
+{\small\color{darkgray}All use-case specifications follow Style 2 (with subflows) of the course's use-case detailed specification template.}
+
+% =====================================================================
+% 1. Class Diagram
+% =====================================================================
+\clearpage
+\sectionhead{1. Class Diagram}
+13 classes. User is abstract; Buyer, Seller and Admin are its disjoint and complete subclasses.\par\vspace{3pt}
+\begin{center}\includegraphics[width=0.93\linewidth]{figures/class_diagram}\end{center}\vspace{-8pt}
+
+\ucsec{Enumerations}
+{\footnotesize\renewcommand{\arraystretch}{1.05}\noindent
+\begin{tabular}[t]{|l|}\hline\multicolumn{1}{|c|}{\tiny\guillemotleft{}enumeration\guillemotright{}}\\[-2pt]\multicolumn{1}{|c|}{\textbf{AccountStatus}}\\\hline Active\\ Deactivated\\ Deleted\\\hline\end{tabular}\hfill \begin{tabular}[t]{|l|}\hline\multicolumn{1}{|c|}{\tiny\guillemotleft{}enumeration\guillemotright{}}\\[-2pt]\multicolumn{1}{|c|}{\textbf{ListingType}}\\\hline Sell\\ Lend\\ GiveAway\\\hline\end{tabular}\hfill \begin{tabular}[t]{|l|}\hline\multicolumn{1}{|c|}{\tiny\guillemotleft{}enumeration\guillemotright{}}\\[-2pt]\multicolumn{1}{|c|}{\textbf{ListingStatus}}\\\hline PendingReview\\ Live\\ Rejected\\ Reserved\\ Sold\\ Lent\\ Given\\ Removed\\\hline\end{tabular}\hfill \begin{tabular}[t]{|l|}\hline\multicolumn{1}{|c|}{\tiny\guillemotleft{}enumeration\guillemotright{}}\\[-2pt]\multicolumn{1}{|c|}{\textbf{Category}}\\\hline Books\\ Electronics\\ Furniture\\ Clothing\\ Stationery\\ Sports\\ Other\\\hline\end{tabular}\hfill \begin{tabular}[t]{|l|}\hline\multicolumn{1}{|c|}{\tiny\guillemotleft{}enumeration\guillemotright{}}\\[-2pt]\multicolumn{1}{|c|}{\textbf{Condition}}\\\hline New\\ LikeNew\\ Used\\ ForParts\\\hline\end{tabular}\hfill \begin{tabular}[t]{|l|}\hline\multicolumn{1}{|c|}{\tiny\guillemotleft{}enumeration\guillemotright{}}\\[-2pt]\multicolumn{1}{|c|}{\textbf{MeetupLocation}}\\\hline Atrium\\ Library\\ LG1Canteen\\ LG7Canteen\\ NorthGate\\ SouthGate\\ StudentHalls\\\hline\end{tabular}
+
+\medskip\noindent
+\begin{tabular}[t]{|l|}\hline\multicolumn{1}{|c|}{\tiny\guillemotleft{}enumeration\guillemotright{}}\\[-2pt]\multicolumn{1}{|c|}{\textbf{OfferType}}\\\hline PriceOffer\\ BorrowRequest\\ Claim\\\hline\end{tabular}\hfill \begin{tabular}[t]{|l|}\hline\multicolumn{1}{|c|}{\tiny\guillemotleft{}enumeration\guillemotright{}}\\[-2pt]\multicolumn{1}{|c|}{\textbf{OfferStatus}}\\\hline Pending\\ Accepted\\ Declined\\ Countered\\ Withdrawn\\\hline\end{tabular}\hfill \begin{tabular}[t]{|l|}\hline\multicolumn{1}{|c|}{\tiny\guillemotleft{}enumeration\guillemotright{}}\\[-2pt]\multicolumn{1}{|c|}{\textbf{DealType}}\\\hline Sale\\ Loan\\ Giveaway\\\hline\end{tabular}\hfill \begin{tabular}[t]{|l|}\hline\multicolumn{1}{|c|}{\tiny\guillemotleft{}enumeration\guillemotright{}}\\[-2pt]\multicolumn{1}{|c|}{\textbf{DealStatus}}\\\hline Active\\ Completed\\ Returned\\\hline\end{tabular}\hfill \begin{tabular}[t]{|l|}\hline\multicolumn{1}{|c|}{\tiny\guillemotleft{}enumeration\guillemotright{}}\\[-2pt]\multicolumn{1}{|c|}{\textbf{ReportStatus}}\\\hline Open\\ Resolved\\\hline\end{tabular}\hfill\mbox{}
+}
+
+\vspace{3mm}
+{\small
+\begin{itemize}
+  \item Following Lecture 6, object identifiers and get/set operations are not shown.
+  \item A counter offer is an Offer linked to the original offer through Counters (roles original and counter).
+  \item Deleted users and listings are kept with status Deleted or Removed (soft delete), so deals, chats and reviews keep their history.
+\end{itemize}}
+
+% =====================================================================
+% 2. Use-Case Diagram
+% =====================================================================
+\clearpage
+\sectionhead{2. Use-Case Diagram}
+The HKUST Marketplace has 3 actors and 28 use cases. Chat About Listing is the only use case shared by two actors (Buyer and Seller).\par
+\begin{center}\includegraphics[height=0.70\textheight]{figures/usecase_diagram_team}\end{center}
+{\small\renewcommand{\arraystretch}{1.3}
+\begin{tabularx}{\linewidth}{|p{0.12\linewidth}|X|}\hline
+\rowcolor{headpink}\textbf{Actor} & \textbf{Description}\\\hline
+Buyer & A student or staff member who browses listings and buys, borrows or claims items through the Buyer Portal.\\\hline
+Seller & A student or staff member who posts items to sell, lend or give away, and handles the offers received, through the Seller Portal.\\\hline
+Admin & A staff member who moderates listings, users and ratings through the Admin Portal, using a seeded account (no registration).\\\hline
+\end{tabularx}}
+
+% =====================================================================
+% 3. Use-Case Specifications
+% =====================================================================
+\clearpage
+\sectionhead{3. Use-Case Specifications}
+One specification is written for each use case in the diagram. The table maps each use case to its project subtask.\par\vspace{4pt}
+{\small\renewcommand{\arraystretch}{1.15}
+\begin{tabularx}{\linewidth}{|X|p{0.14\linewidth}|p{0.2\linewidth}|}\hline
+\rowcolor{headpink}\textbf{Use case} & \textbf{Subtask} & \textbf{Actor(s)}\\\hline
+\rowcolor{rowgray}\multicolumn{3}{|l|}{\textbf{Task 1: Buyer Portal}}\\\hline
+Register As Buyer & 1.1 & Buyer\\\hline
+Log In As Buyer & 1.2 & Buyer\\\hline
+Browse Marketplace & 1.3 & Buyer\\\hline
+View Listing Details & 1.4 & Buyer\\\hline
+Act On Listing & 1.5 & Buyer\\\hline
+Chat About Listing & 1.5 & Buyer, Seller\\\hline
+Manage My Deals & 1.6 & Buyer\\\hline
+Manage Buyer Profile & 1.7 & Buyer\\\hline
+View Buyer Notifications & 1.8 & Buyer\\\hline
+View Deal History & 1.9 & Buyer\\\hline
+Rate Seller & 1.10 & Buyer\\\hline
+\rowcolor{rowgray}\multicolumn{3}{|l|}{\textbf{Task 2: Seller Portal}}\\\hline
+Register As Seller & 2.1 & Seller\\\hline
+Log In As Seller & 2.2 & Seller\\\hline
+Create Listing & 2.3 & Seller\\\hline
+Manage My Listings & 2.4 & Seller\\\hline
+Manage Offers And Requests & 2.5 & Seller\\\hline
+Manage Seller Profile & 2.6 & Seller\\\hline
+View Seller Notifications & 2.7 & Seller\\\hline
+View Seller Statistics & 2.8 & Seller\\\hline
+Handle Reviews & 2.9 & Seller\\\hline
+\rowcolor{rowgray}\multicolumn{3}{|l|}{\textbf{Task 3: Admin Portal}}\\\hline
+Log In As Admin & 3.1 & Admin\\\hline
+Review Pending Listings & 3.2 & Admin\\\hline
+Manage Users & 3.3 & Admin\\\hline
+Manage Admin Profile & 3.4 & Admin\\\hline
+View All Deals & 3.5 & Admin\\\hline
+View Admin Notifications & 3.6 & Admin\\\hline
+Manage All Listings & 3.7 & Admin\\\hline
+Manage Seller Ratings & 3.8 & Admin\\\hline
+\end{tabularx}}
+
+\input{specs_buyer}
+\input{specs_seller}
+\input{specs_admin}
+
+\end{document}

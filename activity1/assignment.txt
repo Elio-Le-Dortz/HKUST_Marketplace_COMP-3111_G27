@@ -1,0 +1,353 @@
+class diagram (team score) [teamwork]
+use-case diagram (team score) [teamwork]
+use-case specifications for all 3 tasks (individual score) [individual work]
+
+COMP3111 F2026 Project Brief Description
+
+COURSE PROJECT – HKUST Marketplace
+
+In this project, you need to develop a campus Marketplace system for HKUST.
+The system is useful for Buyers, Sellers, and Admins within the university community.
+
+From this system:
+
+Buyers can log in/register into the system, explore available listings, search and filter items, chat with sellers, make offers / place bids, favourite listings, follow sellers, rate sellers, borrow items, claim giveaways, manage their own profile, view notifications, and so on…
+Sellers can log in/register into the system, post new listings (for Sale, Lend, or Giveaway), manage their own listings (edit / delete / mark as sold), respond to offers and chats, view their ratings, manage their own profile, receive notifications (including approval/rejection reasons), and so on…
+Admins can log in into the system (hardcoded account during development), review and approve/reject new listings, manage all users (view / disable / delete / add), handle reports, view ratings across the platform, manage their own profile, and so on…
+Project Details:
+
+Group of 3 students (max)
+Each student will be responsible for 1 main task. Each main task is divided into sub-tasks.
+Important Note:
+
+UI design/style should be consistent across all three main tasks (Task 1, 2, 3)
+All the functionalities should be in working form for each subtask
+Test the edge cases based on your knowledge from the real world
+For all the tasks, you need to handle exceptional handling (edge cases) by yourself (Means: You need to think about how to implement logically perfect functionality)
+Technical Requirements:
+
+You must use JAVA as your programming language.
+Skeleton code is provided for all groups. Either you can use the skeleton code to build your project, OR you can build your project from scratch (frontend + backend).
+
+
+HKUST Marketplace
+
+Detailed Project Requirements — All Tasks (Task 1-3)
+
+The following project requirements are for the Non-Honors Track Students Group
+
+1. Non-Functional Requirements
+The application should have a user-friendly interface.
+The application should have a consistent interface and interaction pattern across all three user types (buyer, seller, admin) — shared components for cards, chat, notifications, and profile editing.
+Ensure that data is securely stored, particularly all users’ credentials (hashed, never plaintext) and every listing’s information.
+2. Technical Requirements
+Use best coding practices, including readability and maintainability.
+Implement appropriate data structures / database schema for managing users, listings, offers, chats, ratings, and notifications.
+Enforce role-based access control at the API layer, not just in the UI, so a buyer session cannot call seller/admin-only endpoints.
+Track listing view counts (increment when a listing detail is opened).
+All chat history must be retained and searchable.
+Support concurrent actions gracefully (e.g., two buyers claiming the same giveaway item — only the first succeeds).
+3. Submission Guidelines
+Submit your project as a ZIP file containing all source code and relevant documentation.
+Include a README file with setup instructions and any additional information useful for the TA for grading purposes.
+Code should be well-commented to clarify functionality.
+Document the exact password strength rules you implemented.
+Main Features
+Task 1: Buyer Portal
+In this task, you need to manage buyer access and the screens related to this user. Particularly, you need to perform the following main subtasks:
+
+Buyer Registration
+Buyer Login
+Browse Marketplace Screen
+Listing Detail Screen
+Send Offer / Borrow Request / Claim Item + Chat
+My Deals Screen
+Manage Profile Screen
+Notification Board
+Deal History Screen
+Review / Rate Sellers
+Task 1.1 Buyer Registration
+Create a user interface that allows students/staff to register as a buyer.
+
+Users must provide the following information during registration:
+
+Username (must be unique across all user types)
+Full Name
+Password (with validation rules)
+Confirm password
+Residence hall / off-campus (optional, used for meet-up suggestions)
+Implement error handling for registration failures (duplicate username, weak password, mismatched confirm-password). Ensure that data is stored securely, particularly user credentials. Provide feedback for successful or failed registration attempts.
+
+Validation rules:
+
+Username: must be unique across buyer, seller, and admin. Show error if not unique.
+Full Name: cannot be empty.
+Password: must meet standard strength criteria (document the exact rules you choose: length, character mix, etc.).
+Task 1.2 Buyer Login
+Implement a login screen where registered buyers can enter their credentials.
+
+Users must enter:
+
+Username
+Password
+Validate the credentials against the registered user database. Provide feedback for successful or failed login attempts.
+
+Additional check:
+
+Username must belong to the correct account type (a buyer credential cannot log into the seller or admin dashboard). Show an appropriate error message.
+Task 1.3 Browse Marketplace Screen
+Create a screen that displays a list of live listings (approved by the admin).
+
+For each listing show:
+
+Title
+Seller name
+Category
+Listing type (Sell / Lend / Giveaway)
+Price (if for sale)
+Condition
+Meet-up location
+Posted date
+Availability status
+Thumbnail photo (first photo)
+Required functionality:
+
+Search by title / keyword
+Filter by category, listing type, price range, condition
+Sort by newest, price (low-high / high-low)
+Task 1.4 Listing Detail Screen
+Create a detailed view of a single listing (accessible from Browse and from My Deals).
+
+Must display:
+
+All photos (up to 6)
+Full description
+All listing fields
+Seller name + average rating
+Availability status
+Action buttons appropriate to the listing type
+Chat button
+Report Listing button
+Task 1.5 Send Offer / Borrow Request / Claim Item + Chat
+From the Listing Detail screen, buyers can act on a listing:
+
+Sell → submit a price offer / bid
+Lend → submit a borrow request with proposed start/end date
+Giveaway → claim the item with one action
+Rules:
+
+System must check the listing is still available before allowing the action.
+Provide confirmation once the offer/request/claim is successfully submitted.
+Note: For testing purposes keep the minimum borrow time to 5 seconds.
+Chat (private chat linked to this listing):
+
+Free-text messaging
+Ability to send a formal Make Offer (propose price for Sale items, or request lending period for Lend items)
+All chat history must be retained and searchable
+Both buyer and seller can participate in the same chat thread
+Task 1.6 My Deals Screen
+Create a screen that displays every item the buyer currently has an offer, borrow, or claim on, and past completed deals.
+
+Features:
+
+Reopen the listing detail and chat thread for any deal directly from this screen.
+For borrowed items: show the due date and provide a self-return option before the due date.
+Implement auto-return behaviour that updates a borrowed item’s status once the borrowing period expires.
+For purchased or claimed items: allow the buyer to mark the deal complete, which triggers the rate-seller prompt (Task 1.10).
+Update the listing/deal status upon return or completion, and reflect it on the seller’s My Listings screen.
+Task 1.7 Manage Profile Screen
+Create a screen where buyers can manage their personal profile.
+
+Allow editing of Full Name and Password.
+Implement validation for updated credentials.
+Provide confirmation feedback for successful or failed updates.
+Task 1.8 Notification Board
+Create a notification board for buyers. Display system notifications such as:
+
+Offer accepted / declined / countered by a seller
+New chat message received
+Borrow due-date reminders
+A listing the buyer had an open offer on was removed by the admin (sent only to buyers with an active offer on that specific listing)
+Seller replied to a review
+Other important announcements
+Notifications must be clear, timestamped, and categorized.
+
+Task 1.9 Deal History Screen
+Create a screen that displays the full history of the buyer’s completed deals.
+
+Show: Item Title, Seller, Deal Date, Deal Type (Bought / Borrowed / Received), Outcome
+Provide filtering and search (by date range, category, or seller)
+History is updated automatically whenever a deal is completed
+Task 1.10 Review / Rate Sellers
+Implement functionality for buyers to review and rate sellers after a completed deal.
+
+Allow a written review + rating (1–5 stars)
+Display the seller’s average rating and reviews on their profile and on each of their listing detail pages (visible to all users)
+Keep a record of every rating/review submitted by the buyer
+ 
+
+---------------------------------------------------<Task 1 Ends Here>----------------------------------------------------------
+
+ 
+
+Task 2: Seller Portal
+In this task, you need to manage seller access and the screens related to this user. Particularly, you need to perform the following main subtasks:
+
+Seller Registration
+Seller Login
+Create New Listing
+My Listings Screen
+Offer / Request Management Screen (critical – newly added)
+Manage Profile Screen
+Notification Board
+Seller Stats Screen
+Review and Feedback Handling
+Task 2.1 Seller Registration
+Create a user interface that allows students/staff to register as a seller.
+
+Users must provide:
+
+Username (must be unique across all user types)
+Full Name
+Password (with validation rules)
+Confirm password
+Preferred meet-up location(s) (optional)
+Seller bio (optional)
+Same validation and security rules as Buyer Registration.
+
+Task 2.2 Seller Login
+Same rules as Buyer Login (role checking required).
+
+Task 2.3 Create New Listing
+Create a form that allows sellers to post a new listing.
+
+Required fields:
+
+Listing type — Sell, Lend, or Give Away (required first choice; changes the rest of the form)
+Item name
+Category (from a predefined list)
+Condition (New / Like New / Used / For Parts)
+Description
+Price — required only if type = Sell
+Lending duration — required only if type = Lend
+Meet-up location (dropdown of predefined HKUST locations)
+Photos — up to 6
+Validate required fields based on the chosen type. Upon submission, set status to Pending Review and send to admin for approval. Provide confirmation to the seller.
+
+Task 2.4 My Listings Screen
+Create a screen that displays all listings posted by the seller.
+
+Show: Title, Category, Listing Type, Status (Pending / Live / Rejected / Reserved / Sold / Lent / Given)
+Allow edit and delete (with confirmation dialogs)
+Restrict editing/deletion when the listing has active offers or is already Reserved/Sold/Lent/Given (or require confirmation + notify affected buyers)
+Task 2.5 Offer / Request Management Screen (Critical – Newly Added)
+Create a screen (or integrated section under My Listings) where the seller can manage all incoming offers, borrow requests, and claims on their listings.
+
+For each pending item the seller must be able to:
+
+View the offer details (price / proposed dates / claim)
+Accept
+Decline
+Counter (for Sale and Lend)
+Open the linked chat thread
+When a deal is accepted:
+
+Update listing status to Reserved / Sold / Lent / Given as appropriate
+Notify the buyer
+Reflect the change on the buyer’s My Deals screen
+Task 2.6 Manage Profile Screen
+Allow editing of Full Name, Password, Bio, and preferred meet-up locations. Same validation and feedback rules as buyer profile.
+
+Task 2.7 Notification Board
+Display notifications such as:
+
+Listing approved / rejected (with reason if rejected)
+New offer, borrow request, or claim received
+Rating / review received from a buyer
+Buyer marked a deal complete
+Other important announcements
+Notifications must be clear, timestamped, and categorized.
+
+Task 2.8 Seller Stats Screen
+Display statistics related to the seller’s listings:
+
+Number of views
+Offers received
+Completed deals
+Average rating
+Provide graphical representations (bar chart and pie chart). Choose the most useful metrics to chart.
+
+Task 2.9 Review and Feedback Handling
+Display all reviews and ratings submitted by buyers
+Allow sellers to reply to feedback or flag an inappropriate review
+The reply is sent as a notification to the buyer who submitted the original feedback
+ 
+
+---------------------------------------------------<Task 2 Ends Here>----------------------------------------------------------
+
+ 
+
+Task 3: Admin Portal
+Unlike buyer and seller, the admin role has no registration screen. Seed one hardcoded admin credential (e.g., admin@ust.hk) for development and demo.
+
+Main subtasks:
+
+Admin Login
+Listing Review & Approval Screen
+Manage All Users Screen
+Manage Own Profile Screen
+All Deals Record Screen
+Notification Board
+Manage All Listings Screen
+Seller Ratings Overview
+Task 3.1 Admin Login
+Login-only screen. Validate against the seeded admin record. Provide success / failure feedback.
+
+Task 3.2 Listing Review & Approval Screen
+Display all listings with status Pending Review.
+
+For each submission show:
+
+Title, Seller username, Seller full name, Category, Photos, Listing type, Meetup location, Submitted date, Status
+Admin can:
+
+Approve (with confirmation)
+Reject (must provide a written reason; store it and notify the seller)
+Update listing status and provide feedback to the admin.
+
+Task 3.3 Manage All Users Screen
+View, edit, deactivate, or permanently delete any buyer or seller account. Use confirmation dialogs for destructive actions.
+
+Clarify what happens to the user’s listings, deals, and chats upon permanent deletion (recommended: soft-delete or cascade with audit log).
+
+Task 3.4 Manage Own Profile Screen
+Allow editing of Full Name and Password. Same validation and feedback rules.
+
+Task 3.5 All Deals Record Screen
+Display a record of all deals (sold / lent / given) across the system.
+
+Show: Item Title, Buyer Username, Seller Username, Deal Type, Start Date, Return/Complete Date, Status
+Provide filtering and search for oversight
+Task 3.6 Notification Board
+Display system notifications such as:
+
+New listing submissions awaiting review
+Reported listings requiring moderation
+User account changes / updates
+Other important announcements
+Notifications must be clear, timestamped, and categorized.
+
+Task 3.7 Manage All Listings Screen
+Allow the admin to manage every listing regardless of status.
+
+Edit any listing details
+Add a listing directly into the system (on behalf of a seller) — same fields as Task 2.3
+Take down / remove a live listing (with reason). Notify all buyers who had an active offer on that listing.
+Proper validation and confirmation dialogs
+Task 3.8 Seller Ratings Overview
+Display all ratings given by buyers to sellers.
+
+Support filtering by user, rating score, and date
+Allow the admin to hide inappropriate ratings
+ 
+---------------------------------------------------<Task 3 Ends Here>----------------------------------------------------------

@@ -1,0 +1,492 @@
+% =====================================================================
+% 3.2 Task 2: Seller Portal  (9 use-case specifications, Style 2)
+% =====================================================================
+
+
+% ---------------------------------------------------------------------
+\clearpage
+\sectionhead{3.2 Task 2: Seller Portal}
+\usecasetitle{Register As Seller}{2.1}
+\ucsec{Brief Description}
+This use case describes how a student or staff member creates a Seller account so that they can post listings.\par
+\ucsec{Use-case Diagram}
+\ucdiagram{uc_Register_As_Seller}
+\ucsec{Basic Flow}
+\st{1.}{The use case begins when the Seller actor chooses to register a seller account.}
+\st{2.}{The system displays the seller registration form.}
+\eppoint{Enter Details}
+\st{3.}{The Seller enters a username, full name, password and confirm password, and optionally preferred meet-up location(s) and a seller bio.}
+\eppoint{Submit Registration}
+\st{4.}{The Seller submits the form.}
+\eppoint{Validate Details}
+\st{5.}{The system checks that the username is unique across all buyer, seller and admin accounts, the full name is not empty, the password meets the password rules, and the confirm password matches the password.}
+\st{6.}{The system creates the Seller account, storing the password in hashed form.}
+\st{7.}{The system informs the Seller that the registration succeeded and displays the Seller login screen.}
+\st{8.}{The use case ends.}
+\ucsec{Postconditions}
+If the use case ends successfully, a new Seller account is stored and can be used to log in to the Seller Portal.\par
+\ucsec{Alternative Flows}
+\begin{flowblock}{A1: Duplicate Username}
+At \ep{Validate Details} if the username is already used by any buyer, seller or admin account,\par
+\st{1.}{The system informs the Seller that the username is already taken.}
+\st{2.}{The flow of events is resumed at \ep{Enter Details}.}
+\end{flowblock}
+\begin{flowblock}{A2: Empty Required Field}
+At \ep{Validate Details} if the username, full name or password is empty,\par
+\st{1.}{The system highlights the empty fields.}
+\st{2.}{The flow of events is resumed at \ep{Enter Details}.}
+\end{flowblock}
+\begin{flowblock}{A3: Weak Password}
+At \ep{Validate Details} if the password does not meet the password rules,\par
+\st{1.}{The system informs the Seller which password rules are not met.}
+\st{2.}{The flow of events is resumed at \ep{Enter Details}.}
+\end{flowblock}
+\begin{flowblock}{A4: Passwords Do Not Match}
+At \ep{Validate Details} if the confirm password does not match the password,\par
+\st{1.}{The system informs the Seller that the passwords do not match.}
+\st{2.}{The flow of events is resumed at \ep{Enter Details}.}
+\end{flowblock}
+\begin{flowblock}{A5: Cancel Registration}
+At any point between \ep{Enter Details} and \ep{Submit Registration},\par
+\st{1.}{The Seller can cancel the registration.}
+\st{2.}{The use case ends and no account is created.}
+\end{flowblock}
+\ucsec{Special Requirements}
+\begin{itemize}
+  \item Passwords are stored hashed, never in plaintext.
+  \item Password rules: at least 8 characters, with at least one uppercase letter, one lowercase letter and one digit.
+\end{itemize}
+
+% ---------------------------------------------------------------------
+\usecase{Log In As Seller}{2.2}
+\ucsec{Brief Description}
+This use case describes how a registered Seller logs in to access the Seller Portal.\par
+\ucsec{Use-case Diagram}
+\ucdiagram{uc_Log_In_As_Seller}
+\ucsec{Basic Flow}
+\st{1.}{The use case begins when the Seller actor chooses to log in to the Seller Portal.}
+\st{2.}{The system displays the login screen.}
+\eppoint{Enter Credentials}
+\st{3.}{The Seller enters a username and password and submits them.}
+\eppoint{Validate Credentials}
+\st{4.}{The system checks the username and password against the registered user accounts.}
+\eppoint{Check Account Type}
+\st{5.}{The system checks that the account is an active Seller account.}
+\st{6.}{The system starts a Seller session and displays the Seller dashboard.}
+\st{7.}{The use case ends.}
+\ucsec{Alternative Flows}
+\begin{flowblock}{A1: Empty Field}
+At \ep{Validate Credentials} if the username or password is empty,\par
+\st{1.}{The system informs the Seller that both fields are required.}
+\st{2.}{The flow of events is resumed at \ep{Enter Credentials}.}
+\end{flowblock}
+\begin{flowblock}{A2: Invalid Credentials}
+At \ep{Validate Credentials} if the username does not exist or the password is incorrect,\par
+\st{1.}{The system informs the Seller that the username or password is incorrect, without saying which one.}
+\st{2.}{The flow of events is resumed at \ep{Enter Credentials}.}
+\end{flowblock}
+\begin{flowblock}{A3: Wrong Account Type}
+At \ep{Check Account Type} if the account is a buyer or admin account,\par
+\st{1.}{The system informs the user that this account cannot log in to the Seller Portal and must use its own portal.}
+\st{2.}{The flow of events is resumed at \ep{Enter Credentials}.}
+\end{flowblock}
+\begin{flowblock}{A4: Account Deactivated}
+At \ep{Check Account Type} if the Seller account has been deactivated by the admin,\par
+\st{1.}{The system informs the Seller that the account is deactivated.}
+\st{2.}{The use case ends.}
+\end{flowblock}
+\ucsec{Special Requirements}
+\begin{itemize}
+  \item Every Seller-only function checks the Seller session on the server side, so a buyer or admin session cannot call it even without the user interface.
+\end{itemize}
+
+% ---------------------------------------------------------------------
+\usecase{Create Listing}{2.3}
+\ucsec{Brief Description}
+This use case describes how a Seller posts a new listing to sell, lend or give away an item. The listing is sent to the admin for approval before buyers can see it.\par
+\ucsec{Use-case Diagram}
+\ucdiagram{uc_Create_Listing}
+\ucsec{Preconditions}
+The Seller is logged in.\par
+\ucsec{Basic Flow}
+\st{1.}{The use case begins when the Seller actor chooses to create a new listing.}
+\eppoint{Select Listing Type}
+\st{2.}{The Seller selects the listing type: Sell, Lend or Give Away.}
+\st{3.}{The system displays the listing form for the selected type.}
+\eppoint{Enter Listing Details}
+\st{4.}{The Seller enters the item name and description, chooses the category, condition (New, Like New, Used or For Parts) and meet-up location from predefined lists, and uploads 1 to 6 photos.}
+\st{5.}{If the listing type is Sell}
+\sti{5.1.}{The Seller enters the price.}
+\st{6.}{If the listing type is Lend}
+\sti{6.1.}{The Seller enters the lending duration.}
+\eppoint{Submit Listing}
+\st{7.}{The Seller submits the listing.}
+\eppoint{Validate Listing}
+\st{8.}{The system checks that every field required for the selected type is filled in and valid.}
+\st{9.}{The system stores the listing with status Pending Review and notifies the admin of the new submission.}
+\st{10.}{The system confirms to the Seller that the listing has been submitted for review.}
+\st{11.}{The use case ends.}
+\ucsec{Postconditions}
+If the use case ends successfully, the listing is stored with status Pending Review. It is not visible to buyers until the admin approves it.\par
+\ucsec{Alternative Flows}
+\begin{flowblock}{A1: Missing Required Field}
+At \ep{Validate Listing} if a field required for the selected type is empty (for example the price of a Sell listing, the lending duration of a Lend listing, or the photos),\par
+\st{1.}{The system highlights the missing fields.}
+\st{2.}{The flow of events is resumed at \ep{Enter Listing Details}.}
+\end{flowblock}
+\begin{flowblock}{A2: Invalid Price Or Duration}
+At \ep{Validate Listing} if the price is not a positive amount or the lending duration is not a positive period,\par
+\st{1.}{The system informs the Seller that the value is invalid.}
+\st{2.}{The flow of events is resumed at \ep{Enter Listing Details}.}
+\end{flowblock}
+\begin{flowblock}{A3: Invalid Photos}
+At \ep{Enter Listing Details} if the Seller uploads more than 6 photos or a file that is not an image,\par
+\st{1.}{The system rejects the extra or invalid files and informs the Seller.}
+\st{2.}{The flow of events is resumed at \ep{Enter Listing Details}.}
+\end{flowblock}
+\begin{flowblock}{A4: Change Listing Type}
+At any point between \ep{Enter Listing Details} and \ep{Submit Listing}, if the Seller selects a different listing type,\par
+\st{1.}{The system updates the form for the new type and discards the price or lending duration if it no longer applies.}
+\st{2.}{The flow of events is resumed at \ep{Enter Listing Details}.}
+\end{flowblock}
+\begin{flowblock}{A5: Cancel Listing}
+At any point between \ep{Select Listing Type} and \ep{Submit Listing},\par
+\st{1.}{The Seller can cancel the listing.}
+\st{2.}{The use case ends and nothing is stored.}
+\end{flowblock}
+
+% ---------------------------------------------------------------------
+\usecase{Manage My Listings}{2.4}
+\ucsec{Brief Description}
+This use case describes how a Seller views all their listings with their current status, and edits or deletes a listing.\par
+\ucsec{Use-case Diagram}
+\ucdiagram{uc_Manage_My_Listings}
+\ucsec{Preconditions}
+The Seller is logged in.\par
+\ucsec{Basic Flow}
+\st{1.}{The use case begins when the Seller actor chooses to view their listings.}
+\st{2.}{The system displays all the Seller's listings with title, category, listing type and status (Pending Review, Live, Rejected, Reserved, Sold, Lent or Given), and the admin's reason for any rejected listing.}
+\eppoint{Select Activity}
+\st{3.}{While the Seller has an activity to perform}
+\sti{3.1.}{If EDIT is selected}
+\stii{3.1.1.}{Perform subflow \subflowref{Edit Listing}.}
+\sti{3.2.}{If DELETE is selected}
+\stii{3.2.1.}{Perform subflow \subflowref{Delete Listing}.}
+\st{4.}{The use case ends.}
+\ucsec{Subflows}
+\begin{flowblock}{S1: Edit Listing}
+\eppoint{Begin Editing}
+\st{1.}{The system displays the details of the selected listing in the listing form.}
+\eppoint{Edit Details}
+\st{2.}{The Seller changes the details.}
+\eppoint{Confirm Edit}
+\st{3.}{The Seller confirms the changes.}
+\eppoint{Validate Edit}
+\st{4.}{The system checks the changed fields with the same rules as a new listing.}
+\st{5.}{The system saves the changes. If the listing was Live or Rejected, the system sets its status to Pending Review so that the admin reviews it again.}
+\st{6.}{The system informs the Seller that the listing has been updated.}
+\end{flowblock}
+\begin{flowblock}{S2: Delete Listing}
+\eppoint{Begin Deleting}
+\st{1.}{The system asks the Seller to confirm the deletion.}
+\eppoint{Confirm Delete}
+\st{2.}{The Seller confirms the deletion.}
+\eppoint{Remove Listing}
+\st{3.}{The system removes the listing so that it no longer appears in the marketplace.}
+\st{4.}{The system informs the Seller that the listing has been deleted.}
+\end{flowblock}
+\ucsec{Alternative Flows}
+\begin{flowblock}{A1: No Listings}
+At \ep{Select Activity} if the Seller has no listings,\par
+\st{1.}{The system informs the Seller that there are no listings yet.}
+\st{2.}{The use case ends.}
+\end{flowblock}
+\begin{flowblock}{A2: Deal In Progress Or Completed}
+At \ep{Begin Editing} or \ep{Begin Deleting} if the listing is Reserved, Sold, Lent or Given,\par
+\st{1.}{The system informs the Seller that the listing cannot be changed because a deal is in progress or completed.}
+\st{2.}{The flow of events is resumed at \ep{Select Activity}.}
+\end{flowblock}
+\begin{flowblock}{A3: Listing Has Pending Offers}
+At \ep{Confirm Edit} or \ep{Confirm Delete} if the listing has pending offers, borrow requests or claims,\par
+\st{1.}{The system warns the Seller that continuing will decline these offers and notify the buyers concerned, and asks the Seller to confirm again.}
+\st{2.}{If the Seller confirms, the system declines the pending offers and notifies each affected buyer, and the flow of events is resumed at \ep{Validate Edit} or \ep{Remove Listing}.}
+\st{3.}{Otherwise, the flow of events is resumed at \ep{Select Activity}.}
+\end{flowblock}
+\begin{flowblock}{A4: Invalid Changes}
+At \ep{Validate Edit} if a required field is empty or invalid,\par
+\st{1.}{The system highlights the invalid fields.}
+\st{2.}{The flow of events is resumed at \ep{Edit Details}.}
+\end{flowblock}
+\begin{flowblock}{A5: Cancel Activity}
+At any point between \ep{Begin Editing} and \ep{Confirm Edit} or between \ep{Begin Deleting} and \ep{Confirm Delete},\par
+\st{1.}{The Seller can cancel the activity.}
+\st{2.}{The flow of events is resumed at \ep{Select Activity}.}
+\end{flowblock}
+
+% ---------------------------------------------------------------------
+\usecase{Manage Offers And Requests}{2.5}
+\ucsec{Brief Description}
+This use case describes how a Seller handles the offers, borrow requests and claims received on their listings by accepting, declining or countering them.\par
+\ucsec{Use-case Diagram}
+\ucdiagram{uc_Manage_Offers_And_Requests}
+\ucsec{Preconditions}
+The Seller is logged in.\par
+\ucsec{Basic Flow}
+\st{1.}{The use case begins when the Seller actor chooses to manage the offers and requests on their listings.}
+\st{2.}{The system displays all pending offers, borrow requests and claims on the Seller's listings, each with the listing title, the buyer, and the offered price, proposed borrow dates or claim time.}
+\eppoint{Select Offer}
+\st{3.}{While the Seller has a pending offer, borrow request or claim to handle}
+\sti{3.1.}{The Seller selects one and the system displays its details.}
+\eppointi{Select Action}
+\sti{3.2.}{If ACCEPT is selected}
+\stii{3.2.1.}{Perform subflow \subflowref{Accept Offer}.}
+\sti{3.3.}{If DECLINE is selected}
+\stii{3.3.1.}{Perform subflow \subflowref{Decline Offer}.}
+\sti{3.4.}{If COUNTER is selected (Sell and Lend listings only)}
+\stii{3.4.1.}{Perform subflow \subflowref{Counter Offer}.}
+\sti{3.5.}{If OPEN CHAT is selected}
+\stii{3.5.1.}{The system displays the chat thread linked to this listing and buyer.}
+\st{4.}{The use case ends.}
+\ucsec{Subflows}
+\begin{flowblock}{S1: Accept Offer}
+\eppoint{Begin Accepting}
+\st{1.}{The system displays a summary of the deal and asks the Seller to confirm.}
+\eppoint{Confirm Accept}
+\st{2.}{The Seller confirms the acceptance.}
+\eppoint{Check Availability}
+\st{3.}{The system checks that the listing is still available and the offer is still pending.}
+\st{4.}{The system records the deal and updates the listing status: Reserved for a Sell or Give Away listing, Lent for a Lend listing.}
+\st{5.}{The system declines all other pending offers, borrow requests and claims on this listing and notifies those buyers.}
+\st{6.}{The system notifies the buyer that the offer was accepted, and the deal appears on the buyer's My Deals screen.}
+\st{7.}{The system informs the Seller that the deal has been accepted.}
+\end{flowblock}
+\begin{flowblock}{S2: Decline Offer}
+\eppoint{Begin Declining}
+\st{1.}{The system asks the Seller to confirm and optionally give a reason.}
+\eppoint{Confirm Decline}
+\st{2.}{The Seller confirms the decline.}
+\st{3.}{The system marks the offer as declined. The listing stays Live.}
+\st{4.}{The system notifies the buyer, including the reason if one was given.}
+\end{flowblock}
+\begin{flowblock}{S3: Counter Offer}
+\eppoint{Begin Countering}
+\st{1.}{The Seller enters a counter price (Sell listing) or counter borrow dates (Lend listing).}
+\eppoint{Confirm Counter}
+\st{2.}{The Seller sends the counter offer.}
+\eppoint{Validate Counter}
+\st{3.}{The system checks the counter offer.}
+\st{4.}{The system records the counter offer, marks the original offer as countered, and notifies the buyer, who can accept or decline it.}
+\st{5.}{The system informs the Seller that the counter offer has been sent.}
+\end{flowblock}
+\ucsec{Postconditions}
+After an acceptance, a deal exists between the buyer and the Seller, the listing is Reserved (Sell, Give Away) or Lent (Lend), and every other pending offer on that listing is declined. A Reserved listing becomes Sold or Given when the buyer marks the deal complete; a Lent listing becomes Live again when the item is returned.\par
+\ucsec{Alternative Flows}
+\begin{flowblock}{A1: No Pending Offers}
+At \ep{Select Offer} if there are no pending offers, borrow requests or claims,\par
+\st{1.}{The system informs the Seller that there is nothing to handle.}
+\st{2.}{The use case ends.}
+\end{flowblock}
+\begin{flowblock}{A2: Offer No Longer Pending}
+At \ep{Select Action} if the buyer has withdrawn the offer or it has already been handled,\par
+\st{1.}{The system informs the Seller and refreshes the list.}
+\st{2.}{The flow of events is resumed at \ep{Select Offer}.}
+\end{flowblock}
+\begin{flowblock}{A3: Listing No Longer Available}
+At \ep{Check Availability} if the listing is no longer Live (for example already reserved, deleted, or taken down by the admin),\par
+\st{1.}{The system informs the Seller that the offer can no longer be accepted, and marks it as declined.}
+\st{2.}{The flow of events is resumed at \ep{Select Offer}.}
+\end{flowblock}
+\begin{flowblock}{A4: Invalid Counter Offer}
+At \ep{Validate Counter} if the counter price is not a positive amount, or the counter dates are invalid (end before start, start in the past, or longer than the lending duration),\par
+\st{1.}{The system informs the Seller which value is invalid.}
+\st{2.}{The flow of events is resumed at \ep{Begin Countering}.}
+\end{flowblock}
+\begin{flowblock}{A5: Cancel Action}
+At any point between \ep{Begin Accepting} and \ep{Confirm Accept}, between \ep{Begin Declining} and \ep{Confirm Decline}, or between \ep{Begin Countering} and \ep{Confirm Counter},\par
+\st{1.}{The Seller can cancel the action.}
+\st{2.}{The flow of events is resumed at \ep{Select Offer}.}
+\end{flowblock}
+\ucsec{Special Requirements}
+\begin{itemize}
+  \item Accepting is atomic: if two acceptances on the same listing happen at the same time, only the first succeeds.
+\end{itemize}
+
+% ---------------------------------------------------------------------
+\usecase{Manage Seller Profile}{2.6}
+\ucsec{Brief Description}
+This use case describes how a Seller updates their full name, password, bio and preferred meet-up locations.\par
+\ucsec{Use-case Diagram}
+\ucdiagram{uc_Manage_Seller_Profile}
+\ucsec{Preconditions}
+The Seller is logged in.\par
+\ucsec{Basic Flow}
+\st{1.}{The use case begins when the Seller actor chooses to manage their profile.}
+\st{2.}{The system displays the Seller's username (not editable), full name, bio and preferred meet-up locations.}
+\eppoint{Edit Profile}
+\st{3.}{The Seller changes the full name, bio and/or preferred meet-up locations.}
+\st{4.}{If the Seller wants to change the password}
+\sti{4.1.}{The Seller enters the current password, the new password and the confirm password.}
+\eppoint{Save Profile}
+\st{5.}{The Seller saves the changes.}
+\eppoint{Validate Profile}
+\st{6.}{The system checks the changes.}
+\st{7.}{The system saves the changes, storing a new password in hashed form.}
+\st{8.}{The system confirms to the Seller that the profile has been updated.}
+\st{9.}{The use case ends.}
+\ucsec{Alternative Flows}
+\begin{flowblock}{A1: Empty Full Name}
+At \ep{Validate Profile} if the full name is empty,\par
+\st{1.}{The system informs the Seller that the full name is required.}
+\st{2.}{The flow of events is resumed at \ep{Edit Profile}.}
+\end{flowblock}
+\begin{flowblock}{A2: Wrong Current Password}
+At \ep{Validate Profile} if the Seller is changing the password and the current password is incorrect,\par
+\st{1.}{The system informs the Seller that the current password is incorrect, and saves nothing.}
+\st{2.}{The flow of events is resumed at \ep{Edit Profile}.}
+\end{flowblock}
+\begin{flowblock}{A3: Invalid New Password}
+At \ep{Validate Profile} if the new password does not meet the password rules or does not match the confirm password,\par
+\st{1.}{The system informs the Seller which rule is not met.}
+\st{2.}{The flow of events is resumed at \ep{Edit Profile}.}
+\end{flowblock}
+\begin{flowblock}{A4: Cancel Changes}
+At any point between \ep{Edit Profile} and \ep{Save Profile},\par
+\st{1.}{The Seller can cancel the changes.}
+\st{2.}{The system discards the changes and the use case ends.}
+\end{flowblock}
+\ucsec{Special Requirements}
+\begin{itemize}
+  \item The password rules are the same as for registration.
+\end{itemize}
+
+% ---------------------------------------------------------------------
+\usecase{View Seller Notifications}{2.7}
+\ucsec{Brief Description}
+This use case describes how a Seller views their notifications, such as listing approvals and rejections, new offers, reviews received and completed deals.\par
+\ucsec{Use-case Diagram}
+\ucdiagram{uc_View_Seller_Notifications}
+\ucsec{Preconditions}
+The Seller is logged in.\par
+\ucsec{Basic Flow}
+\st{1.}{The use case begins when the Seller actor chooses to view their notifications.}
+\st{2.}{The system displays the Seller's notifications, newest first, each with a timestamp, a category and a message. Unread notifications are highlighted. The categories are:}
+\begin{itemize}
+  \item Listing Review: listing approved or rejected, with the admin's reason for a rejection
+  \item Offers And Requests: new offer, borrow request or claim received
+  \item Reviews: rating or review received from a buyer
+  \item Deals: buyer marked a deal complete
+  \item Announcements: other important announcements
+\end{itemize}
+\eppoint{Select Notification}
+\st{3.}{The Seller selects a notification.}
+\eppoint{Show Related Item}
+\st{4.}{The system marks the notification as read and displays the related listing, offer, review or deal.}
+\st{5.}{The use case ends.}
+\ucsec{Alternative Flows}
+\begin{flowblock}{A1: No Notifications}
+At \ep{Select Notification} if the Seller has no notifications,\par
+\st{1.}{The system informs the Seller that there are no notifications.}
+\st{2.}{The use case ends.}
+\end{flowblock}
+\begin{flowblock}{A2: Filter By Category}
+At \ep{Select Notification} if the Seller chooses a category,\par
+\st{1.}{The system displays only the notifications in that category.}
+\st{2.}{The flow of events is resumed at \ep{Select Notification}.}
+\end{flowblock}
+\begin{flowblock}{A3: Related Item No Longer Exists}
+At \ep{Show Related Item} if the related listing, offer or review has been deleted,\par
+\st{1.}{The system marks the notification as read, displays its message, and informs the Seller that the item is no longer available.}
+\st{2.}{The use case ends.}
+\end{flowblock}
+
+% ---------------------------------------------------------------------
+\usecase{View Seller Statistics}{2.8}
+\ucsec{Brief Description}
+This use case describes how a Seller views statistics on their listings (views, offers received, completed deals and average rating) with a bar chart and a pie chart.\par
+\ucsec{Use-case Diagram}
+\ucdiagram{uc_View_Seller_Statistics}
+\ucsec{Preconditions}
+The Seller is logged in.\par
+\ucsec{Basic Flow}
+\st{1.}{The use case begins when the Seller actor chooses to view their statistics.}
+\eppoint{Compute Statistics}
+\st{2.}{The system computes, over the Seller's listings: the total number of views (counted each time a listing's detail page is opened), the number of offers received (offers, borrow requests and claims), the number of completed deals, and the Seller's average rating (ratings hidden by the admin are not counted).}
+\st{3.}{The system displays these four values. If the Seller has no ratings, the average rating is shown as ``No ratings yet''.}
+\eppoint{Show Charts}
+\st{4.}{The system displays a bar chart of the views and offers received for each listing.}
+\st{5.}{The system displays a pie chart of the completed deals by type (Sold, Lent, Given).}
+\st{6.}{The use case ends.}
+\ucsec{Alternative Flows}
+\begin{flowblock}{A1: No Listings}
+At \ep{Compute Statistics} if the Seller has no listings,\par
+\st{1.}{The system displays zero values and a message in place of the charts.}
+\st{2.}{The use case ends.}
+\end{flowblock}
+\begin{flowblock}{A2: No Completed Deals}
+At \ep{Show Charts} if the Seller has no completed deals,\par
+\st{1.}{The system displays the bar chart, and a message in place of the pie chart.}
+\st{2.}{The use case ends.}
+\end{flowblock}
+
+% ---------------------------------------------------------------------
+\usecase{Handle Reviews}{2.9}
+\ucsec{Brief Description}
+This use case describes how a Seller reads the reviews and ratings buyers gave them, replies to a review, or flags an inappropriate review for the admin.\par
+\ucsec{Use-case Diagram}
+\ucdiagram{uc_Handle_Reviews}
+\ucsec{Preconditions}
+The Seller is logged in.\par
+\ucsec{Basic Flow}
+\st{1.}{The use case begins when the Seller actor chooses to view their reviews.}
+\st{2.}{The system displays the Seller's average rating and all reviews from buyers, newest first, each with the buyer, the listing, the star rating (1 to 5), the written review, the date and any reply. Reviews hidden by the admin are not shown.}
+\eppoint{Select Review}
+\st{3.}{While the Seller has a review to handle}
+\sti{3.1.}{If REPLY is selected for a review}
+\stii{3.1.1.}{Perform subflow \subflowref{Reply To Review}.}
+\sti{3.2.}{If FLAG is selected for a review}
+\stii{3.2.1.}{Perform subflow \subflowref{Flag Review}.}
+\st{4.}{The use case ends.}
+\ucsec{Subflows}
+\begin{flowblock}{S1: Reply To Review}
+\eppoint{Begin Reply}
+\st{1.}{The Seller writes a reply.}
+\eppoint{Confirm Reply}
+\st{2.}{The Seller submits the reply.}
+\eppoint{Save Reply}
+\st{3.}{The system saves the reply under the review and notifies the buyer who wrote the review.}
+\st{4.}{The system informs the Seller that the reply has been posted.}
+\end{flowblock}
+\begin{flowblock}{S2: Flag Review}
+\eppoint{Begin Flag}
+\st{1.}{The Seller selects a reason for flagging (for example offensive language, or not related to the deal).}
+\eppoint{Confirm Flag}
+\st{2.}{The Seller confirms the flag.}
+\st{3.}{The system marks the review as flagged and notifies the admin for moderation. The review stays visible until the admin decides.}
+\st{4.}{The system informs the Seller that the review has been flagged.}
+\end{flowblock}
+\ucsec{Alternative Flows}
+\begin{flowblock}{A1: No Reviews}
+At \ep{Select Review} if the Seller has no reviews,\par
+\st{1.}{The system informs the Seller that there are no reviews yet.}
+\st{2.}{The use case ends.}
+\end{flowblock}
+\begin{flowblock}{A2: Empty Reply}
+At \ep{Save Reply} if the reply is empty,\par
+\st{1.}{The system informs the Seller that the reply cannot be empty.}
+\st{2.}{The flow of events is resumed at \ep{Begin Reply}.}
+\end{flowblock}
+\begin{flowblock}{A3: Already Replied}
+At \ep{Begin Reply} if the Seller has already replied to this review,\par
+\st{1.}{The system informs the Seller that each review can have only one reply.}
+\st{2.}{The flow of events is resumed at \ep{Select Review}.}
+\end{flowblock}
+\begin{flowblock}{A4: Already Flagged}
+At \ep{Begin Flag} if the review is already flagged,\par
+\st{1.}{The system informs the Seller that the review is awaiting the admin's decision.}
+\st{2.}{The flow of events is resumed at \ep{Select Review}.}
+\end{flowblock}
+\begin{flowblock}{A5: Cancel Action}
+At any point between \ep{Begin Reply} and \ep{Confirm Reply} or between \ep{Begin Flag} and \ep{Confirm Flag},\par
+\st{1.}{The Seller can cancel the action.}
+\st{2.}{The flow of events is resumed at \ep{Select Review}.}
+\end{flowblock}

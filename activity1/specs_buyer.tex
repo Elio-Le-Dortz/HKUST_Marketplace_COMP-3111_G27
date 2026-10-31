@@ -1,0 +1,618 @@
+% =====================================================================
+% 3.1 Task 1: Buyer Portal  (11 use-case specifications, Style 2)
+% =====================================================================
+
+% ---------------------------------------------------------------------
+\clearpage
+\sectionhead{3.1 Task 1: Buyer Portal}
+\usecasetitle{Register As Buyer}{1.1}
+\ucsec{Brief Description}
+This use case describes how a student or staff member creates a Buyer account so that they can browse listings and make offers.\par
+\ucsec{Use-case Diagram}
+\ucdiagram{uc_Register_As_Buyer}
+\ucsec{Basic Flow}
+\st{1.}{The use case begins when the Buyer actor chooses to register a buyer account.}
+\st{2.}{The system displays the buyer registration form.}
+\eppoint{Enter Details}
+\st{3.}{The Buyer enters a username, full name, password and confirm password, and optionally a residence hall or off-campus location.}
+\eppoint{Submit Registration}
+\st{4.}{The Buyer submits the form.}
+\eppoint{Validate Details}
+\st{5.}{The system checks that the username is unique across all buyer, seller and admin accounts, the full name is not empty, the password meets the password rules, and the confirm password matches the password.}
+\st{6.}{The system creates the Buyer account, storing the password in hashed form.}
+\st{7.}{The system informs the Buyer that the registration succeeded and displays the Buyer login screen.}
+\st{8.}{The use case ends.}
+\ucsec{Postconditions}
+If the use case ends successfully, a new Buyer account is stored and can be used to log in to the Buyer Portal.\par
+\ucsec{Alternative Flows}
+\begin{flowblock}{A1: Duplicate Username}
+At \ep{Validate Details} if the username is already used by any buyer, seller or admin account,\par
+\st{1.}{The system informs the Buyer that the username is already taken.}
+\st{2.}{The flow of events is resumed at \ep{Enter Details}.}
+\end{flowblock}
+\begin{flowblock}{A2: Empty Required Field}
+At \ep{Validate Details} if the username, full name or password is empty,\par
+\st{1.}{The system highlights the empty fields.}
+\st{2.}{The flow of events is resumed at \ep{Enter Details}.}
+\end{flowblock}
+\begin{flowblock}{A3: Weak Password}
+At \ep{Validate Details} if the password does not meet the password rules,\par
+\st{1.}{The system informs the Buyer which password rules are not met.}
+\st{2.}{The flow of events is resumed at \ep{Enter Details}.}
+\end{flowblock}
+\begin{flowblock}{A4: Passwords Do Not Match}
+At \ep{Validate Details} if the confirm password does not match the password,\par
+\st{1.}{The system informs the Buyer that the passwords do not match.}
+\st{2.}{The flow of events is resumed at \ep{Enter Details}.}
+\end{flowblock}
+\begin{flowblock}{A5: Cancel Registration}
+At any point between \ep{Enter Details} and \ep{Submit Registration},\par
+\st{1.}{The Buyer can cancel the registration.}
+\st{2.}{The use case ends and no account is created.}
+\end{flowblock}
+\ucsec{Special Requirements}
+\begin{itemize}
+  \item Passwords are stored hashed, never in plaintext.
+  \item Password rules: at least 8 characters, with at least one uppercase letter, one lowercase letter and one digit.
+\end{itemize}
+
+% ---------------------------------------------------------------------
+\usecase{Log In As Buyer}{1.2}
+\ucsec{Brief Description}
+This use case describes how a registered Buyer logs in to access the Buyer Portal.\par
+\ucsec{Use-case Diagram}
+\ucdiagram{uc_Log_In_As_Buyer}
+\ucsec{Basic Flow}
+\st{1.}{The use case begins when the Buyer actor chooses to log in to the Buyer Portal.}
+\st{2.}{The system displays the login screen.}
+\eppoint{Enter Credentials}
+\st{3.}{The Buyer enters a username and password and submits them.}
+\eppoint{Validate Credentials}
+\st{4.}{The system checks the username and password against the registered user accounts.}
+\eppoint{Check Account Type}
+\st{5.}{The system checks that the account is an active Buyer account.}
+\st{6.}{The system starts a Buyer session and displays the Buyer dashboard.}
+\st{7.}{The use case ends.}
+\ucsec{Alternative Flows}
+\begin{flowblock}{A1: Empty Field}
+At \ep{Validate Credentials} if the username or password is empty,\par
+\st{1.}{The system informs the Buyer that both fields are required.}
+\st{2.}{The flow of events is resumed at \ep{Enter Credentials}.}
+\end{flowblock}
+\begin{flowblock}{A2: Invalid Credentials}
+At \ep{Validate Credentials} if the username does not exist or the password is incorrect,\par
+\st{1.}{The system informs the Buyer that the username or password is incorrect, without saying which one.}
+\st{2.}{The flow of events is resumed at \ep{Enter Credentials}.}
+\end{flowblock}
+\begin{flowblock}{A3: Wrong Account Type}
+At \ep{Check Account Type} if the account is a seller or admin account,\par
+\st{1.}{The system informs the user that this account cannot log in to the Buyer Portal and must use its own portal.}
+\st{2.}{The flow of events is resumed at \ep{Enter Credentials}.}
+\end{flowblock}
+\begin{flowblock}{A4: Account Deactivated}
+At \ep{Check Account Type} if the Buyer account has been deactivated by the admin,\par
+\st{1.}{The system informs the Buyer that the account is deactivated.}
+\st{2.}{The use case ends.}
+\end{flowblock}
+\ucsec{Special Requirements}
+\begin{itemize}
+  \item Every Buyer-only function checks the Buyer session on the server side, so a seller or admin session cannot call it even without the user interface.
+\end{itemize}
+
+% ---------------------------------------------------------------------
+\usecase{Browse Marketplace}{1.3}
+\ucsec{Brief Description}
+This use case describes how a Buyer browses, searches and filters the list of live listings available on the marketplace.\par
+\ucsec{Use-case Diagram}
+\ucdiagram{uc_Browse_Marketplace}
+\ucsec{Preconditions}
+The Buyer is logged in.\par
+\ucsec{Basic Flow}
+\st{1.}{The use case begins when the Buyer actor chooses to browse the marketplace.}
+\st{2.}{The system retrieves all listings with status Live and displays them, each showing the title, seller name, category, listing type (Sell / Lend / GiveAway), price (if type is Sell), condition, meet-up location, posted date, availability status and thumbnail photo.}
+\eppoint{Select Activity}
+\st{3.}{While the Buyer has an activity to perform}
+\sti{3.1.}{If SEARCH is selected}
+\stii{3.1.1.}{Perform subflow \subflowref{Search Listings}.}
+\sti{3.2.}{If FILTER is selected}
+\stii{3.2.1.}{Perform subflow \subflowref{Filter Listings}.}
+\sti{3.3.}{If SORT is selected}
+\stii{3.3.1.}{Perform subflow \subflowref{Sort Listings}.}
+\st{4.}{The use case ends.}
+\ucsec{Subflows}
+\begin{flowblock}{S1: Search Listings}
+\eppoint{Enter Search Query}
+\st{1.}{The Buyer enters a keyword or title.}
+\eppoint{Apply Search}
+\st{2.}{The system displays all Live listings whose title or description contain the keyword.}
+\end{flowblock}
+\begin{flowblock}{S2: Filter Listings}
+\eppoint{Enter Filter Criteria}
+\st{1.}{The Buyer selects one or more filter criteria: category, listing type, price range or condition.}
+\eppoint{Apply Filter}
+\st{2.}{The system displays all Live listings that match all the selected criteria.}
+\end{flowblock}
+\begin{flowblock}{S3: Sort Listings}
+\eppoint{Select Sort Order}
+\st{1.}{The Buyer selects a sort order: newest first, price low-to-high or price high-to-low.}
+\eppoint{Apply Sort}
+\st{2.}{The system redisplays the current listing results in the selected order.}
+\end{flowblock}
+\ucsec{Alternative Flows}
+\begin{flowblock}{A1: No Listings Match}
+At \ep{Apply Search} or \ep{Apply Filter} if no Live listings match the query or criteria,\par
+\st{1.}{The system informs the Buyer that no listings match and displays an empty list.}
+\st{2.}{The flow of events is resumed at \ep{Select Activity}.}
+\end{flowblock}
+\begin{flowblock}{A2: No Live Listings}
+At the initial display in step 2 if there are no Live listings at all,\par
+\st{1.}{The system informs the Buyer that there are no listings available yet.}
+\st{2.}{The use case ends.}
+\end{flowblock}
+
+% ---------------------------------------------------------------------
+\usecase{View Listing Details}{1.4}
+\ucsec{Brief Description}
+This use case describes how a Buyer opens a listing's detail page to see all its information, the seller's identity and average rating, and the available action buttons.\par
+\ucsec{Use-case Diagram}
+\ucdiagram{uc_View_Listing_Details}
+\ucsec{Preconditions}
+The Buyer is logged in.\par
+\ucsec{Basic Flow}
+\st{1.}{The use case begins when the Buyer actor selects a listing from the Browse Marketplace screen or from the My Deals screen.}
+\st{2.}{The system increments the listing's view count.}
+\st{3.}{The system displays the listing's full details: all photos (up to 6), title, full description, category, listing type, condition, meet-up location, posted date, availability status, price (Sell listings), lending duration (Lend listings), seller name and the seller's average rating.}
+\st{4.}{The system displays the action button appropriate to the listing type: Make Offer (Sell), Borrow Request (Lend) or Claim (GiveAway), as well as a Chat button and a Report Listing button.}
+\st{5.}{The use case ends.}
+\ucsec{Alternative Flows}
+\begin{flowblock}{A1: Listing No Longer Live}
+At step 1 if the listing's status is no longer Live (for example it has been Reserved, Removed or Rejected after the Buyer navigated to it),\par
+\st{1.}{The system informs the Buyer that the listing is no longer available.}
+\st{2.}{The use case ends.}
+\end{flowblock}
+\begin{flowblock}{A2: Seller Has No Rating}
+At step 3 if the seller has not yet received any rating,\par
+\st{1.}{The system displays ``No ratings yet'' in place of the seller's average rating.}
+\st{2.}{The flow of events is resumed at step 4.}
+\end{flowblock}
+\begin{flowblock}{A3: Report Listing}
+At step 4 if the Buyer selects Report Listing,\par
+\st{1.}{The system displays a form asking for a written reason.}
+\st{2.}{The Buyer enters the reason and submits the report.}
+\st{3.}{The system stores the report with status Open and notifies the admin.}
+\st{4.}{The system confirms to the Buyer that the report has been submitted.}
+\st{5.}{The use case ends.}
+\end{flowblock}
+
+% ---------------------------------------------------------------------
+\usecase{Act On Listing}{1.5}
+\ucsec{Brief Description}
+This use case describes how a Buyer acts on a listing by submitting a price offer on a Sell listing, a borrow request on a Lend listing, or a claim on a GiveAway listing.\par
+\ucsec{Use-case Diagram}
+\ucdiagram{uc_Act_On_Listing}
+\ucsec{Preconditions}
+The Buyer is logged in and is viewing the Listing Detail screen.\par
+\ucsec{Basic Flow}
+\st{1.}{The use case begins when the Buyer actor selects an action button on the Listing Detail screen.}
+\eppoint{Check Availability}
+\st{2.}{The system checks that the listing is still Live.}
+\eppoint{Select Action}
+\st{3.}{If the listing type is Sell}
+\sti{3.1.}{Perform subflow \subflowref{Submit Price Offer}.}
+\st{4.}{If the listing type is Lend}
+\sti{4.1.}{Perform subflow \subflowref{Submit Borrow Request}.}
+\st{5.}{If the listing type is GiveAway}
+\sti{5.1.}{Perform subflow \subflowref{Claim Item}.}
+\st{6.}{The use case ends.}
+\ucsec{Subflows}
+\begin{flowblock}{S1: Submit Price Offer}
+\eppoint{Enter Offer Price}
+\st{1.}{The Buyer enters a proposed price.}
+\eppoint{Confirm Offer}
+\st{2.}{The Buyer submits the offer.}
+\eppoint{Validate Offer}
+\st{3.}{The system checks that the proposed price is a positive amount.}
+\st{4.}{The system stores the offer with status Pending and notifies the seller.}
+\st{5.}{The system confirms to the Buyer that the offer has been submitted.}
+\end{flowblock}
+\begin{flowblock}{S2: Submit Borrow Request}
+\eppoint{Enter Borrow Dates}
+\st{1.}{The Buyer enters a proposed start date and end date for the borrow period.}
+\eppoint{Confirm Borrow Request}
+\st{2.}{The Buyer submits the borrow request.}
+\eppoint{Validate Borrow Request}
+\st{3.}{The system checks that the start date is not in the past, the end date is after the start date, and the borrow period is at least 5 seconds.}
+\st{4.}{The system stores the borrow request as an Offer with status Pending and notifies the seller.}
+\st{5.}{The system confirms to the Buyer that the borrow request has been submitted.}
+\end{flowblock}
+\begin{flowblock}{S3: Claim Item}
+\eppoint{Confirm Claim}
+\st{1.}{The Buyer confirms the claim with a single action.}
+\eppoint{Record Claim}
+\st{2.}{The system atomically checks that the listing is still Live and no claim has already been accepted.}
+\st{3.}{The system stores the claim as an Offer with status Pending and notifies the seller.}
+\st{4.}{The system confirms to the Buyer that the claim has been submitted.}
+\end{flowblock}
+\ucsec{Postconditions}
+If the use case ends successfully, an Offer with status Pending is stored and linked to the listing and the Buyer. The listing remains Live until the seller accepts the offer.\par
+\ucsec{Alternative Flows}
+\begin{flowblock}{A1: Listing No Longer Available}
+At \ep{Check Availability} if the listing is no longer Live,\par
+\st{1.}{The system informs the Buyer that the listing is no longer available and the action cannot be performed.}
+\st{2.}{The use case ends.}
+\end{flowblock}
+\begin{flowblock}{A2: Invalid Offer Price}
+At \ep{Validate Offer} if the proposed price is not a positive amount,\par
+\st{1.}{The system informs the Buyer that the price must be a positive amount.}
+\st{2.}{The flow of events is resumed at \ep{Enter Offer Price}.}
+\end{flowblock}
+\begin{flowblock}{A3: Invalid Borrow Dates}
+At \ep{Validate Borrow Request} if the start date is in the past, the end date is not after the start date, or the borrow period is less than 5 seconds,\par
+\st{1.}{The system informs the Buyer which date rule is not met.}
+\st{2.}{The flow of events is resumed at \ep{Enter Borrow Dates}.}
+\end{flowblock}
+\begin{flowblock}{A4: Giveaway Already Claimed}
+At \ep{Record Claim} if another buyer's claim on the same GiveAway listing has already been accepted concurrently,\par
+\st{1.}{The system informs the Buyer that the item has already been claimed.}
+\st{2.}{The use case ends.}
+\end{flowblock}
+\begin{flowblock}{A5: Cancel Action}
+At any point between \ep{Enter Offer Price} and \ep{Confirm Offer}, between \ep{Enter Borrow Dates} and \ep{Confirm Borrow Request}, or at \ep{Confirm Claim} before the Buyer confirms,\par
+\st{1.}{The Buyer can cancel the action.}
+\st{2.}{The use case ends and nothing is stored.}
+\end{flowblock}
+\ucsec{Special Requirements}
+\begin{itemize}
+  \item Claiming a GiveAway item is atomic: if two buyers submit a claim at the same time, only the first one succeeds.
+  \item The minimum borrow period for a Lend listing is 5 seconds (for testing purposes).
+\end{itemize}
+
+% ---------------------------------------------------------------------
+\usecase{Chat About Listing}{1.5}
+\ucsec{Brief Description}
+This use case describes how a Buyer and a Seller exchange free-text messages and formal offers in a private chat thread linked to a specific listing.\par
+\ucsec{Use-case Diagram}
+\ucdiagram{uc_Chat_About_Listing}
+\ucsec{Preconditions}
+The Buyer is logged in and is viewing the Listing Detail screen or My Deals screen.\par
+\ucsec{Basic Flow}
+\st{1.}{The use case begins when the Buyer actor selects the Chat button on the Listing Detail screen or reopens a chat thread from the My Deals screen.}
+\st{2.}{The system displays the chat thread between this Buyer and the listing's seller, with all previous messages shown in chronological order.}
+\eppoint{Select Activity}
+\st{3.}{While the Buyer has an activity to perform}
+\sti{3.1.}{If SEND MESSAGE is selected}
+\stii{3.1.1.}{Perform subflow \subflowref{Send Message}.}
+\sti{3.2.}{If MAKE OFFER is selected}
+\stii{3.2.1.}{Perform subflow \subflowref{Send Formal Offer}.}
+\sti{3.3.}{If SEARCH CHAT is selected}
+\stii{3.3.1.}{Perform subflow \subflowref{Search Chat History}.}
+\st{4.}{The use case ends.}
+\ucsec{Subflows}
+\begin{flowblock}{S1: Send Message}
+\eppoint{Enter Message}
+\st{1.}{The Buyer types a free-text message.}
+\eppoint{Send Message}
+\st{2.}{The Buyer sends the message.}
+\st{3.}{The system stores the message with a timestamp and displays it in the chat thread.}
+\st{4.}{The system sends a notification to the seller that a new chat message has been received.}
+\end{flowblock}
+\begin{flowblock}{S2: Send Formal Offer}
+\eppoint{Enter Formal Offer}
+\st{1.}{For a Sell listing, the Buyer enters a proposed price. For a Lend listing, the Buyer enters a proposed borrow period.}
+\eppoint{Confirm Formal Offer}
+\st{2.}{The Buyer submits the formal offer.}
+\st{3.}{The system stores the offer as an Offer with status Pending, appends it to the chat thread as a structured message, and notifies the seller.}
+\st{4.}{The system confirms to the Buyer that the formal offer has been sent.}
+\end{flowblock}
+\begin{flowblock}{S3: Search Chat History}
+\eppoint{Enter Search Term}
+\st{1.}{The Buyer enters a keyword to search within the chat.}
+\eppoint{Show Search Results}
+\st{2.}{The system highlights all messages in the thread that contain the keyword.}
+\end{flowblock}
+\ucsec{Alternative Flows}
+\begin{flowblock}{A1: Empty Message}
+At \ep{Send Message} if the message is empty,\par
+\st{1.}{The system informs the Buyer that the message cannot be empty.}
+\st{2.}{The flow of events is resumed at \ep{Enter Message}.}
+\end{flowblock}
+\begin{flowblock}{A2: No Chat History}
+At step 2 if this is the first time the Buyer opens this chat thread,\par
+\st{1.}{The system displays an empty thread with a prompt to start the conversation.}
+\st{2.}{The flow of events is resumed at \ep{Select Activity}.}
+\end{flowblock}
+\begin{flowblock}{A3: No Search Results}
+At \ep{Show Search Results} if no messages match the keyword,\par
+\st{1.}{The system informs the Buyer that no messages match.}
+\st{2.}{The flow of events is resumed at \ep{Select Activity}.}
+\end{flowblock}
+\begin{flowblock}{A4: Seller Replies}
+At any point while the chat thread is open, if the seller sends a message or a formal counter offer,\par
+\st{1.}{The system appends the seller's message or counter offer to the chat thread in real time.}
+\st{2.}{The flow of events is resumed at \ep{Select Activity}.}
+\end{flowblock}
+\ucsec{Special Requirements}
+\begin{itemize}
+  \item All chat messages are retained permanently and are searchable.
+  \item Each chat thread is private to the Buyer and the Seller of the linked listing.
+\end{itemize}
+
+% ---------------------------------------------------------------------
+\usecase{Manage My Deals}{1.6}
+\ucsec{Brief Description}
+This use case describes how a Buyer views all their active and past deals, withdraws a pending offer, responds to a counter offer, self-returns a borrowed item, or marks a deal complete.\par
+\ucsec{Use-case Diagram}
+\ucdiagram{uc_Manage_My_Deals}
+\ucsec{Preconditions}
+The Buyer is logged in.\par
+\ucsec{Basic Flow}
+\st{1.}{The use case begins when the Buyer actor chooses to view their deals.}
+\st{2.}{The system displays all the Buyer's current offers (status Pending or Countered), active deals (status Active) and past completed deals (status Completed or Returned), each showing the listing title, seller name, deal type, status and due date (for borrowed items).}
+\eppoint{Select Activity}
+\st{3.}{While the Buyer has an activity to perform}
+\sti{3.1.}{If WITHDRAW is selected on a Pending offer}
+\stii{3.1.1.}{Perform subflow \subflowref{Withdraw Offer}.}
+\sti{3.2.}{If ACCEPT COUNTER is selected on a Countered offer}
+\stii{3.2.1.}{Perform subflow \subflowref{Accept Counter Offer}.}
+\sti{3.3.}{If DECLINE COUNTER is selected on a Countered offer}
+\stii{3.3.1.}{Perform subflow \subflowref{Decline Counter Offer}.}
+\sti{3.4.}{If RETURN is selected on an Active borrowed deal}
+\stii{3.4.1.}{Perform subflow \subflowref{Self Return Item}.}
+\sti{3.5.}{If MARK COMPLETE is selected on an Active deal}
+\stii{3.5.1.}{Perform subflow \subflowref{Mark Deal Complete}.}
+\sti{3.6.}{If OPEN LISTING or OPEN CHAT is selected}
+\stii{3.6.1.}{The system displays the listing detail or chat thread linked to the selected deal.}
+\st{4.}{The use case ends.}
+\ucsec{Subflows}
+\begin{flowblock}{S1: Withdraw Offer}
+\eppoint{Begin Withdrawing}
+\st{1.}{The system asks the Buyer to confirm the withdrawal.}
+\eppoint{Confirm Withdraw}
+\st{2.}{The Buyer confirms the withdrawal.}
+\st{3.}{The system marks the offer as Withdrawn. The listing remains Live.}
+\st{4.}{The system notifies the seller that the offer has been withdrawn.}
+\st{5.}{The system informs the Buyer that the offer has been withdrawn.}
+\end{flowblock}
+\begin{flowblock}{S2: Accept Counter Offer}
+\eppoint{Begin Accepting Counter}
+\st{1.}{The system displays the seller's counter price or counter borrow dates and asks the Buyer to confirm acceptance.}
+\eppoint{Confirm Accept Counter}
+\st{2.}{The Buyer confirms acceptance.}
+\st{3.}{The system records the deal, updates the listing status to Reserved (Sell or GiveAway) or Lent (Lend), and marks the counter offer as Accepted.}
+\st{4.}{The system declines all other pending offers on this listing and notifies those buyers.}
+\st{5.}{The system notifies the seller that the counter offer was accepted.}
+\st{6.}{The system informs the Buyer that the counter offer has been accepted.}
+\end{flowblock}
+\begin{flowblock}{S3: Decline Counter Offer}
+\eppoint{Begin Declining Counter}
+\st{1.}{The system asks the Buyer to confirm the decline.}
+\eppoint{Confirm Decline Counter}
+\st{2.}{The Buyer confirms the decline.}
+\st{3.}{The system marks the counter offer as Declined. The listing remains Live.}
+\st{4.}{The system notifies the seller that the counter offer was declined.}
+\st{5.}{The system informs the Buyer that the counter offer has been declined.}
+\end{flowblock}
+\begin{flowblock}{S4: Self Return Item}
+\eppoint{Begin Returning}
+\st{1.}{The system asks the Buyer to confirm the early return of the borrowed item.}
+\eppoint{Confirm Return}
+\st{2.}{The Buyer confirms the return.}
+\st{3.}{The system marks the deal as Returned and sets the listing status back to Live.}
+\st{4.}{The system notifies the seller that the item has been returned.}
+\st{5.}{The system informs the Buyer that the return has been recorded.}
+\end{flowblock}
+\begin{flowblock}{S5: Mark Deal Complete}
+\eppoint{Begin Completing}
+\st{1.}{The system asks the Buyer to confirm completion of the deal.}
+\eppoint{Confirm Complete}
+\st{2.}{The Buyer confirms completion.}
+\st{3.}{The system marks the deal as Completed and updates the listing status to Sold (Sale deal) or Given (Giveaway deal).}
+\st{4.}{The system notifies the seller that the deal has been marked complete.}
+\st{5.}{The system prompts the Buyer to rate the seller.}
+\end{flowblock}
+\ucsec{Postconditions}
+After a successful return (S4) or completion (S5), the deal status is updated and the listing status reflects the outcome. The seller's My Listings screen shows the updated status.\par
+\ucsec{Alternative Flows}
+\begin{flowblock}{A1: No Deals}
+At \ep{Select Activity} if the Buyer has no offers or deals,\par
+\st{1.}{The system informs the Buyer that there are no deals yet.}
+\st{2.}{The use case ends.}
+\end{flowblock}
+\begin{flowblock}{A2: Offer No Longer Pending}
+At \ep{Begin Withdrawing} if the offer has already been accepted, declined or countered,\par
+\st{1.}{The system informs the Buyer that the offer status has changed and refreshes the list.}
+\st{2.}{The flow of events is resumed at \ep{Select Activity}.}
+\end{flowblock}
+\begin{flowblock}{A3: Counter Offer No Longer Valid}
+At \ep{Begin Accepting Counter} if the listing is no longer Live (for example removed by the admin),\par
+\st{1.}{The system informs the Buyer that the counter offer can no longer be accepted.}
+\st{2.}{The flow of events is resumed at \ep{Select Activity}.}
+\end{flowblock}
+\begin{flowblock}{A4: Auto Return}
+When the borrow period of an active borrowed deal expires,\par
+\st{1.}{The system automatically marks the deal as Returned and sets the listing status back to Live.}
+\st{2.}{The system notifies the seller that the item has been auto-returned.}
+\st{3.}{The system notifies the Buyer that their borrowed item has been auto-returned.}
+\end{flowblock}
+\begin{flowblock}{A5: Cancel Activity}
+At any point between \ep{Begin Withdrawing} and \ep{Confirm Withdraw}, between \ep{Begin Accepting Counter} and \ep{Confirm Accept Counter}, between \ep{Begin Declining Counter} and \ep{Confirm Decline Counter}, between \ep{Begin Returning} and \ep{Confirm Return}, or between \ep{Begin Completing} and \ep{Confirm Complete},\par
+\st{1.}{The Buyer can cancel the activity.}
+\st{2.}{The flow of events is resumed at \ep{Select Activity}.}
+\end{flowblock}
+
+% ---------------------------------------------------------------------
+\usecase{Manage Buyer Profile}{1.7}
+\ucsec{Brief Description}
+This use case describes how a Buyer updates their full name, password and optional residence hall preference.\par
+\ucsec{Use-case Diagram}
+\ucdiagram{uc_Manage_Buyer_Profile}
+\ucsec{Preconditions}
+The Buyer is logged in.\par
+\ucsec{Basic Flow}
+\st{1.}{The use case begins when the Buyer actor chooses to manage their profile.}
+\st{2.}{The system displays the Buyer's username (not editable), full name and residence hall preference.}
+\eppoint{Edit Profile}
+\st{3.}{The Buyer changes the full name and/or the residence hall preference.}
+\st{4.}{If the Buyer wants to change the password}
+\sti{4.1.}{The Buyer enters the current password, the new password and the confirm password.}
+\eppoint{Save Profile}
+\st{5.}{The Buyer saves the changes.}
+\eppoint{Validate Profile}
+\st{6.}{The system checks the changes.}
+\st{7.}{The system saves the changes, storing a new password in hashed form.}
+\st{8.}{The system confirms to the Buyer that the profile has been updated.}
+\st{9.}{The use case ends.}
+\ucsec{Alternative Flows}
+\begin{flowblock}{A1: Empty Full Name}
+At \ep{Validate Profile} if the full name is empty,\par
+\st{1.}{The system informs the Buyer that the full name is required.}
+\st{2.}{The flow of events is resumed at \ep{Edit Profile}.}
+\end{flowblock}
+\begin{flowblock}{A2: Wrong Current Password}
+At \ep{Validate Profile} if the Buyer is changing the password and the current password is incorrect,\par
+\st{1.}{The system informs the Buyer that the current password is incorrect, and saves nothing.}
+\st{2.}{The flow of events is resumed at \ep{Edit Profile}.}
+\end{flowblock}
+\begin{flowblock}{A3: Invalid New Password}
+At \ep{Validate Profile} if the new password does not meet the password rules or does not match the confirm password,\par
+\st{1.}{The system informs the Buyer which rule is not met.}
+\st{2.}{The flow of events is resumed at \ep{Edit Profile}.}
+\end{flowblock}
+\begin{flowblock}{A4: Cancel Changes}
+At any point between \ep{Edit Profile} and \ep{Save Profile},\par
+\st{1.}{The Buyer can cancel the changes.}
+\st{2.}{The system discards the changes and the use case ends.}
+\end{flowblock}
+\ucsec{Special Requirements}
+\begin{itemize}
+  \item The password rules are the same as for registration.
+\end{itemize}
+
+% ---------------------------------------------------------------------
+\usecase{View Buyer Notifications}{1.8}
+\ucsec{Brief Description}
+This use case describes how a Buyer views their notifications, such as offer decisions, new chat messages, borrow due-date reminders, listing removal alerts and seller replies to reviews.\par
+\ucsec{Use-case Diagram}
+\ucdiagram{uc_View_Buyer_Notifications}
+\ucsec{Preconditions}
+The Buyer is logged in.\par
+\ucsec{Basic Flow}
+\st{1.}{The use case begins when the Buyer actor chooses to view their notifications.}
+\st{2.}{The system displays the Buyer's notifications, newest first, each with a timestamp, a category and a message. Unread notifications are highlighted. The categories are:}
+\begin{itemize}
+  \item Offers: offer accepted, declined or countered by a seller
+  \item Chat: new chat message received from a seller
+  \item Borrow Reminders: borrow due-date reminders for active borrowed items
+  \item Listings: a listing the Buyer had an open offer on was removed by the admin
+  \item Reviews: seller replied to a review submitted by this Buyer
+  \item Announcements: other important announcements
+\end{itemize}
+\eppoint{Select Notification}
+\st{3.}{The Buyer selects a notification.}
+\eppoint{Show Related Item}
+\st{4.}{The system marks the notification as read and displays the related offer, chat thread, deal, listing or review.}
+\st{5.}{The use case ends.}
+\ucsec{Alternative Flows}
+\begin{flowblock}{A1: No Notifications}
+At \ep{Select Notification} if the Buyer has no notifications,\par
+\st{1.}{The system informs the Buyer that there are no notifications.}
+\st{2.}{The use case ends.}
+\end{flowblock}
+\begin{flowblock}{A2: Filter By Category}
+At \ep{Select Notification} if the Buyer chooses a category filter,\par
+\st{1.}{The system displays only the notifications in that category.}
+\st{2.}{The flow of events is resumed at \ep{Select Notification}.}
+\end{flowblock}
+\begin{flowblock}{A3: Related Item No Longer Exists}
+At \ep{Show Related Item} if the related listing, offer or review has been deleted,\par
+\st{1.}{The system marks the notification as read, displays its message, and informs the Buyer that the item is no longer available.}
+\st{2.}{The use case ends.}
+\end{flowblock}
+
+% ---------------------------------------------------------------------
+\usecase{View Deal History}{1.9}
+\ucsec{Brief Description}
+This use case describes how a Buyer views the full history of their completed deals, with filtering and search capabilities.\par
+\ucsec{Use-case Diagram}
+\ucdiagram{uc_View_Deal_History}
+\ucsec{Preconditions}
+The Buyer is logged in.\par
+\ucsec{Basic Flow}
+\st{1.}{The use case begins when the Buyer actor chooses to view their deal history.}
+\st{2.}{The system displays all the Buyer's completed deals (status Completed or Returned), each showing the item title, seller name, deal type (Sale / Loan / Giveaway), deal date, return or completion date, and outcome.}
+\eppoint{Select Activity}
+\st{3.}{While the Buyer has an activity to perform}
+\sti{3.1.}{If FILTER is selected}
+\stii{3.1.1.}{Perform subflow \subflowref{Filter History}.}
+\sti{3.2.}{If SEARCH is selected}
+\stii{3.2.1.}{Perform subflow \subflowref{Search History}.}
+\st{4.}{The use case ends.}
+\ucsec{Subflows}
+\begin{flowblock}{S1: Filter History}
+\eppoint{Enter Filter Criteria}
+\st{1.}{The Buyer selects one or more filter criteria: date range, category or seller.}
+\eppoint{Apply Filter}
+\st{2.}{The system displays only the completed deals that match all the selected criteria.}
+\end{flowblock}
+\begin{flowblock}{S2: Search History}
+\eppoint{Enter Search Term}
+\st{1.}{The Buyer enters a keyword (item title or seller name).}
+\eppoint{Apply Search}
+\st{2.}{The system displays all completed deals whose item title or seller name contains the keyword.}
+\end{flowblock}
+\ucsec{Alternative Flows}
+\begin{flowblock}{A1: No Completed Deals}
+At step 2 if the Buyer has no completed deals,\par
+\st{1.}{The system informs the Buyer that there is no deal history yet.}
+\st{2.}{The use case ends.}
+\end{flowblock}
+\begin{flowblock}{A2: No Results Match}
+At \ep{Apply Filter} or \ep{Apply Search} if no completed deals match the criteria or keyword,\par
+\st{1.}{The system informs the Buyer that no deals match and displays an empty list.}
+\st{2.}{The flow of events is resumed at \ep{Select Activity}.}
+\end{flowblock}
+
+% ---------------------------------------------------------------------
+\usecase{Rate Seller}{1.10}
+\ucsec{Brief Description}
+This use case describes how a Buyer submits a written review and a star rating for a seller after completing a deal.\par
+\ucsec{Use-case Diagram}
+\ucdiagram{uc_Rate_Seller}
+\ucsec{Preconditions}
+The Buyer is logged in and has just marked a deal complete (or has been prompted to rate the seller from the My Deals screen).\par
+\ucsec{Basic Flow}
+\st{1.}{The use case begins when the system prompts the Buyer to rate the seller, or the Buyer selects a completed deal and chooses to rate the seller.}
+\st{2.}{The system displays the rating form, showing the seller's name and the item that was dealt.}
+\eppoint{Enter Rating}
+\st{3.}{The Buyer selects a star rating from 1 to 5 and optionally writes a review text.}
+\eppoint{Submit Rating}
+\st{4.}{The Buyer submits the rating.}
+\eppoint{Validate Rating}
+\st{5.}{The system checks that a star rating has been selected.}
+\st{6.}{The system stores the review (rating, text, date, buyer and linked listing) and updates the seller's average rating.}
+\st{7.}{The system notifies the seller that a new review has been received.}
+\st{8.}{The system confirms to the Buyer that the review has been submitted.}
+\st{9.}{The use case ends.}
+\ucsec{Postconditions}
+If the use case ends successfully, the review is stored and visible on the seller's profile and on each of their listing detail pages. The seller's average rating is recalculated to include the new rating.\par
+\ucsec{Alternative Flows}
+\begin{flowblock}{A1: No Star Rating Selected}
+At \ep{Validate Rating} if the Buyer has not selected a star rating,\par
+\st{1.}{The system informs the Buyer that a star rating is required.}
+\st{2.}{The flow of events is resumed at \ep{Enter Rating}.}
+\end{flowblock}
+\begin{flowblock}{A2: Already Rated This Deal}
+At step 1 if the Buyer has already submitted a rating for this deal,\par
+\st{1.}{The system informs the Buyer that this deal has already been rated.}
+\st{2.}{The use case ends.}
+\end{flowblock}
+\begin{flowblock}{A3: Skip Rating}
+At step 1 if the Buyer chooses to skip the rating prompt,\par
+\st{1.}{The Buyer dismisses the prompt.}
+\st{2.}{The use case ends and no rating is stored.}
+\end{flowblock}
+\begin{flowblock}{A4: Cancel Rating}
+At any point between \ep{Enter Rating} and \ep{Submit Rating},\par
+\st{1.}{The Buyer can cancel the rating.}
+\st{2.}{The use case ends and no rating is stored.}
+\end{flowblock}

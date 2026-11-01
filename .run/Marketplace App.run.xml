@@ -1,0 +1,9 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="Marketplace App" type="Application" factoryName="Application">
+    <option name="MAIN_CLASS_NAME" value="com.hkust.marketplace.Launcher" />
+    <module name="marketplace" />
+    <method v="2">
+      <option name="Make" enabled="true" />
+    </method>
+  </configuration>
+</component>

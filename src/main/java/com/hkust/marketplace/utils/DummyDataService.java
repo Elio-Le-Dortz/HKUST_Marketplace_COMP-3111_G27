@@ -178,7 +178,15 @@ public class DummyDataService {
     }
 
     // ========== User methods ==========
-    public boolean usernameExists(String username) {
+
+    /**
+     * Tells whether any account (buyer, seller or admin, whatever its status) already
+     * uses a username, ignoring case. Soft-deleted accounts keep their username reserved.
+     *
+     * @param username the username to look up; must not be {@code null}
+     * @return {@code true} if the username is taken, {@code false} otherwise
+     */
+    public synchronized boolean usernameExists(String username) {
         return users.containsKey(username.toLowerCase());
     }
 
@@ -188,6 +196,19 @@ public class DummyDataService {
 
     public void registerUser(User user) {
         users.put(user.getUsername().toLowerCase(), user);
+    }
+
+    /**
+     * Atomically stores a new user only if no account of any role already uses the
+     * same username, ignoring case. Synchronized so that two concurrent registrations
+     * with the same username cannot both succeed (only the first one is stored).
+     *
+     * @param user the user to store; its username must not be {@code null}
+     * @return {@code true} if the user was stored, {@code false} if the username was
+     *         already taken (in which case nothing is changed)
+     */
+    public synchronized boolean registerUserIfAbsent(User user) {
+        return users.putIfAbsent(user.getUsername().toLowerCase(), user) == null;
     }
 
     public Collection<User> getAllUsers() {

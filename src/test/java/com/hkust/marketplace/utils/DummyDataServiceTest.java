@@ -59,4 +59,38 @@ class DummyDataServiceTest {
         assertNotNull(admin);
         assertEquals(UserRole.ADMIN, admin.getRole());
     }
+
+    @Test
+    @DisplayName("registerUserIfAbsent stores a new user once and rejects the same username in any case")
+    void testRegisterUserIfAbsent() {
+        DummyDataService service = DummyDataService.getInstance();
+        Seller first = new Seller("unique_seller_s01", "First Seller", "hash");
+        assertTrue(service.registerUserIfAbsent(first));
+        assertSame(first, service.findUser("unique_seller_s01"));
+
+        Seller sameNameOtherCase = new Seller("UNIQUE_Seller_S01", "Second Seller", "hash");
+        assertFalse(service.registerUserIfAbsent(sameNameOtherCase));
+        assertSame(first, service.findUser("unique_seller_s01"), "Existing account must not be overwritten");
+    }
+
+    @Test
+    @DisplayName("Seeded sellers have hashed passwords that still accept the demo password")
+    void testSeededSellerPasswordsAreHashed() {
+        DummyDataService service = DummyDataService.getInstance();
+        for (String seller : new String[]{"charlie", "diana"}) {
+            String stored = service.findUser(seller).getPasswordHash();
+            assertNotEquals("password1", stored);
+            assertTrue(PasswordHasher.verify("password1", stored));
+        }
+    }
+
+    @Test
+    @DisplayName("registerUserIfAbsent rejects usernames held by other roles")
+    void testRegisterUserIfAbsentAcrossRoles() {
+        DummyDataService service = DummyDataService.getInstance();
+        User existingBuyer = service.findUser("alice");
+        assertFalse(service.registerUserIfAbsent(new Seller("alice", "Impostor", "hash")));
+        assertSame(existingBuyer, service.findUser("alice"));
+        assertFalse(service.registerUserIfAbsent(new Seller("admin", "Impostor", "hash")));
+    }
 }

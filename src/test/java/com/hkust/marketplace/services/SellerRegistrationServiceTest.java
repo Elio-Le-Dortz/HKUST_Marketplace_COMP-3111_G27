@@ -11,12 +11,19 @@ import com.hkust.marketplace.utils.PasswordPolicy;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -358,6 +365,50 @@ class SellerRegistrationServiceTest {
 
             assertTrue(result.hasError(RegistrationField.PASSWORD));
             assertTrue(result.hasError(RegistrationField.CONFIRM_PASSWORD));
+        }
+    }
+
+    @Nested
+    @DisplayName("Concurrency: simultaneous registrations")
+    class Concurrency {
+
+        private static final int ATTEMPTS = 10;
+
+        @Test
+        @Timeout(60)
+        @DisplayName("10 simultaneous registrations of one username: exactly one succeeds")
+        void onlyOneConcurrentRegistrationSucceeds() throws Exception {
+            String username = uniqueUsername();
+            ExecutorService pool = Executors.newFixedThreadPool(ATTEMPTS);
+            CountDownLatch ready = new CountDownLatch(ATTEMPTS);
+            CountDownLatch start = new CountDownLatch(1);
+            try {
+                List<Future<RegistrationResult<Seller>>> futures = new ArrayList<>();
+                for (int i = 0; i < ATTEMPTS; i++) {
+                    futures.add(pool.submit(() -> {
+                        ready.countDown();
+                        start.await();
+                        return service.register(validRequest(username));
+                    }));
+                }
+                assertTrue(ready.await(10, TimeUnit.SECONDS), "All threads should be ready");
+                start.countDown();
+
+                int successes = 0;
+                for (Future<RegistrationResult<Seller>> future : futures) {
+                    RegistrationResult<Seller> result = future.get(30, TimeUnit.SECONDS);
+                    if (result.isSuccess()) {
+                        successes++;
+                        assertSame(result.getUser(), data.findUser(username), "The winner must be the stored account");
+                    } else {
+                        assertEquals(List.of(SellerRegistrationService.USERNAME_TAKEN),
+                                result.getErrorsFor(RegistrationField.USERNAME));
+                    }
+                }
+                assertEquals(1, successes, "Exactly one registration may win the username");
+            } finally {
+                pool.shutdownNow();
+            }
         }
     }
 }

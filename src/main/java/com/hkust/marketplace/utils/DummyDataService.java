@@ -86,14 +86,16 @@ public class DummyDataService {
         Buyer buyer2 = new Buyer("bob", "Bob Wong", "password1", "Off-campus");
         users.put("bob", buyer2);
 
-        // Sample sellers
-        Seller seller1 = new Seller("charlie", "Charlie Lee", "password1", "Final year CSE student selling textbooks and gadgets.");
+        // Sample sellers (passwords stored hashed, as for sellers who register)
+        Seller seller1 = new Seller("charlie", "Charlie Lee", PasswordHasher.hash("password1"),
+                "Final year CSE student selling textbooks and gadgets.");
         seller1.setPreferredMeetup("Library");
         seller1.setAverageRating(4.7);
         seller1.setRatingCount(12);
         users.put("charlie", seller1);
 
-        Seller seller2 = new Seller("diana", "Diana Ng", "password1", "Selling furniture and kitchen items before graduation.");
+        Seller seller2 = new Seller("diana", "Diana Ng", PasswordHasher.hash("password1"),
+                "Selling furniture and kitchen items before graduation.");
         seller2.setPreferredMeetup("Hall 5 Lobby");
         seller2.setAverageRating(4.3);
         seller2.setRatingCount(8);

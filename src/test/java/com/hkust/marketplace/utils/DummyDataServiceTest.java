@@ -74,6 +74,17 @@ class DummyDataServiceTest {
     }
 
     @Test
+    @DisplayName("Seeded sellers have hashed passwords that still accept the demo password")
+    void testSeededSellerPasswordsAreHashed() {
+        DummyDataService service = DummyDataService.getInstance();
+        for (String seller : new String[]{"charlie", "diana"}) {
+            String stored = service.findUser(seller).getPasswordHash();
+            assertNotEquals("password1", stored);
+            assertTrue(PasswordHasher.verify("password1", stored));
+        }
+    }
+
+    @Test
     @DisplayName("registerUserIfAbsent rejects usernames held by other roles")
     void testRegisterUserIfAbsentAcrossRoles() {
         DummyDataService service = DummyDataService.getInstance();

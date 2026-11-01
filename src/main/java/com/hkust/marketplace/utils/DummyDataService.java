@@ -80,8 +80,7 @@ public class DummyDataService {
 
     private void seedData() {
         // Admin
-        Admin admin = new Admin(SEEDED_ADMIN_USERNAME, SEEDED_ADMIN_FULLNAME, SEEDED_ADMIN_PASSWORD);
-        users.put(SEEDED_ADMIN_USERNAME, admin);
+        seedAdmin();
 
         // Sample buyers
         Buyer buyer1 = new Buyer("alice", "Alice Chan", "password1", "Hall 3");
@@ -160,6 +159,20 @@ public class DummyDataService {
         r1.setRating(5);
         r1.setComment("Very smooth transaction, book in excellent condition!");
         reviews.add(r1);
+    }
+
+    /**
+     * Call inside the DummyDataService constructor / seed initialization method.
+     */
+    private void seedAdmin() {
+        users.values().removeIf(u -> u.getRole() == UserRole.ADMIN);
+        Admin seededAdmin = new Admin(
+                SEEDED_ADMIN_USERNAME,
+                SEEDED_ADMIN_FULLNAME,
+                SEEDED_ADMIN_PASSWORD
+        );
+        seededAdmin.setActive(true);
+        users.put(SEEDED_ADMIN_USERNAME, seededAdmin);
     }
 
     private Listing createListing(String title, String desc, String cat, ListingType type,

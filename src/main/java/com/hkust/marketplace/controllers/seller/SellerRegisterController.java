@@ -28,17 +28,34 @@ public class SellerRegisterController {
     /** Style class of a field that failed validation (defined in {@code styles.css}). */
     private static final String FIELD_ERROR_CLASS = "field-error";
 
+    /** Username input (required). */
     @FXML private TextField usernameField;
+    /** Full name input (required). */
     @FXML private TextField fullNameField;
+    /** Password input (required). */
     @FXML private PasswordField passwordField;
+    /** Confirm password input (required). */
     @FXML private PasswordField confirmPasswordField;
+    /** Container of the meet-up location check boxes (optional choices). */
     @FXML private FlowPane meetupPane;
+    /** Seller bio input (optional). */
     @FXML private TextArea bioArea;
+    /** Shows the validation errors of the last submission. */
     @FXML private Label errorLabel;
 
+    /** Validates and stores the registration. */
     private final SellerRegistrationService registrationService = new SellerRegistrationService();
+    /** Check box of each meet-up location. */
     private final Map<MeetupLocation, CheckBox> meetupBoxes = new EnumMap<>(MeetupLocation.class);
+    /** Input of each validated field, used to highlight the invalid ones. */
     private final Map<RegistrationField, TextInputControl> fieldInputs = new EnumMap<>(RegistrationField.class);
+
+    /**
+     * Creates the controller. Called by the FXML loader before it injects the fields.
+     */
+    public SellerRegisterController() {
+        // Fields are injected by the FXML loader, then initialize() is called.
+    }
 
     /**
      * Adds one check box per meet-up location and links each validated field to its

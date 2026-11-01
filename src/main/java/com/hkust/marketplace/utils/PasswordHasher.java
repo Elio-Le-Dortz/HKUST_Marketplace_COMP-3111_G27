@@ -26,16 +26,27 @@ public final class PasswordHasher {
     /** Number of PBKDF2 iterations used for new hashes. */
     public static final int ITERATIONS = 600_000;
 
+    /** JCA name of the key derivation algorithm. */
     private static final String ALGORITHM = "PBKDF2WithHmacSHA256";
+    /** First part of every stored hash, identifying the algorithm. */
     private static final String PREFIX = "pbkdf2_sha256";
+    /** Separator between the parts of a stored hash. */
     private static final String SEPARATOR = "$";
+    /** Length of the random salt, in bytes. */
     private static final int SALT_BYTES = 16;
+    /** Length of the derived key, in bits. */
     private static final int KEY_BITS = 256;
 
+    /** Source of the random salts. */
     private static final SecureRandom RANDOM = new SecureRandom();
+    /** Encodes the salt and key into the stored string. */
     private static final Base64.Encoder ENCODER = Base64.getEncoder().withoutPadding();
+    /** Decodes the salt and key from the stored string. */
     private static final Base64.Decoder DECODER = Base64.getDecoder();
 
+    /**
+     * Not used: this class only has static methods.
+     */
     private PasswordHasher() {
         // Utility class: not meant to be instantiated.
     }

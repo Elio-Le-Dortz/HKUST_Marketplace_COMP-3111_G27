@@ -53,6 +53,7 @@ public class SellerRegistrationService {
     /** Error reported when the confirm password differs from the password (A4). */
     public static final String PASSWORDS_DO_NOT_MATCH = "Passwords do not match.";
 
+    /** Where accounts are looked up and stored. */
     private final DummyDataService dataService;
 
     /**

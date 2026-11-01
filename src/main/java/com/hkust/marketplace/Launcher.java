@@ -12,6 +12,9 @@ package com.hkust.marketplace;
  */
 public final class Launcher {
 
+    /**
+     * Not used: this class is only an entry point.
+     */
     private Launcher() {
         // Entry point only: not meant to be instantiated.
     }

@@ -39,9 +39,13 @@ public final class PasswordPolicy {
     /** Rule description reported when the password has no digit. */
     public static final String RULE_DIGIT = "at least one digit";
 
+    /** Every rule description, in the order the rules are checked. */
     private static final List<String> ALL_RULES =
             List.of(RULE_MIN_LENGTH, RULE_UPPERCASE, RULE_LOWERCASE, RULE_DIGIT);
 
+    /**
+     * Not used: this class only has static methods.
+     */
     private PasswordPolicy() {
         // Utility class: not meant to be instantiated.
     }

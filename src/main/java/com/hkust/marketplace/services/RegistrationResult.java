@@ -19,9 +19,17 @@ import java.util.Objects;
  */
 public final class RegistrationResult<U extends User> {
 
+    /** The created account, or {@code null} if the registration was rejected. */
     private final U user;
+    /** The error messages of each invalid field; empty on success. */
     private final Map<RegistrationField, List<String>> errors;
 
+    /**
+     * Creates a result; use {@link #success(User)} or {@link #failure(Map)} instead.
+     *
+     * @param user   the created account, or {@code null} on failure
+     * @param errors the unmodifiable error messages of each invalid field
+     */
     private RegistrationResult(U user, Map<RegistrationField, List<String>> errors) {
         this.user = user;
         this.errors = errors;

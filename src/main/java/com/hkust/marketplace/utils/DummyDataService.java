@@ -66,6 +66,10 @@ public class DummyDataService {
             "New", "Like New", "Used", "For Parts"
     );
 
+    public static final String SEEDED_ADMIN_USERNAME = "admin";
+    public static final String SEEDED_ADMIN_FULLNAME = "HKUST Marketplace Admin";
+    public static final String SEEDED_ADMIN_PASSWORD = "admin123";
+
     private DummyDataService() {
         seedData();
     }
@@ -76,8 +80,8 @@ public class DummyDataService {
 
     private void seedData() {
         // Admin
-        Admin admin = new Admin("admin", "HKUST Marketplace Admin", "admin123");
-        users.put("admin", admin);
+        Admin admin = new Admin(SEEDED_ADMIN_USERNAME, SEEDED_ADMIN_FULLNAME, SEEDED_ADMIN_PASSWORD);
+        users.put(SEEDED_ADMIN_USERNAME, admin);
 
         // Sample buyers
         Buyer buyer1 = new Buyer("alice", "Alice Chan", "password1", "Hall 3");
@@ -179,16 +183,52 @@ public class DummyDataService {
 
     // ========== User methods ==========
     public boolean usernameExists(String username) {
-        return users.containsKey(username.toLowerCase());
+        if (username == null || username.trim().isEmpty()) {
+            return false;
+        }
+        return users.containsKey(username.trim().toLowerCase());
     }
 
     public User findUser(String username) {
-        return users.get(username.toLowerCase());
+        if (username == null || username.trim().isEmpty()) {
+            return null;
+        }
+        return users.get(username.trim().toLowerCase());
     }
 
     public void registerUser(User user) {
-        users.put(user.getUsername().toLowerCase(), user);
+        if (user == null) {
+            throw new IllegalArgumentException("User cannot be null.");
+        }
+        if (user.getRole() == UserRole.ADMIN || SEEDED_ADMIN_USERNAME.equalsIgnoreCase(user.getUsername().trim())) {
+            throw new IllegalArgumentException("Admin accounts cannot be registered.");
+        }
+        String key = user.getUsername().trim().toLowerCase();
+        if (users.containsKey(key)) {
+            throw new IllegalArgumentException("Username already exists.");
+        }
+        users.put(key, user);
     }
+
+    public void resetToSeedData() {
+        users.clear();
+        listings.clear();
+        deals.clear();
+        offers.clear();
+        reports.clear();
+        chatThreads.clear();
+        notifications.clear();
+        reviews.clear();
+        listingIdCounter.set(100);
+        dealIdCounter.set(500);
+        offerIdCounter.set(700);
+        reportIdCounter.set(300);
+        notifIdCounter.set(1);
+        reviewIdCounter.set(1);
+        threadIdCounter.set(1);
+        seedData();
+    }
+
 
     public Collection<User> getAllUsers() {
         return users.values();

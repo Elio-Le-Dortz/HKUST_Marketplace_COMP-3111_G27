@@ -20,13 +20,19 @@ public class DummyDataService {
     private final Map<String, User> users = new LinkedHashMap<>();
     private final Map<String, Listing> listings = new LinkedHashMap<>();
     private final List<Deal> deals = new ArrayList<>();
+    private final List<Offer> offers = new ArrayList<>();
+    private final List<Report> reports = new ArrayList<>();
+    private final List<ChatThread> chatThreads = new ArrayList<>();
     private final List<Notification> notifications = new ArrayList<>();
     private final List<Review> reviews = new ArrayList<>();
 
     private final AtomicInteger listingIdCounter = new AtomicInteger(100);
     private final AtomicInteger dealIdCounter = new AtomicInteger(500);
+    private final AtomicInteger offerIdCounter = new AtomicInteger(700);
+    private final AtomicInteger reportIdCounter = new AtomicInteger(300);
     private final AtomicInteger notifIdCounter = new AtomicInteger(1);
     private final AtomicInteger reviewIdCounter = new AtomicInteger(1);
+    private final AtomicInteger threadIdCounter = new AtomicInteger(1);
 
     // Predefined HKUST locations
     public static final List<String> HKUST_LOCATIONS = List.of(
@@ -70,29 +76,24 @@ public class DummyDataService {
 
     private void seedData() {
         // Admin
-        User admin = new User("admin", "System Admin", "admin123", UserRole.ADMIN);
-        admin.setFullName("HKUST Marketplace Admin");
+        Admin admin = new Admin("admin", "HKUST Marketplace Admin", "admin123");
         users.put("admin", admin);
 
         // Sample buyers
-        User buyer1 = new User("alice", "Alice Chan", "password1", UserRole.BUYER);
-        buyer1.setResidenceHall("Hall 3");
+        Buyer buyer1 = new Buyer("alice", "Alice Chan", "password1", "Hall 3");
         users.put("alice", buyer1);
 
-        User buyer2 = new User("bob", "Bob Wong", "password1", UserRole.BUYER);
-        buyer2.setResidenceHall("Off-campus");
+        Buyer buyer2 = new Buyer("bob", "Bob Wong", "password1", "Off-campus");
         users.put("bob", buyer2);
 
         // Sample sellers
-        User seller1 = new User("charlie", "Charlie Lee", "password1", UserRole.SELLER);
-        seller1.setBio("Final year CSE student selling textbooks and gadgets.");
+        Seller seller1 = new Seller("charlie", "Charlie Lee", "password1", "Final year CSE student selling textbooks and gadgets.");
         seller1.setPreferredMeetup("Library");
         seller1.setAverageRating(4.7);
         seller1.setRatingCount(12);
         users.put("charlie", seller1);
 
-        User seller2 = new User("diana", "Diana Ng", "password1", UserRole.SELLER);
-        seller2.setBio("Selling furniture and kitchen items before graduation.");
+        Seller seller2 = new Seller("diana", "Diana Ng", "password1", "Selling furniture and kitchen items before graduation.");
         seller2.setPreferredMeetup("Hall 5 Lobby");
         seller2.setAverageRating(4.3);
         seller2.setRatingCount(8);
@@ -257,6 +258,98 @@ public class DummyDataService {
             deal.setId("D" + dealIdCounter.getAndIncrement());
         }
         deals.add(deal);
+    }
+
+    /**
+     * Atomic claim for Giveaway items (Requirement 4.1: Concurrency on Giveaway items).
+     * Synchronized to guarantee first-come, first-served.
+     */
+    public synchronized boolean claimListing(String listingId, String buyerUsername) {
+        Listing l = listings.get(listingId);
+        if (l != null && l.getStatus() == ListingStatus.LIVE && l.getType() == ListingType.GIVEAWAY) {
+            l.setStatus(ListingStatus.GIVEN);
+            Deal d = new Deal();
+            d.setId("D" + dealIdCounter.getAndIncrement());
+            d.setListingId(l.getId());
+            d.setListingTitle(l.getTitle());
+            d.setBuyerUsername(buyerUsername);
+            d.setSellerUsername(l.getSellerUsername());
+            d.setType(DealType.GIVEAWAY);
+            d.setStatus(DealStatus.COMPLETED);
+            d.setClosedDate(LocalDateTime.now());
+            deals.add(d);
+
+            addNotification(new Notification(l.getSellerUsername(), "Item Claimed",
+                    buyerUsername + " claimed your giveaway item: " + l.getTitle(), "Offer"));
+            addNotification(new Notification(buyerUsername, "Claim Confirmed",
+                    "You successfully claimed: " + l.getTitle(), "Offer"));
+            return true;
+        }
+        return false;
+    }
+
+    // ========== Offer methods ==========
+    public List<Offer> getOffersForListing(String listingId) {
+        return offers.stream()
+                .filter(o -> o.getListingId().equals(listingId))
+                .collect(Collectors.toList());
+    }
+
+    public List<Offer> getOffersForBuyer(String username) {
+        return offers.stream()
+                .filter(o -> o.getBuyerUsername().equalsIgnoreCase(username))
+                .collect(Collectors.toList());
+    }
+
+    public List<Offer> getOffersForSeller(String username) {
+        return offers.stream()
+                .filter(o -> o.getSellerUsername().equalsIgnoreCase(username))
+                .collect(Collectors.toList());
+    }
+
+    public void addOffer(Offer offer) {
+        if (offer.getId() == null) {
+            offer.setId("O" + offerIdCounter.getAndIncrement());
+        }
+        offers.add(offer);
+    }
+
+    // ========== Report methods ==========
+    public List<Report> getAllReports() {
+        return new ArrayList<>(reports);
+    }
+
+    public void addReport(Report report) {
+        if (report.getId() == null) {
+            report.setId("REP" + reportIdCounter.getAndIncrement());
+        }
+        reports.add(report);
+    }
+
+    // ========== Chat methods ==========
+    public List<ChatThread> getChatThreadsForUser(String username) {
+        return chatThreads.stream()
+                .filter(t -> t.getBuyerUsername().equalsIgnoreCase(username)
+                        || t.getSellerUsername().equalsIgnoreCase(username))
+                .collect(Collectors.toList());
+    }
+
+    public synchronized ChatThread getOrCreateChatThread(String listingId, String buyerUsername, String sellerUsername) {
+        for (ChatThread t : chatThreads) {
+            if (t.getListingId().equals(listingId)
+                    && t.getBuyerUsername().equalsIgnoreCase(buyerUsername)
+                    && t.getSellerUsername().equalsIgnoreCase(sellerUsername)) {
+                return t;
+            }
+        }
+        ChatThread newThread = new ChatThread("T" + threadIdCounter.getAndIncrement(),
+                listingId, buyerUsername, sellerUsername);
+        Listing l = listings.get(listingId);
+        if (l != null) {
+            newThread.setListingTitle(l.getTitle());
+        }
+        chatThreads.add(newThread);
+        return newThread;
     }
 
     // ========== Notification methods ==========

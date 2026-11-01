@@ -1,0 +1,32 @@
+Sprint Tasks (Sprint Backlog),"Week 1 (Nov 02 - Nov 08)","Week 2 (Nov 09 - Nov 15)","Week 3 (Nov 16 - Nov 22)","Week 4 (Nov 23 - Nov 29)"
+"T1.1 Buyer Registration & Password Hashing (Charles)",6,2,0,0
+"T1.2 Buyer Login & Session Authorization (Charles)",5,1,0,0
+"T1.3 Marketplace Browse, Search & Filters (Charles)",8,6,1,0
+"T1.4 Listing Details & View Count Tracker (Charles)",6,4,0,0
+"T1.5 Submit Offer, Borrow Request & Atomic Claim (Charles)",10,7,2,0
+"T1.5 Private Chat Thread & Searchable Messages (Charles)",10,8,3,0
+"T1.6 My Deals, Early Return & Auto-Return Timer (Charles)",12,9,3,0
+"T1.7 Buyer Profile Management (Charles)",4,2,0,0
+"T1.8 Buyer Categorized Notification Board (Charles)",6,4,1,0
+"T1.9 Deal History with Filters (Charles)",6,4,1,0
+"T1.10 Rate Seller & Review System (Charles)",7,5,1,0
+"T2.1 Seller Registration & Bio Setup (Antoine)",5,1,0,0
+"T2.2 Seller Login & Role Enforcement (Antoine)",4,0,0,0
+"T2.3 Create Listing with Multi-Photo Upload (Antoine)",10,7,2,0
+"T2.4 My Listings Screen & Status Transitions (Antoine)",8,5,1,0
+"T2.5 Manage Incoming Offers, Decline & Counter (Antoine)",12,9,3,0
+"T2.6 Seller Profile & Meetup Locations (Antoine)",4,2,0,0
+"T2.7 Seller Notification System (Antoine)",6,4,1,0
+"T2.8 Seller Statistics Charts (Bar & Pie Charts) (Antoine)",8,6,2,0
+"T2.9 Review Handling, Single Reply & Flagging (Antoine)",7,5,1,0
+"T3.1 Admin Seeded Login (Elio)",4,0,0,0
+"T3.2 Listing Review Queue (Approve / Reject Reason) (Elio)",8,5,1,0
+"T3.3 User Management, Deactivate & Soft-Delete (Elio)",10,7,2,0
+"T3.4 Admin Profile Management (Elio)",4,2,0,0
+"T3.5 All Deals Record & Filtering (Elio)",6,4,1,0
+"T3.6 Admin Notification Board & Audit Log (Elio)",6,4,1,0
+"T3.7 Manage All Listings & Takedown with Reason (Elio)",10,7,2,0
+"T3.8 Moderation of Seller Ratings & Hide Review (Elio)",8,5,1,0
+"Integrated Unit Testing (>65% Branch Coverage) (Team)",16,12,6,0
+"JavaDoc & Final Submission Documentation (Team)",10,8,4,0
+Total hours,226,145,39,0

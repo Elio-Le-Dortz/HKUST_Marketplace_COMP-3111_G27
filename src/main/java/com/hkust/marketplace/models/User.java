@@ -3,70 +3,136 @@ package com.hkust.marketplace.models;
 import java.time.LocalDateTime;
 
 /**
- * Simple in-memory user model (no persistence).
- * TODO: Replace with real entity + repository when backend is added.
+ * Abstract domain model for User as defined in the UML Class Diagram.
+ * Subclasses: Buyer, Seller, Admin.
  */
-public class User {
+public abstract class User {
     private String username;
     private String fullName;
-    private String passwordHash; // In real app: never store plaintext
+    private String password; // In production: hashed credential
+    private AccountStatus accountStatus;
     private UserRole role;
-    private String residenceHall;   // Buyer optional
-    private String bio;             // Seller optional
-    private String preferredMeetup; // Seller optional
-    private boolean active = true;
     private LocalDateTime createdAt;
-    private double averageRating;   // For sellers
-    private int ratingCount;
 
     public User() {
         this.createdAt = LocalDateTime.now();
+        this.accountStatus = AccountStatus.ACTIVE;
     }
 
     public User(String username, String fullName, String password, UserRole role) {
         this();
         this.username = username;
         this.fullName = fullName;
-        this.passwordHash = password; // Demo only – in production hash it!
+        this.password = password;
         this.role = role;
     }
 
-    // Getters & Setters
-    public String getUsername() { return username; }
-    public void setUsername(String username) { this.username = username; }
+    // Common Getters & Setters
+    public String getUsername() {
+        return username;
+    }
 
-    public String getFullName() { return fullName; }
-    public void setFullName(String fullName) { this.fullName = fullName; }
+    public void setUsername(String username) {
+        this.username = username;
+    }
 
-    public String getPasswordHash() { return passwordHash; }
-    public void setPasswordHash(String passwordHash) { this.passwordHash = passwordHash; }
+    public String getFullName() {
+        return fullName;
+    }
 
-    public UserRole getRole() { return role; }
-    public void setRole(UserRole role) { this.role = role; }
+    public void setFullName(String fullName) {
+        this.fullName = fullName;
+    }
 
-    public String getResidenceHall() { return residenceHall; }
-    public void setResidenceHall(String residenceHall) { this.residenceHall = residenceHall; }
+    public String getPassword() {
+        return password;
+    }
 
-    public String getBio() { return bio; }
-    public void setBio(String bio) { this.bio = bio; }
+    public void setPassword(String password) {
+        this.password = password;
+    }
 
-    public String getPreferredMeetup() { return preferredMeetup; }
-    public void setPreferredMeetup(String preferredMeetup) { this.preferredMeetup = preferredMeetup; }
+    // Alias for passwordHash
+    public String getPasswordHash() {
+        return password;
+    }
 
-    public boolean isActive() { return active; }
-    public void setActive(boolean active) { this.active = active; }
+    public void setPasswordHash(String passwordHash) {
+        this.password = passwordHash;
+    }
 
-    public LocalDateTime getCreatedAt() { return createdAt; }
-    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
+    public AccountStatus getAccountStatus() {
+        return accountStatus;
+    }
 
-    public double getAverageRating() { return averageRating; }
-    public void setAverageRating(double averageRating) { this.averageRating = averageRating; }
+    public void setAccountStatus(AccountStatus accountStatus) {
+        this.accountStatus = accountStatus;
+    }
 
-    public int getRatingCount() { return ratingCount; }
-    public void setRatingCount(int ratingCount) { this.ratingCount = ratingCount; }
+    public UserRole getRole() {
+        return role;
+    }
 
-    @Override
-    public String toString() {
-        return fullName + " (@" + username + ")";
+    public void setRole(UserRole role) {
+        this.role = role;
+    }
+
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
+    }
+
+    public void setCreatedAt(LocalDateTime createdAt) {
+        this.createdAt = createdAt;
+    }
+
+    // Helper status methods
+    public boolean isActive() {
+        return accountStatus == AccountStatus.ACTIVE;
+    }
+
+    public void setActive(boolean active) {
+        this.accountStatus = active ? AccountStatus.ACTIVE : AccountStatus.DEACTIVATED;
+    }
+
+    // Default implementations for subclass-specific properties
+    // to provide backward compatibility with existing code
+    public String getResidenceHall() {
+        return null;
+    }
+
+    public void setResidenceHall(String residenceHall) {
+        // default no-op
+    }
+
+    public String getBio() {
+        return null;
+    }
+
+    public void setBio(String bio) {
+        // default no-op
+    }
+
+    public String getPreferredMeetup() {
+        return null;
+    }
+
+    public void setPreferredMeetup(String preferredMeetup) {
+        // default no-op
+    }
+
+    public double getAverageRating() {
+        return 0.0;
+    }
+
+    public void setAverageRating(double averageRating) {
+        // default no-op
+    }
+
+    public int getRatingCount() {
+        return 0;
+    }
+
+    public void setRatingCount(int ratingCount) {
+        // default no-op
     }
 }

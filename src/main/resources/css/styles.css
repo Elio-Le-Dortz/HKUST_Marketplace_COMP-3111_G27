@@ -281,3 +281,28 @@
 .hyperlink:hover {
     -fx-text-fill: #A68137;
 }
+
+/* ---------- Browse & Filters ---------- */
+.filter-box {
+    -fx-background-color: white;
+    -fx-background-radius: 12;
+    -fx-padding: 16;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.06), 6, 0, 0, 2);
+}
+
+.thumbnail-placeholder {
+    -fx-background-color: #eef2f7;
+    -fx-background-radius: 8;
+    -fx-alignment: center;
+    -fx-min-height: 120px;
+    -fx-pref-height: 120px;
+    -fx-max-height: 120px;
+}
+
+.empty-state-box {
+    -fx-background-color: white;
+    -fx-background-radius: 12;
+    -fx-padding: 40;
+    -fx-alignment: center;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.06), 8, 0, 0, 2);
+}

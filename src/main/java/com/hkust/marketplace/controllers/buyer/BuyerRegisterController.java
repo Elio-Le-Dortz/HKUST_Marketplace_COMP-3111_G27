@@ -1,14 +1,21 @@
 package com.hkust.marketplace.controllers.buyer;
 
-import com.hkust.marketplace.models.Buyer;
-import com.hkust.marketplace.models.User;
-import com.hkust.marketplace.models.UserRole;
+import com.hkust.marketplace.models.RegistrationResult;
 import com.hkust.marketplace.utils.DummyDataService;
 import com.hkust.marketplace.utils.SceneManager;
 import javafx.collections.FXCollections;
 import javafx.fxml.FXML;
-import javafx.scene.control.*;
+import javafx.scene.control.ComboBox;
+import javafx.scene.control.Label;
+import javafx.scene.control.PasswordField;
+import javafx.scene.control.TextField;
 
+import java.util.Set;
+
+/**
+ * Controller for the Buyer Registration screen (US-B01).
+ * Strictly decoupled: all validation and persistence logic is delegated to DummyDataService.
+ */
 public class BuyerRegisterController {
 
     @FXML private TextField usernameField;
@@ -31,45 +38,65 @@ public class BuyerRegisterController {
     @FXML
     private void handleRegister() {
         hideMessages();
+        clearFieldHighlights();
 
-        String username = usernameField.getText().trim();
-        String fullName = fullNameField.getText().trim();
+        String username = usernameField.getText();
+        String fullName = fullNameField.getText();
         String password = passwordField.getText();
         String confirm = confirmPasswordField.getText();
         String residence = residenceCombo.getValue();
 
-        // Validation
-        if (username.isEmpty()) {
-            showError("Username is required.");
-            return;
-        }
-        if (DummyDataService.getInstance().usernameExists(username)) {
-            showError("Username already taken. Please choose another.");
-            return;
-        }
-        if (fullName.isEmpty()) {
-            showError("Full Name cannot be empty.");
-            return;
-        }
-        String pwdCheck = DummyDataService.checkPasswordStrength(password);
-        if (!"OK".equals(pwdCheck)) {
-            showError(pwdCheck);
-            return;
-        }
-        if (!password.equals(confirm)) {
-            showError("Passwords do not match.");
+        RegistrationResult result = DummyDataService.getInstance()
+                .registerBuyer(username, fullName, password, confirm, residence);
+
+        if (!result.isSuccess()) {
+            highlightErrorFields(result.getErrorFields());
+            showError(result.getMessage());
             return;
         }
 
-        // Create buyer
-        Buyer user = new Buyer(username.toLowerCase(), fullName, password);
-        if (residence != null) {
-            user.setResidenceHall(residence);
-        }
-        DummyDataService.getInstance().registerUser(user);
+        showSuccess("Registration successful! You can now log in.");
+        clearForm();
+    }
 
-        showSuccess("Registration successful! You can now login.");
-        // Clear form
+    /**
+     * Alternative Flow A5: Cancel Registration.
+     * Clears input and returns to the Buyer Login screen.
+     */
+    @FXML
+    private void handleCancel() {
+        clearForm();
+        clearFieldHighlights();
+        hideMessages();
+        SceneManager.showBuyerLogin();
+    }
+
+    private void highlightErrorFields(Set<String> fields) {
+        if (fields == null || fields.isEmpty()) {
+            return;
+        }
+        if (fields.contains("username") && !usernameField.getStyleClass().contains("field-error")) {
+            usernameField.getStyleClass().add("field-error");
+        }
+        if (fields.contains("fullName") && !fullNameField.getStyleClass().contains("field-error")) {
+            fullNameField.getStyleClass().add("field-error");
+        }
+        if (fields.contains("password") && !passwordField.getStyleClass().contains("field-error")) {
+            passwordField.getStyleClass().add("field-error");
+        }
+        if (fields.contains("confirmPassword") && !confirmPasswordField.getStyleClass().contains("field-error")) {
+            confirmPasswordField.getStyleClass().add("field-error");
+        }
+    }
+
+    private void clearFieldHighlights() {
+        usernameField.getStyleClass().remove("field-error");
+        fullNameField.getStyleClass().remove("field-error");
+        passwordField.getStyleClass().remove("field-error");
+        confirmPasswordField.getStyleClass().remove("field-error");
+    }
+
+    private void clearForm() {
         usernameField.clear();
         fullNameField.clear();
         passwordField.clear();

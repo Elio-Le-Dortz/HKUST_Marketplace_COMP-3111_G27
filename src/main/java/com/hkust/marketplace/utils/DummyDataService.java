@@ -415,11 +415,11 @@ public class DummyDataService {
     }
 
     // ========== Listing methods ==========
-    public Collection<Listing> getAllListings() {
-        return listings.values();
+    public synchronized Collection<Listing> getAllListings() {
+        return new ArrayList<>(listings.values());
     }
 
-    public List<Listing> getLiveListings() {
+    public synchronized List<Listing> getLiveListings() {
         return listings.values().stream()
                 .filter(l -> l.getStatus() == ListingStatus.LIVE)
                 .collect(Collectors.toList());
@@ -433,41 +433,41 @@ public class DummyDataService {
      * @return filtered and sorted list of live listings
      */
     public synchronized List<Listing> getFilteredLiveListings(ListingFilterCriteria criteria) {
-        return listingFilterService.filterAndSort(listings.values(), criteria);
+        return listingFilterService.filterAndSort(new ArrayList<>(listings.values()), criteria);
     }
 
     public ListingFilterService getListingFilterService() {
         return listingFilterService;
     }
 
-    public List<Listing> getPendingListings() {
+    public synchronized List<Listing> getPendingListings() {
         return listings.values().stream()
                 .filter(l -> l.getStatus() == ListingStatus.PENDING_REVIEW)
                 .collect(Collectors.toList());
     }
 
-    public List<Listing> getListingsBySeller(String username) {
+    public synchronized List<Listing> getListingsBySeller(String username) {
         return listings.values().stream()
                 .filter(l -> l.getSellerUsername().equalsIgnoreCase(username))
                 .collect(Collectors.toList());
     }
 
-    public Listing findListing(String id) {
+    public synchronized Listing findListing(String id) {
         return listings.get(id);
     }
 
-    public void addListing(Listing listing) {
+    public synchronized void addListing(Listing listing) {
         if (listing.getId() == null) {
             listing.setId("L" + listingIdCounter.getAndIncrement());
         }
         listings.put(listing.getId(), listing);
     }
 
-    public void updateListing(Listing listing) {
+    public synchronized void updateListing(Listing listing) {
         listings.put(listing.getId(), listing);
     }
 
-    public void removeListing(String id) {
+    public synchronized void removeListing(String id) {
         listings.remove(id);
     }
 

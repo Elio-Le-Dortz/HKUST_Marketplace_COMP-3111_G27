@@ -1,3 +1,10 @@
 target/
 .idea/
 *.iml
+
+# Local Agent customizations (not committed to VCS)
+.agents/
+.agent/
+agent.md
+AGENTS.md
+GEMINI.md

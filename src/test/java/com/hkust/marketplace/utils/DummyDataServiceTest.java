@@ -54,10 +54,31 @@ class DummyDataServiceTest {
         assertTrue(service.usernameExists("admin"));
         assertTrue(service.usernameExists("alice"));
         assertFalse(service.usernameExists("non_existent_user"));
+        assertFalse(service.usernameExists(null));
 
         User admin = service.findUser("admin");
         assertNotNull(admin);
         assertEquals(UserRole.ADMIN, admin.getRole());
+        assertNull(service.findUser(null));
+
+        assertFalse(service.getAllUsers().isEmpty());
+        assertEquals(2, service.getUsersByRole(UserRole.BUYER).size());
+
+        assertThrows(IllegalArgumentException.class, () -> service.registerUser(null));
+        Buyer invalidBuyer = new Buyer();
+        assertThrows(IllegalArgumentException.class, () -> service.registerUser(invalidBuyer));
+    }
+
+    @Test
+    @DisplayName("Reset data restores default state")
+    void testResetData() {
+        DummyDataService service = DummyDataService.getInstance();
+        service.registerUser(new Buyer("tempuser", "Temp", "Pass1234!"));
+        assertTrue(service.usernameExists("tempuser"));
+
+        service.resetData();
+        assertFalse(service.usernameExists("tempuser"));
+        assertTrue(service.usernameExists("admin"));
     }
 
     @Test

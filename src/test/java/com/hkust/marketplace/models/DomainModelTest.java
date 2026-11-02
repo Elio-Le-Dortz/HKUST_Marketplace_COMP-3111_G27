@@ -150,4 +150,45 @@ class DomainModelTest {
         assertEquals(2, thread.getMessages().size());
         assertEquals("alice", thread.getMessages().get(0).getSenderUsername());
     }
+
+    @Test
+    @DisplayName("Buyer and User model constructors, getters and setters")
+    void testBuyerAndUserAccessors() {
+        Buyer defaultBuyer = new Buyer();
+        assertEquals(UserRole.BUYER, defaultBuyer.getRole());
+        assertEquals(AccountStatus.ACTIVE, defaultBuyer.getAccountStatus());
+        assertNotNull(defaultBuyer.getCreatedAt());
+
+        Buyer threeArgBuyer = new Buyer("user3", "User Three", "hashedPwd");
+        assertEquals("user3", threeArgBuyer.getUsername());
+        assertEquals("User Three", threeArgBuyer.getFullName());
+        assertEquals("hashedPwd", threeArgBuyer.getPassword());
+        assertEquals("hashedPwd", threeArgBuyer.getPasswordHash());
+
+        threeArgBuyer.setUsername("user3_updated");
+        assertEquals("user3_updated", threeArgBuyer.getUsername());
+
+        threeArgBuyer.setFullName("User Three Updated");
+        assertEquals("User Three Updated", threeArgBuyer.getFullName());
+
+        threeArgBuyer.setPassword("newHashedPwd");
+        assertEquals("newHashedPwd", threeArgBuyer.getPassword());
+
+        threeArgBuyer.setPasswordHash("newHash2");
+        assertEquals("newHash2", threeArgBuyer.getPasswordHash());
+
+        threeArgBuyer.setResidence("Hall 4");
+        assertEquals("Hall 4", threeArgBuyer.getResidence());
+        threeArgBuyer.setResidenceHall("Hall 5");
+        assertEquals("Hall 5", threeArgBuyer.getResidence());
+        assertEquals("Hall 5", threeArgBuyer.getResidenceHall());
+
+        LocalDateTime now = LocalDateTime.now();
+        threeArgBuyer.setCreatedAt(now);
+        assertEquals(now, threeArgBuyer.getCreatedAt());
+
+        threeArgBuyer.setActive(true);
+        assertTrue(threeArgBuyer.isActive());
+        assertEquals(AccountStatus.ACTIVE, threeArgBuyer.getAccountStatus());
+    }
 }

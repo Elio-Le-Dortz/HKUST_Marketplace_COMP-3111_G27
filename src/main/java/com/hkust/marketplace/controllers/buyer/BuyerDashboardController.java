@@ -1,9 +1,6 @@
 package com.hkust.marketplace.controllers.buyer;
 
-import com.hkust.marketplace.models.Listing;
-import com.hkust.marketplace.models.ListingType;
-import com.hkust.marketplace.models.Notification;
-import com.hkust.marketplace.models.User;
+import com.hkust.marketplace.models.*;
 import com.hkust.marketplace.utils.DummyDataService;
 import com.hkust.marketplace.utils.SceneManager;
 import com.hkust.marketplace.utils.SessionManager;
@@ -12,10 +9,13 @@ import javafx.fxml.FXML;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.*;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
 import javafx.scene.layout.*;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 
+import java.io.File;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 
@@ -27,6 +27,19 @@ public class BuyerDashboardController {
     @FXML private Button btnBrowse, btnDeals, btnHistory, btnFavourites, btnNotifications, btnProfile;
 
     private Button currentActiveBtn;
+
+    // Browse & Filter controls
+    private TextField searchField;
+    private ComboBox<String> categoryFilter;
+    private ComboBox<String> typeFilter;
+    private ComboBox<String> conditionFilter;
+    private TextField minPriceField;
+    private TextField maxPriceField;
+    private ComboBox<ListingSortOrder> sortOrderCombo;
+    private FlowPane listingGrid;
+    private Label resultsCountLabel;
+    private Label priceValidationLabel;
+    private VBox browseContainer;
 
     @FXML
     public void initialize() {
@@ -55,57 +68,322 @@ public class BuyerDashboardController {
         VBox root = new VBox(16);
         root.setPadding(new Insets(4));
 
-        // Filter bar
-        HBox filterBar = new HBox(12);
-        filterBar.setAlignment(Pos.CENTER_LEFT);
-        ComboBox<String> categoryFilter = new ComboBox<>(FXCollections.observableArrayList("All Categories"));
-        categoryFilter.getItems().addAll(DummyDataService.CATEGORIES);
+        // Filter & Search Panel
+        VBox filterCard = new VBox(12);
+        filterCard.getStyleClass().add("filter-box");
+
+        // Row 1: Search keyword, Category, Type, Condition
+        HBox row1 = new HBox(12);
+        row1.setAlignment(Pos.CENTER_LEFT);
+
+        searchField = new TextField();
+        searchField.setPromptText("Search title or keyword...");
+        searchField.setPrefWidth(240);
+
+        categoryFilter = new ComboBox<>(FXCollections.observableArrayList("All Categories"));
+        for (Category c : Category.values()) {
+            categoryFilter.getItems().add(c.getDisplayName());
+        }
         categoryFilter.getSelectionModel().selectFirst();
-        ComboBox<String> typeFilter = new ComboBox<>(FXCollections.observableArrayList("All Types", "Sell", "Lend", "Giveaway"));
+
+        typeFilter = new ComboBox<>(FXCollections.observableArrayList("All Types"));
+        for (ListingType t : ListingType.values()) {
+            typeFilter.getItems().add(t.getDisplayName());
+        }
         typeFilter.getSelectionModel().selectFirst();
-        TextField searchField = new TextField();
-        searchField.setPromptText("Search listings...");
-        searchField.setPrefWidth(220);
-        Button searchBtn = new Button("Search");
-        searchBtn.getStyleClass().addAll("btn-primary", "btn-sm");
-        filterBar.getChildren().addAll(
+
+        conditionFilter = new ComboBox<>(FXCollections.observableArrayList("All Conditions"));
+        for (Condition cond : Condition.values()) {
+            conditionFilter.getItems().add(cond.getDisplayName());
+        }
+        conditionFilter.getSelectionModel().selectFirst();
+
+        row1.getChildren().addAll(
+                new Label("Search:"), searchField,
                 new Label("Category:"), categoryFilter,
                 new Label("Type:"), typeFilter,
-                searchField, searchBtn
+                new Label("Condition:"), conditionFilter
         );
-        root.getChildren().add(filterBar);
 
-        // Listing grid
-        FlowPane grid = new FlowPane(16, 16);
-        grid.setPrefWrapLength(900);
+        // Row 2: Price range, Sort order, Search & Reset actions
+        HBox row2 = new HBox(12);
+        row2.setAlignment(Pos.CENTER_LEFT);
 
-        List<Listing> live = DummyDataService.getInstance().getLiveListings();
-        if (live.isEmpty()) {
-            Label empty = new Label("No live listings at the moment.");
-            empty.setStyle("-fx-text-fill: #5a5a7a; -fx-font-size: 15px;");
-            root.getChildren().add(empty);
-        } else {
-            for (Listing listing : live) {
-                grid.getChildren().add(createListingCard(listing));
-            }
-            root.getChildren().add(grid);
-        }
+        minPriceField = new TextField();
+        minPriceField.setPromptText("Min");
+        minPriceField.setPrefWidth(75);
+
+        maxPriceField = new TextField();
+        maxPriceField.setPromptText("Max");
+        maxPriceField.setPrefWidth(75);
+
+        sortOrderCombo = new ComboBox<>(FXCollections.observableArrayList(ListingSortOrder.values()));
+        sortOrderCombo.getSelectionModel().select(ListingSortOrder.NEWEST_FIRST);
+
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+
+        Button searchBtn = new Button("Search");
+        searchBtn.getStyleClass().addAll("btn-primary", "btn-sm");
+        searchBtn.setOnAction(e -> applyBrowseFilters());
+
+        Button resetBtn = new Button("Reset Filters");
+        resetBtn.getStyleClass().addAll("btn-outline", "btn-sm");
+        resetBtn.setOnAction(e -> resetBrowseFilters());
+
+        row2.getChildren().addAll(
+                new Label("Price HK$:"), minPriceField, new Label("–"), maxPriceField,
+                new Label("Sort:"), sortOrderCombo,
+                spacer,
+                searchBtn, resetBtn
+        );
+
+        // Price validation warning label
+        priceValidationLabel = new Label();
+        priceValidationLabel.setStyle("-fx-text-fill: #c62828; -fx-font-size: 12px;");
+        priceValidationLabel.setVisible(false);
+        priceValidationLabel.setManaged(false);
+
+        filterCard.getChildren().addAll(row1, row2, priceValidationLabel);
+        root.getChildren().add(filterCard);
+
+        // Status bar with result count
+        HBox statusBar = new HBox(12);
+        statusBar.setAlignment(Pos.CENTER_LEFT);
+        resultsCountLabel = new Label("Loading live listings...");
+        resultsCountLabel.setStyle("-fx-text-fill: #5a5a7a; -fx-font-weight: bold; -fx-font-size: 13px;");
+        statusBar.getChildren().add(resultsCountLabel);
+        root.getChildren().add(statusBar);
+
+        // Dynamic listing container
+        browseContainer = new VBox(12);
+        listingGrid = new FlowPane(16, 16);
+        listingGrid.setPrefWrapLength(940);
+        browseContainer.getChildren().add(listingGrid);
+        root.getChildren().add(browseContainer);
+
+        // Real-time filtering listeners
+        searchField.textProperty().addListener((obs, oldVal, newVal) -> applyBrowseFilters());
+        categoryFilter.valueProperty().addListener((obs, oldVal, newVal) -> applyBrowseFilters());
+        typeFilter.valueProperty().addListener((obs, oldVal, newVal) -> applyBrowseFilters());
+        conditionFilter.valueProperty().addListener((obs, oldVal, newVal) -> applyBrowseFilters());
+        minPriceField.textProperty().addListener((obs, oldVal, newVal) -> applyBrowseFilters());
+        maxPriceField.textProperty().addListener((obs, oldVal, newVal) -> applyBrowseFilters());
+        sortOrderCombo.valueProperty().addListener((obs, oldVal, newVal) -> applyBrowseFilters());
 
         ScrollPane scroll = new ScrollPane(root);
         scroll.setFitToWidth(true);
         scroll.setStyle("-fx-background-color: transparent;");
         contentPane.getChildren().add(scroll);
+
+        // Initial filter application
+        applyBrowseFilters();
+    }
+
+    private void resetBrowseFilters() {
+        if (searchField != null) searchField.setText("");
+        if (categoryFilter != null) categoryFilter.getSelectionModel().selectFirst();
+        if (typeFilter != null) typeFilter.getSelectionModel().selectFirst();
+        if (conditionFilter != null) conditionFilter.getSelectionModel().selectFirst();
+        if (minPriceField != null) minPriceField.setText("");
+        if (maxPriceField != null) maxPriceField.setText("");
+        if (sortOrderCombo != null) sortOrderCombo.getSelectionModel().select(ListingSortOrder.NEWEST_FIRST);
+        if (priceValidationLabel != null) {
+            priceValidationLabel.setVisible(false);
+            priceValidationLabel.setManaged(false);
+        }
+        applyBrowseFilters();
+    }
+
+    private void applyBrowseFilters() {
+        if (browseContainer == null || listingGrid == null) {
+            return;
+        }
+
+        // Build filter criteria
+        ListingFilterCriteria.Builder builder = ListingFilterCriteria.builder();
+
+        // 1. Keyword search (Subflow S1)
+        if (searchField != null && !searchField.getText().trim().isEmpty()) {
+            builder.keyword(searchField.getText().trim());
+        }
+
+        // 2. Category filter (Subflow S2)
+        if (categoryFilter != null && categoryFilter.getValue() != null
+                && !"All Categories".equalsIgnoreCase(categoryFilter.getValue())) {
+            builder.category(Category.fromString(categoryFilter.getValue()));
+        }
+
+        // 3. Type filter (Subflow S2)
+        if (typeFilter != null && typeFilter.getValue() != null
+                && !"All Types".equalsIgnoreCase(typeFilter.getValue())) {
+            builder.type(ListingType.fromString(typeFilter.getValue()));
+        }
+
+        // 4. Condition filter (Subflow S2)
+        if (conditionFilter != null && conditionFilter.getValue() != null
+                && !"All Conditions".equalsIgnoreCase(conditionFilter.getValue())) {
+            builder.condition(Condition.fromString(conditionFilter.getValue()));
+        }
+
+        // 5. Price range filter (Subflow S2)
+        Double minPrice = parseDoubleOrNull(minPriceField != null ? minPriceField.getText() : null);
+        Double maxPrice = parseDoubleOrNull(maxPriceField != null ? maxPriceField.getText() : null);
+
+        boolean priceRangeValid = true;
+        if (minPrice != null && minPrice < 0) {
+            priceRangeValid = false;
+        }
+        if (maxPrice != null && maxPrice < 0) {
+            priceRangeValid = false;
+        }
+        if (minPrice != null && maxPrice != null && minPrice > maxPrice) {
+            priceRangeValid = false;
+        }
+
+        if (!priceRangeValid) {
+            priceValidationLabel.setText("⚠️ Invalid price range: Min price cannot be negative or exceed Max price.");
+            priceValidationLabel.setVisible(true);
+            priceValidationLabel.setManaged(true);
+        } else {
+            priceValidationLabel.setVisible(false);
+            priceValidationLabel.setManaged(false);
+        }
+
+        builder.minPrice(minPrice);
+        builder.maxPrice(maxPrice);
+
+        // 6. Sort order (Subflow S3)
+        ListingSortOrder order = (sortOrderCombo != null && sortOrderCombo.getValue() != null)
+                ? sortOrderCombo.getValue()
+                : ListingSortOrder.NEWEST_FIRST;
+        builder.sortOrder(order);
+
+        ListingFilterCriteria criteria = builder.build();
+
+        // Retrieve filtered live listings via service
+        List<Listing> allLive = DummyDataService.getInstance().getLiveListings();
+        List<Listing> filtered = DummyDataService.getInstance().getFilteredLiveListings(criteria);
+
+        browseContainer.getChildren().clear();
+        listingGrid.getChildren().clear();
+
+        if (allLive.isEmpty()) {
+            // Alternative Flow A2: No Live listings in the marketplace
+            resultsCountLabel.setText("0 live listings");
+            VBox emptyBox = createEmptyStateCard(
+                    "📦",
+                    "No listings available yet.",
+                    "There are currently no active listings on the HKUST Marketplace. Please check back later!",
+                    false
+            );
+            browseContainer.getChildren().add(emptyBox);
+        } else if (filtered.isEmpty()) {
+            // Alternative Flow A1: Active filters matched zero listings
+            resultsCountLabel.setText("0 matches found");
+            VBox emptyBox = createEmptyStateCard(
+                    "🔍",
+                    "No listings match your search.",
+                    "No live listings match the specified filter and keyword criteria. Try clearing or relaxing your filters.",
+                    true
+            );
+            browseContainer.getChildren().add(emptyBox);
+        } else {
+            // Basic Flow: Display matching listings
+            resultsCountLabel.setText("Showing " + filtered.size() + " listing" + (filtered.size() == 1 ? "" : "s") + " (of " + allLive.size() + " live)");
+            for (Listing listing : filtered) {
+                listingGrid.getChildren().add(createListingCard(listing));
+            }
+            browseContainer.getChildren().add(listingGrid);
+        }
+    }
+
+    private Double parseDoubleOrNull(String text) {
+        if (text == null || text.trim().isEmpty()) {
+            return null;
+        }
+        try {
+            return Double.parseDouble(text.trim());
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    private VBox createEmptyStateCard(String icon, String title, String description, boolean showResetBtn) {
+        VBox box = new VBox(12);
+        box.getStyleClass().add("empty-state-box");
+        box.setPrefWidth(800);
+        box.setAlignment(Pos.CENTER);
+
+        Label iconLabel = new Label(icon);
+        iconLabel.setStyle("-fx-font-size: 36px;");
+
+        Label titleLabel = new Label(title);
+        titleLabel.setStyle("-fx-font-size: 18px; -fx-font-weight: bold; -fx-text-fill: #003974;");
+
+        Label descLabel = new Label(description);
+        descLabel.setStyle("-fx-text-fill: #5a5a7a; -fx-font-size: 13px; -fx-text-alignment: center;");
+        descLabel.setTextAlignment(javafx.scene.text.TextAlignment.CENTER);
+
+        box.getChildren().addAll(iconLabel, titleLabel, descLabel);
+
+        if (showResetBtn) {
+            Button reset = new Button("Clear All Filters");
+            reset.getStyleClass().addAll("btn-primary", "btn-sm");
+            reset.setOnAction(e -> resetBrowseFilters());
+            box.getChildren().add(reset);
+        }
+
+        return box;
     }
 
     private VBox createListingCard(Listing listing) {
         VBox card = new VBox(8);
         card.getStyleClass().add("listing-card");
-        card.setPrefWidth(260);
-        card.setMinHeight(200);
+        card.setPrefWidth(270);
+        card.setMinHeight(240);
 
-        // Type badge + price
-        HBox top = new HBox();
+        // Thumbnail photo (first photo or placeholder)
+        StackPane thumbContainer = new StackPane();
+        thumbContainer.getStyleClass().add("thumbnail-placeholder");
+        thumbContainer.setPrefHeight(120);
+        thumbContainer.setMinHeight(120);
+        thumbContainer.setMaxHeight(120);
+
+        boolean imageLoaded = false;
+        if (listing.getFirstPhoto() != null && listing.getFirstPhoto().getImagePath() != null) {
+            File file = listing.getFirstPhoto().getImageFile();
+            if (file != null && file.exists()) {
+                try {
+                    ImageView iv = new ImageView(new Image(file.toURI().toString()));
+                    iv.setFitWidth(240);
+                    iv.setFitHeight(115);
+                    iv.setPreserveRatio(true);
+                    thumbContainer.getChildren().add(iv);
+                    imageLoaded = true;
+                } catch (Exception ignored) {
+                }
+            }
+        }
+
+        if (!imageLoaded) {
+            VBox placeholderBox = new VBox(4);
+            placeholderBox.setAlignment(Pos.CENTER);
+            Label camIcon = new Label("📷");
+            camIcon.setStyle("-fx-font-size: 24px; -fx-text-fill: #8a94a6;");
+            Label noPhoto = new Label("No Photo");
+            noPhoto.setStyle("-fx-font-size: 11px; -fx-text-fill: #8a94a6; -fx-font-weight: bold;");
+            placeholderBox.getChildren().addAll(camIcon, noPhoto);
+            thumbContainer.getChildren().add(placeholderBox);
+        }
+
+        // Status & Type Badges + Price Row
+        HBox top = new HBox(6);
         top.setAlignment(Pos.CENTER_LEFT);
+
+        Label availBadge = new Label(listing.getAvailabilityDisplay());
+        availBadge.getStyleClass().addAll("badge", "badge-live");
+
         Label typeBadge = new Label(listing.getTypeDisplay());
         typeBadge.getStyleClass().add("badge");
         if (listing.getType() == ListingType.SELL) typeBadge.getStyleClass().add("badge-sold");
@@ -115,8 +393,8 @@ public class BuyerDashboardController {
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
         Label price = new Label(listing.getPriceDisplay());
-        price.setStyle("-fx-font-weight: bold; -fx-text-fill: #003974; -fx-font-size: 16px;");
-        top.getChildren().addAll(typeBadge, spacer, price);
+        price.setStyle("-fx-font-weight: bold; -fx-text-fill: #003974; -fx-font-size: 15px;");
+        top.getChildren().addAll(availBadge, typeBadge, spacer, price);
 
         Label title = new Label(listing.getTitle());
         title.setStyle("-fx-font-weight: bold; -fx-font-size: 15px; -fx-text-fill: #1a1a2e;");
@@ -131,7 +409,9 @@ public class BuyerDashboardController {
         Label location = new Label("📍 " + listing.getMeetupLocation());
         location.setStyle("-fx-text-fill: #5a5a7a; -fx-font-size: 12px;");
 
-        Label date = new Label("Posted: " + listing.getPostedAt().format(DateTimeFormatter.ofPattern("dd MMM yyyy")));
+        DateTimeFormatter dtf = DateTimeFormatter.ofPattern("dd MMM yyyy");
+        String postedDateStr = listing.getPostedAt() != null ? listing.getPostedAt().format(dtf) : "Recent";
+        Label date = new Label("Posted: " + postedDateStr);
         date.setStyle("-fx-text-fill: #9aa0b0; -fx-font-size: 11px;");
 
         Button actionBtn = new Button();
@@ -151,7 +431,7 @@ public class BuyerDashboardController {
             }
         }
 
-        card.getChildren().addAll(top, title, meta, seller, location, date, actionBtn);
+        card.getChildren().addAll(thumbContainer, top, title, meta, seller, location, date, actionBtn);
         return card;
     }
 

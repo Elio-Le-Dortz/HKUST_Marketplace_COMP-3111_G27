@@ -1,6 +1,7 @@
 package com.hkust.marketplace.utils;
 
 import com.hkust.marketplace.models.*;
+import com.hkust.marketplace.services.ListingFilterService;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -25,6 +26,7 @@ public class DummyDataService {
     private final List<ChatThread> chatThreads = new ArrayList<>();
     private final List<Notification> notifications = new ArrayList<>();
     private final List<Review> reviews = new ArrayList<>();
+    private final ListingFilterService listingFilterService = new ListingFilterService();
 
     private final AtomicInteger listingIdCounter = new AtomicInteger(100);
     private final AtomicInteger dealIdCounter = new AtomicInteger(500);
@@ -152,6 +154,21 @@ public class DummyDataService {
                 "Furniture", ListingType.SELL, "Used", 400.0, null, "Hall 2 Lobby", "diana", "Diana Ng");
         l5.setStatus(ListingStatus.PENDING_REVIEW);
         listings.put(l5.getId(), l5);
+
+        Listing l6 = createListing("Engineering Notebook & Pen Set", "Brand new grid notebook and gel pen set.",
+                "Stationery", ListingType.SELL, "New", 25.0, null, "Library", "charlie", "Charlie Lee");
+        l6.setStatus(ListingStatus.LIVE);
+        listings.put(l6.getId(), l6);
+
+        Listing l7 = createListing("Yonex Badminton Racket", "Strung with BG65, light scratch on frame.",
+                "Sports", ListingType.SELL, "Used", 120.0, null, "Sports Hall", "charlie", "Charlie Lee");
+        l7.setStatus(ListingStatus.LIVE);
+        listings.put(l7.getId(), l7);
+
+        Listing l8 = createListing("HKUST Hoodie (Size M)", "Grey university hoodie in great condition.",
+                "Clothing", ListingType.GIVEAWAY, "Like New", null, null, "UG Hall 1", "diana", "Diana Ng");
+        l8.setStatus(ListingStatus.LIVE);
+        listings.put(l8.getId(), l8);
 
         // Sample deals
         Deal d1 = new Deal();
@@ -398,44 +415,59 @@ public class DummyDataService {
     }
 
     // ========== Listing methods ==========
-    public Collection<Listing> getAllListings() {
-        return listings.values();
+    public synchronized Collection<Listing> getAllListings() {
+        return new ArrayList<>(listings.values());
     }
 
-    public List<Listing> getLiveListings() {
+    public synchronized List<Listing> getLiveListings() {
         return listings.values().stream()
                 .filter(l -> l.getStatus() == ListingStatus.LIVE)
                 .collect(Collectors.toList());
     }
 
-    public List<Listing> getPendingListings() {
+    /**
+     * Retrieves all live listings filtered and sorted according to the specified criteria (US-B03).
+     * Thread-safe and atomic with respect to in-memory store mutations.
+     *
+     * @param criteria the filter and sort criteria (keyword, category, type, condition, price, sort order)
+     * @return filtered and sorted list of live listings
+     */
+    public synchronized List<Listing> getFilteredLiveListings(ListingFilterCriteria criteria) {
+        return listingFilterService.filterAndSort(new ArrayList<>(listings.values()), criteria);
+    }
+
+    public ListingFilterService getListingFilterService() {
+        return listingFilterService;
+    }
+
+    public synchronized List<Listing> getPendingListings() {
         return listings.values().stream()
                 .filter(l -> l.getStatus() == ListingStatus.PENDING_REVIEW)
                 .collect(Collectors.toList());
     }
 
-    public List<Listing> getListingsBySeller(String username) {
+    public synchronized List<Listing> getListingsBySeller(String username) {
         return listings.values().stream()
                 .filter(l -> l.getSellerUsername().equalsIgnoreCase(username))
                 .collect(Collectors.toList());
     }
 
-    public Listing findListing(String id) {
+    public synchronized Listing findListing(String id) {
         return listings.get(id);
     }
 
-    public void addListing(Listing listing) {
+    public synchronized void addListing(Listing listing) {
         if (listing.getId() == null) {
             listing.setId("L" + listingIdCounter.getAndIncrement());
         }
         listings.put(listing.getId(), listing);
     }
 
-    public void updateListing(Listing listing) {
+    public synchronized void updateListing(Listing listing) {
         listings.put(listing.getId(), listing);
     }
 
-    public void removeListing(String id) {
+    public synchronized void removeListing(String id) {
         listings.remove(id);
     }
 

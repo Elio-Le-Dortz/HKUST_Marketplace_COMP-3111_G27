@@ -267,4 +267,37 @@ public class Listing {
             return "FREE";
         }
     }
+
+    public double getEffectivePrice() {
+        if (type == ListingType.SELL && price != null) {
+            return price;
+        }
+        return 0.0;
+    }
+
+    public String getAvailabilityDisplay() {
+        if (status == null) return "Unknown";
+        return switch (status) {
+            case LIVE -> "Live";
+            case PENDING_REVIEW -> "Pending Review";
+            case RESERVED -> "Reserved";
+            case SOLD -> "Sold";
+            case LENT -> "Lent";
+            case GIVEN -> "Given";
+            case REJECTED -> "Rejected";
+            case REMOVED -> "Removed";
+        };
+    }
+
+    public Photo getFirstPhoto() {
+        if (photos != null && !photos.isEmpty()) {
+            return photos.get(0);
+        }
+        return null;
+    }
+
+    public String getThumbnailPath() {
+        Photo photo = getFirstPhoto();
+        return photo != null ? photo.getImagePath() : null;
+    }
 }

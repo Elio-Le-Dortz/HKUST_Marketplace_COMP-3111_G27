@@ -97,26 +97,31 @@ public class DummyDataService {
         seedData();
     }
 
+    private static final String SEED_ADMIN_HASH = PasswordHasher.hash("admin123");
+    private static final String SEED_USER_HASH = PasswordHasher.hash("password1");
+
     private void seedData() {
         // Admin
-        Admin admin = new Admin("admin", "HKUST Marketplace Admin", PasswordUtil.hashPassword("admin123"));
+        Admin admin = new Admin("admin", "HKUST Marketplace Admin", SEED_ADMIN_HASH);
         users.put("admin", admin);
 
         // Sample buyers
-        Buyer buyer1 = new Buyer("alice", "Alice Chan", PasswordUtil.hashPassword("password1"), "Hall 3");
+        Buyer buyer1 = new Buyer("alice", "Alice Chan", SEED_USER_HASH, "Hall 3");
         users.put("alice", buyer1);
 
-        Buyer buyer2 = new Buyer("bob", "Bob Wong", PasswordUtil.hashPassword("password1"), "Off-campus");
+        Buyer buyer2 = new Buyer("bob", "Bob Wong", SEED_USER_HASH, "Off-campus");
         users.put("bob", buyer2);
 
-        // Sample sellers
-        Seller seller1 = new Seller("charlie", "Charlie Lee", PasswordUtil.hashPassword("password1"), "Final year CSE student selling textbooks and gadgets.");
+        // Sample sellers (passwords stored hashed, as for sellers who register)
+        Seller seller1 = new Seller("charlie", "Charlie Lee", SEED_USER_HASH,
+                "Final year CSE student selling textbooks and gadgets.");
         seller1.setPreferredMeetup("Library");
         seller1.setAverageRating(4.7);
         seller1.setRatingCount(12);
         users.put("charlie", seller1);
 
-        Seller seller2 = new Seller("diana", "Diana Ng", PasswordUtil.hashPassword("password1"), "Selling furniture and kitchen items before graduation.");
+        Seller seller2 = new Seller("diana", "Diana Ng", SEED_USER_HASH,
+                "Selling furniture and kitchen items before graduation.");
         seller2.setPreferredMeetup("Hall 5 Lobby");
         seller2.setAverageRating(4.3);
         seller2.setRatingCount(8);
@@ -201,7 +206,14 @@ public class DummyDataService {
     }
 
     // ========== User methods ==========
-    public boolean usernameExists(String username) {
+    /**
+     * Tells whether any account (buyer, seller or admin, whatever its status) already
+     * uses a username, ignoring case. Soft-deleted accounts keep their username reserved.
+     *
+     * @param username the username to look up
+     * @return {@code true} if the username is taken, {@code false} otherwise
+     */
+    public synchronized boolean usernameExists(String username) {
         if (username == null) {
             return false;
         }
@@ -295,6 +307,19 @@ public class DummyDataService {
         registerUser(buyer);
 
         return RegistrationResult.success(buyer);
+    }
+
+    /**
+     * Atomically stores a new user only if no account of any role already uses the
+     * same username, ignoring case. Synchronized so that two concurrent registrations
+     * with the same username cannot both succeed (only the first one is stored).
+     *
+     * @param user the user to store; its username must not be {@code null}
+     * @return {@code true} if the user was stored, {@code false} if the username was
+     *         already taken (in which case nothing is changed)
+     */
+    public synchronized boolean registerUserIfAbsent(User user) {
+        return users.putIfAbsent(user.getUsername().toLowerCase(), user) == null;
     }
 
     public Collection<User> getAllUsers() {

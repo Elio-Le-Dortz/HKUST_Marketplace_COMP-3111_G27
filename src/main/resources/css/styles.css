@@ -96,6 +96,11 @@
     -fx-border-color: #003974;
     -fx-effect: dropshadow(gaussian, rgba(0,57,116,0.25), 6, 0, 0, 0);
 }
+/* Field that failed form validation (password fields also have the text-field class) */
+.text-field.field-error, .text-field.field-error:focused {
+    -fx-border-color: #c62828;
+    -fx-effect: dropshadow(gaussian, rgba(198,40,40,0.25), 6, 0, 0, 0);
+}
 
 .field-error {
     -fx-border-color: #c62828 !important;

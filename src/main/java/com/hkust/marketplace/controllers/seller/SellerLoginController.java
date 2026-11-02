@@ -3,6 +3,7 @@ package com.hkust.marketplace.controllers.seller;
 import com.hkust.marketplace.models.User;
 import com.hkust.marketplace.models.UserRole;
 import com.hkust.marketplace.utils.DummyDataService;
+import com.hkust.marketplace.utils.PasswordHasher;
 import com.hkust.marketplace.utils.SceneManager;
 import com.hkust.marketplace.utils.SessionManager;
 import javafx.fxml.FXML;
@@ -36,7 +37,7 @@ public class SellerLoginController {
             showError("This account is not a Seller account. Use the correct portal.");
             return;
         }
-        if (!com.hkust.marketplace.utils.PasswordUtil.verifyPassword(password, user.getPasswordHash())) {
+        if (!PasswordHasher.verify(password, user.getPasswordHash())) {
             showError("Incorrect password.");
             return;
         }

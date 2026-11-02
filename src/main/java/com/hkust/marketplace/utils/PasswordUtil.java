@@ -51,6 +51,11 @@ public final class PasswordUtil {
             return false;
         }
 
+        // PBKDF2 hash format (used by PasswordHasher)
+        if (storedHash.startsWith("pbkdf2_sha256")) {
+            return PasswordHasher.verify(password, storedHash);
+        }
+
         // Salted hash format
         if (storedHash.contains(":")) {
             String[] parts = storedHash.split(":", 2);

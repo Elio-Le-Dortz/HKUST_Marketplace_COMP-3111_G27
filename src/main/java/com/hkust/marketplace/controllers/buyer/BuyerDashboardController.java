@@ -16,7 +16,11 @@ import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 
 import java.io.File;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 
 public class BuyerDashboardController {
@@ -832,47 +836,347 @@ public class BuyerDashboardController {
         });
     }
 
+    /**
+     * Displays a dialog for submitting a price offer on a SELL listing (Use Case 1.5 Subflow S1).
+     * Enforces listing availability (Alt Flow A1), positive price validation (Alt Flow A2),
+     * and cancellation without persistence (Alt Flow A5).
+     *
+     * @param listing the sell listing
+     */
     private void showOfferDialog(Listing listing) {
-        TextInputDialog dialog = new TextInputDialog(String.valueOf(listing.getPrice() != null ? listing.getPrice() : 0));
+        if (listing == null) return;
+
+        // Alternative Flow A1: Listing No Longer Live
+        if (listing.getStatus() != ListingStatus.LIVE) {
+            Alert notLiveAlert = new Alert(Alert.AlertType.WARNING);
+            notLiveAlert.setTitle("Listing Unavailable");
+            notLiveAlert.setHeaderText(null);
+            notLiveAlert.setContentText("This listing is no longer available and an offer cannot be made.");
+            notLiveAlert.showAndWait();
+            return;
+        }
+
+        Dialog<Double> dialog = new Dialog<>();
         dialog.setTitle("Make an Offer");
-        dialog.setHeaderText("Offer for: " + listing.getTitle());
-        dialog.setContentText("Your offer price (HK$):");
-        dialog.showAndWait().ifPresent(priceStr -> {
+        dialog.setHeaderText("Make an Offer for: " + listing.getTitle());
+
+        ButtonType submitButtonType = new ButtonType("Submit Offer", ButtonBar.ButtonData.OK_DONE);
+        dialog.getDialogPane().getButtonTypes().addAll(submitButtonType, ButtonType.CANCEL);
+
+        VBox content = new VBox(10);
+        content.setPrefWidth(380);
+        content.setPadding(new Insets(10));
+
+        Label listedPriceLabel = new Label("Listed Price: HK$" + (listing.getPrice() != null ? String.format("%.2f", listing.getPrice()) : "N/A"));
+        listedPriceLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: #003974; -fx-font-size: 13px;");
+
+        Label instruction = new Label("Enter your proposed offer price in HKD:");
+        instruction.setStyle("-fx-text-fill: #5a5a7a; -fx-font-size: 13px;");
+
+        TextField priceField = new TextField(listing.getPrice() != null ? String.valueOf(listing.getPrice()) : "");
+        priceField.setPromptText("e.g. 150.00");
+
+        Label errorLabel = new Label();
+        errorLabel.setStyle("-fx-text-fill: #c62828; -fx-font-size: 12px;");
+        errorLabel.setVisible(false);
+        errorLabel.setManaged(false);
+
+        content.getChildren().addAll(listedPriceLabel, instruction, priceField, errorLabel);
+        dialog.getDialogPane().setContent(content);
+
+        // Alternative Flow A2: Price Validation
+        Button submitBtn = (Button) dialog.getDialogPane().lookupButton(submitButtonType);
+        submitBtn.addEventFilter(javafx.event.ActionEvent.ACTION, event -> {
+            String text = priceField.getText();
             try {
-                double price = Double.parseDouble(priceStr);
+                if (text == null || text.trim().isEmpty()) {
+                    throw new NumberFormatException("Empty");
+                }
+                double price = Double.parseDouble(text.trim());
+                String validationError = DummyDataService.getInstance().getActOnListingService().validatePrice(price);
+                if (validationError != null) {
+                    errorLabel.setText(validationError);
+                    errorLabel.setVisible(true);
+                    errorLabel.setManaged(true);
+                    event.consume(); // Keeps dialog open (resuming at Enter Offer Price)
+                }
+            } catch (NumberFormatException ex) {
+                errorLabel.setText("Price must be a valid positive number.");
+                errorLabel.setVisible(true);
+                errorLabel.setManaged(true);
+                event.consume();
+            }
+        });
+
+        dialog.setResultConverter(dialogButton -> {
+            if (dialogButton == submitButtonType) {
+                return Double.parseDouble(priceField.getText().trim());
+            }
+            return null;
+        });
+
+        // Subflow S1 Step 2, 4, 5
+        dialog.showAndWait().ifPresent(price -> {
+            User currentUser = SessionManager.getCurrentUser();
+            String buyerUsername = currentUser != null ? currentUser.getUsername() : "buyer";
+
+            ActOnListingResult result = DummyDataService.getInstance().submitPriceOffer(listing.getId(), buyerUsername, price);
+            if (result.isSuccess()) {
                 Alert alert = new Alert(Alert.AlertType.INFORMATION);
                 alert.setTitle("Offer Submitted");
                 alert.setHeaderText(null);
-                alert.setContentText("Your offer of HK$" + price + " has been sent to " + listing.getSellerFullName() + ".\n\n(Demo only – no backend)");
+                alert.setContentText(result.getMessage());
                 alert.showAndWait();
-            } catch (NumberFormatException ex) {
-                new Alert(Alert.AlertType.ERROR, "Invalid price.").showAndWait();
+            } else {
+                Alert alert = new Alert(Alert.AlertType.ERROR);
+                alert.setTitle("Offer Failed");
+                alert.setHeaderText(null);
+                alert.setContentText(result.getMessage());
+                alert.showAndWait();
             }
         });
     }
 
+    /**
+     * Displays a dialog for submitting a borrow request on a LEND listing (Use Case 1.5 Subflow S2).
+     * Enforces listing availability (Alt Flow A1), borrow dates validation (Alt Flow A3: >= 5s),
+     * and cancellation without persistence (Alt Flow A5).
+     *
+     * @param listing the lend listing
+     */
     private void showBorrowDialog(Listing listing) {
-        Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
-        alert.setTitle("Borrow Request");
-        alert.setHeaderText("Request to borrow: " + listing.getTitle());
-        alert.setContentText("Proposed duration: " + (listing.getLendingDays() != null ? listing.getLendingDays() + " days" : "N/A") +
-                "\n\nSend borrow request to seller?");
-        alert.showAndWait().ifPresent(resp -> {
-            if (resp == ButtonType.OK) {
-                new Alert(Alert.AlertType.INFORMATION, "Borrow request sent!\n(Demo only)").showAndWait();
+        if (listing == null) return;
+
+        // Alternative Flow A1: Listing No Longer Live
+        if (listing.getStatus() != ListingStatus.LIVE) {
+            Alert notLiveAlert = new Alert(Alert.AlertType.WARNING);
+            notLiveAlert.setTitle("Listing Unavailable");
+            notLiveAlert.setHeaderText(null);
+            notLiveAlert.setContentText("This listing is no longer available and a borrow request cannot be made.");
+            notLiveAlert.showAndWait();
+            return;
+        }
+
+        Dialog<LocalDateTime[]> dialog = new Dialog<>();
+        dialog.setTitle("Borrow Request");
+        dialog.setHeaderText("Request to Borrow: " + listing.getTitle());
+
+        ButtonType submitButtonType = new ButtonType("Submit Request", ButtonBar.ButtonData.OK_DONE);
+        dialog.getDialogPane().getButtonTypes().addAll(submitButtonType, ButtonType.CANCEL);
+
+        VBox content = new VBox(10);
+        content.setPrefWidth(420);
+        content.setPadding(new Insets(10));
+
+        Label infoLabel = new Label("Seller suggested lending period: "
+                + (listing.getLendingDays() != null ? listing.getLendingDays() + " days" : "Flexible"));
+        infoLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: #003974; -fx-font-size: 13px;");
+
+        // Start Date & Time
+        Label startLabel = new Label("Proposed Start Date & Time:");
+        startLabel.setStyle("-fx-font-weight: 600; -fx-text-fill: #333344;");
+        DatePicker startDatePicker = new DatePicker(LocalDate.now());
+        TextField startTimeField = new TextField(LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss")));
+        startTimeField.setPromptText("HH:mm:ss");
+        startTimeField.setPrefWidth(100);
+        HBox startBox = new HBox(8, startDatePicker, startTimeField);
+        startBox.setAlignment(Pos.CENTER_LEFT);
+
+        // End Date & Time
+        Label endLabel = new Label("Proposed End Date & Time:");
+        endLabel.setStyle("-fx-font-weight: 600; -fx-text-fill: #333344;");
+        int defaultDays = (listing.getLendingDays() != null && listing.getLendingDays() > 0) ? listing.getLendingDays() : 1;
+        DatePicker endDatePicker = new DatePicker(LocalDate.now().plusDays(defaultDays));
+        TextField endTimeField = new TextField(LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss")));
+        endTimeField.setPromptText("HH:mm:ss");
+        endTimeField.setPrefWidth(100);
+        HBox endBox = new HBox(8, endDatePicker, endTimeField);
+        endBox.setAlignment(Pos.CENTER_LEFT);
+
+        // Preset Quick Buttons (enables instant 5-second test verification and realistic presets)
+        Label presetLabel = new Label("Quick Presets:");
+        presetLabel.setStyle("-fx-font-size: 12px; -fx-text-fill: #5a5a7a;");
+        HBox presetsBox = new HBox(6);
+        presetsBox.setAlignment(Pos.CENTER_LEFT);
+
+        Button btn5s = new Button("5s (Demo)");
+        btn5s.getStyleClass().add("btn-sm");
+        btn5s.setOnAction(e -> {
+            LocalDateTime now = LocalDateTime.now().truncatedTo(ChronoUnit.SECONDS);
+            LocalDateTime plus10 = now.plusSeconds(10);
+            startDatePicker.setValue(now.toLocalDate());
+            startTimeField.setText(now.toLocalTime().format(DateTimeFormatter.ofPattern("HH:mm:ss")));
+            endDatePicker.setValue(plus10.toLocalDate());
+            endTimeField.setText(plus10.toLocalTime().format(DateTimeFormatter.ofPattern("HH:mm:ss")));
+        });
+
+        Button btn1d = new Button("1 Day");
+        btn1d.getStyleClass().add("btn-sm");
+        btn1d.setOnAction(e -> {
+            LocalDateTime now = LocalDateTime.now().truncatedTo(ChronoUnit.SECONDS);
+            LocalDateTime plus1 = now.plusDays(1);
+            startDatePicker.setValue(now.toLocalDate());
+            startTimeField.setText(now.toLocalTime().format(DateTimeFormatter.ofPattern("HH:mm:ss")));
+            endDatePicker.setValue(plus1.toLocalDate());
+            endTimeField.setText(plus1.toLocalTime().format(DateTimeFormatter.ofPattern("HH:mm:ss")));
+        });
+
+        Button btn7d = new Button("7 Days");
+        btn7d.getStyleClass().add("btn-sm");
+        btn7d.setOnAction(e -> {
+            LocalDateTime now = LocalDateTime.now().truncatedTo(ChronoUnit.SECONDS);
+            LocalDateTime plus7 = now.plusDays(7);
+            startDatePicker.setValue(now.toLocalDate());
+            startTimeField.setText(now.toLocalTime().format(DateTimeFormatter.ofPattern("HH:mm:ss")));
+            endDatePicker.setValue(plus7.toLocalDate());
+            endTimeField.setText(plus7.toLocalTime().format(DateTimeFormatter.ofPattern("HH:mm:ss")));
+        });
+
+        presetsBox.getChildren().addAll(btn5s, btn1d, btn7d);
+
+        Label errorLabel = new Label();
+        errorLabel.setStyle("-fx-text-fill: #c62828; -fx-font-size: 12px;");
+        errorLabel.setVisible(false);
+        errorLabel.setManaged(false);
+
+        content.getChildren().addAll(infoLabel, startLabel, startBox, endLabel, endBox, presetLabel, presetsBox, errorLabel);
+        dialog.getDialogPane().setContent(content);
+
+        // Alternative Flow A3: Validate Borrow Dates
+        Button submitBtn = (Button) dialog.getDialogPane().lookupButton(submitButtonType);
+        submitBtn.addEventFilter(javafx.event.ActionEvent.ACTION, event -> {
+            try {
+                LocalDate sDate = startDatePicker.getValue();
+                LocalDate eDate = endDatePicker.getValue();
+                if (sDate == null || eDate == null) {
+                    errorLabel.setText("Start date and end date are required.");
+                    errorLabel.setVisible(true);
+                    errorLabel.setManaged(true);
+                    event.consume();
+                    return;
+                }
+
+                LocalTime sTime = LocalTime.parse(startTimeField.getText().trim(), DateTimeFormatter.ofPattern("HH:mm:ss"));
+                LocalTime eTime = LocalTime.parse(endTimeField.getText().trim(), DateTimeFormatter.ofPattern("HH:mm:ss"));
+
+                LocalDateTime start = LocalDateTime.of(sDate, sTime);
+                LocalDateTime end = LocalDateTime.of(eDate, eTime);
+
+                String dateError = DummyDataService.getInstance().getActOnListingService()
+                        .validateBorrowDates(start, end, LocalDateTime.now());
+                if (dateError != null) {
+                    errorLabel.setText(dateError);
+                    errorLabel.setVisible(true);
+                    errorLabel.setManaged(true);
+                    event.consume(); // Keeps dialog open (resuming at Enter Borrow Dates)
+                }
+            } catch (Exception ex) {
+                errorLabel.setText("Please enter valid times in HH:mm:ss format (e.g. 14:30:00).");
+                errorLabel.setVisible(true);
+                errorLabel.setManaged(true);
+                event.consume();
+            }
+        });
+
+        dialog.setResultConverter(dialogButton -> {
+            if (dialogButton == submitButtonType) {
+                LocalDate sDate = startDatePicker.getValue();
+                LocalDate eDate = endDatePicker.getValue();
+                LocalTime sTime = LocalTime.parse(startTimeField.getText().trim(), DateTimeFormatter.ofPattern("HH:mm:ss"));
+                LocalTime eTime = LocalTime.parse(endTimeField.getText().trim(), DateTimeFormatter.ofPattern("HH:mm:ss"));
+                return new LocalDateTime[]{LocalDateTime.of(sDate, sTime), LocalDateTime.of(eDate, eTime)};
+            }
+            return null;
+        });
+
+        // Subflow S2 Step 2, 4, 5
+        dialog.showAndWait().ifPresent(dates -> {
+            User currentUser = SessionManager.getCurrentUser();
+            String buyerUsername = currentUser != null ? currentUser.getUsername() : "buyer";
+
+            ActOnListingResult result = DummyDataService.getInstance()
+                    .submitBorrowRequest(listing.getId(), buyerUsername, dates[0], dates[1]);
+            if (result.isSuccess()) {
+                Alert alert = new Alert(Alert.AlertType.INFORMATION);
+                alert.setTitle("Borrow Request Submitted");
+                alert.setHeaderText(null);
+                alert.setContentText(result.getMessage());
+                alert.showAndWait();
+            } else {
+                Alert alert = new Alert(Alert.AlertType.ERROR);
+                alert.setTitle("Borrow Request Failed");
+                alert.setHeaderText(null);
+                alert.setContentText(result.getMessage());
+                alert.showAndWait();
             }
         });
     }
 
+    /**
+     * Confirms and atomically claims a GIVEAWAY listing (Use Case 1.5 Subflow S3).
+     * Enforces listing availability (Alt Flow A1), atomic concurrency checks (Alt Flow A4: already claimed),
+     * and single-action confirmation / cancellation (Alt Flow A5).
+     *
+     * @param listing the giveaway listing
+     */
     private void claimItem(Listing listing) {
-        Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
-        alert.setTitle("Claim Item");
-        alert.setHeaderText("Claim: " + listing.getTitle());
-        alert.setContentText("Are you sure you want to claim this giveaway item?");
-        alert.showAndWait().ifPresent(resp -> {
+        if (listing == null) return;
+
+        // Alternative Flow A1: Listing No Longer Live
+        if (listing.getStatus() != ListingStatus.LIVE) {
+            Alert alert = new Alert(Alert.AlertType.WARNING);
+            alert.setTitle("Listing Unavailable");
+            alert.setHeaderText(null);
+            alert.setContentText("This listing is no longer available and cannot be claimed.");
+            alert.showAndWait();
+            return;
+        }
+
+        // Alternative Flow A4: Quick check if already claimed
+        if (DummyDataService.getInstance().isGiveawayClaimed(listing.getId())) {
+            Alert alert = new Alert(Alert.AlertType.WARNING);
+            alert.setTitle("Item Already Claimed");
+            alert.setHeaderText(null);
+            alert.setContentText("This giveaway item has already been claimed.");
+            alert.showAndWait();
+            return;
+        }
+
+        // Subflow S3 Step 1: The Buyer confirms the claim with a single action
+        Alert confirmDialog = new Alert(Alert.AlertType.CONFIRMATION);
+        confirmDialog.setTitle("Claim Giveaway Item");
+        confirmDialog.setHeaderText("Confirm Claim: " + listing.getTitle());
+        confirmDialog.setContentText("Are you sure you want to claim this giveaway item?\n\n"
+                + "Giveaway claims are processed on a first-come, first-served basis.");
+
+        confirmDialog.showAndWait().ifPresent(resp -> {
             if (resp == ButtonType.OK) {
-                new Alert(Alert.AlertType.INFORMATION, "Item claimed successfully!\n(Demo only)").showAndWait();
+                User currentUser = SessionManager.getCurrentUser();
+                String buyerUsername = currentUser != null ? currentUser.getUsername() : "buyer";
+
+                // Subflow S3 Step 2-4: Atomic claim
+                ActOnListingResult result = DummyDataService.getInstance().submitClaim(listing.getId(), buyerUsername);
+                if (result.isSuccess()) {
+                    Alert successAlert = new Alert(Alert.AlertType.INFORMATION);
+                    successAlert.setTitle("Claim Submitted");
+                    successAlert.setHeaderText(null);
+                    successAlert.setContentText(result.getMessage());
+                    successAlert.showAndWait();
+                } else if (result.getStatus() == ActOnListingStatus.ALREADY_CLAIMED) {
+                    Alert alert = new Alert(Alert.AlertType.WARNING);
+                    alert.setTitle("Item Already Claimed");
+                    alert.setHeaderText(null);
+                    alert.setContentText("Sorry, this giveaway item has already been claimed by another buyer.");
+                    alert.showAndWait();
+                } else {
+                    Alert alert = new Alert(Alert.AlertType.ERROR);
+                    alert.setTitle("Claim Failed");
+                    alert.setHeaderText(null);
+                    alert.setContentText(result.getMessage());
+                    alert.showAndWait();
+                }
             }
+            // If CANCEL: Alternative Flow A5 (Cancel Action) - nothing is stored.
         });
     }
 

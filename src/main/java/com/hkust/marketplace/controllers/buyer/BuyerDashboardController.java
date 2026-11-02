@@ -21,7 +21,10 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
+import java.util.Collections;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 public class BuyerDashboardController {
 
@@ -719,13 +722,7 @@ public class BuyerDashboardController {
 
         Button chatBtn = new Button("💬 Chat");
         chatBtn.getStyleClass().addAll("btn-outline");
-        chatBtn.setOnAction(e -> {
-            Alert chatAlert = new Alert(Alert.AlertType.INFORMATION);
-            chatAlert.setTitle("Chat with Seller");
-            chatAlert.setHeaderText(null);
-            chatAlert.setContentText("Opening chat with " + listing.getSellerFullName() + " about '" + listing.getTitle() + "'...");
-            chatAlert.showAndWait();
-        });
+        chatBtn.setOnAction(e -> openChatForListing(listing, "LISTING"));
 
         Button reportBtn = new Button("🚩 Report Listing");
         reportBtn.getStyleClass().addAll("btn-danger");
@@ -1234,6 +1231,49 @@ public class BuyerDashboardController {
         });
 
         root.getChildren().add(table);
+
+        HBox dealActions = new HBox(10);
+        dealActions.setAlignment(Pos.CENTER_LEFT);
+
+        Button btnOpenChat = new Button("💬 Open Chat with Seller");
+        btnOpenChat.getStyleClass().addAll("btn-primary", "btn-sm");
+        btnOpenChat.setOnAction(e -> {
+            String[] selected = table.getSelectionModel().getSelectedItem();
+            if (selected == null && !table.getItems().isEmpty()) {
+                selected = table.getItems().get(0);
+            }
+            if (selected != null) {
+                String itemTitle = selected[0];
+                for (Listing l : DummyDataService.getInstance().getAllListings()) {
+                    if (l.getTitle().equalsIgnoreCase(itemTitle)) {
+                        openChatForListing(l, "DEALS");
+                        return;
+                    }
+                }
+            }
+        });
+
+        Button btnViewListing = new Button("View Listing Details");
+        btnViewListing.getStyleClass().addAll("btn-outline", "btn-sm");
+        btnViewListing.setOnAction(e -> {
+            String[] selected = table.getSelectionModel().getSelectedItem();
+            if (selected == null && !table.getItems().isEmpty()) {
+                selected = table.getItems().get(0);
+            }
+            if (selected != null) {
+                String itemTitle = selected[0];
+                for (Listing l : DummyDataService.getInstance().getAllListings()) {
+                    if (l.getTitle().equalsIgnoreCase(itemTitle)) {
+                        showListingDetail(l);
+                        return;
+                    }
+                }
+            }
+        });
+
+        dealActions.getChildren().addAll(btnOpenChat, btnViewListing);
+        root.getChildren().add(dealActions);
+
         Label note = new Label("💡 Self-return for borrowed items and mark-complete are available here in the full version.");
         note.setStyle("-fx-text-fill: #9aa0b0; -fx-font-size: 12px;");
         root.getChildren().add(note);
@@ -1378,6 +1418,445 @@ public class BuyerDashboardController {
                 saveBtn);
 
         contentPane.getChildren().add(form);
+    }
+
+    // ==========================================
+    // Chat Thread & Formal Offer Methods (US-B06)
+    // ==========================================
+
+    /**
+     * Opens and displays the chat thread between the current logged-in buyer and the listing's seller (Use Case 1.5).
+     *
+     * @param listing    the listing being discussed
+     * @param returnView view name to return to upon clicking back ("LISTING" or "DEALS")
+     */
+    public void openChatForListing(Listing listing, String returnView) {
+        if (listing == null) return;
+
+        User currentUser = SessionManager.getCurrentUser();
+        String buyerUsername = currentUser != null ? currentUser.getUsername() : "alice";
+
+        if (listing.getSellerUsername() != null && listing.getSellerUsername().equalsIgnoreCase(buyerUsername)) {
+            Alert alert = new Alert(Alert.AlertType.WARNING);
+            alert.setTitle("Cannot Chat");
+            alert.setHeaderText(null);
+            alert.setContentText("You cannot open a chat thread on your own listing.");
+            alert.showAndWait();
+            return;
+        }
+
+        ChatThread thread = DummyDataService.getInstance().getChatService().getOrCreateThread(listing.getId(), buyerUsername);
+        if (thread == null) {
+            Alert alert = new Alert(Alert.AlertType.ERROR);
+            alert.setTitle("Error");
+            alert.setHeaderText(null);
+            alert.setContentText("Failed to initialize chat thread for this listing.");
+            alert.showAndWait();
+            return;
+        }
+
+        renderChatThread(thread, listing, returnView, Collections.emptySet(), "", null, false);
+    }
+
+    /**
+     * Renders the chat thread view with chronological messages, search highlighting, and formal offer actions.
+     *
+     * @param thread                the active chat thread
+     * @param listing               the linked listing
+     * @param returnView            the view to return to
+     * @param highlightedMessageIds set of message IDs matching search query
+     * @param currentSearchQuery    current search text (or empty)
+     * @param searchFeedbackMessage search results summary or error message
+     * @param isErrorFeedback       whether search feedback represents an error / no matches
+     */
+    public void renderChatThread(ChatThread thread, Listing listing, String returnView,
+                                 Set<String> highlightedMessageIds, String currentSearchQuery,
+                                 String searchFeedbackMessage, boolean isErrorFeedback) {
+        pageTitle.setText("Chat Thread — " + listing.getTitle());
+        contentPane.getChildren().clear();
+
+        User currentUser = SessionManager.getCurrentUser();
+        String currentUsername = currentUser != null ? currentUser.getUsername() : "alice";
+        String sellerName = listing.getSellerFullName() != null ? listing.getSellerFullName() : thread.getSellerUsername();
+
+        VBox root = new VBox(12);
+        root.setPadding(new Insets(4));
+
+        // 1. Top Header Navigation Bar
+        HBox topBar = new HBox(12);
+        topBar.setAlignment(Pos.CENTER_LEFT);
+
+        Button backBtn = new Button("DEALS".equalsIgnoreCase(returnView) ? "← Back to My Deals" : "← Back to Listing");
+        backBtn.getStyleClass().addAll("btn-outline", "btn-sm");
+        backBtn.setOnAction(e -> {
+            if ("DEALS".equalsIgnoreCase(returnView)) {
+                showMyDeals();
+            } else {
+                showListingDetail(listing);
+            }
+        });
+
+        VBox titleCol = new VBox(2);
+        Label threadHeading = new Label("Chat with " + sellerName + " (@" + thread.getSellerUsername() + ")");
+        threadHeading.setStyle("-fx-font-size: 15px; -fx-font-weight: bold; -fx-text-fill: #003974;");
+
+        HBox metaRow = new HBox(8);
+        metaRow.setAlignment(Pos.CENTER_LEFT);
+        Label listingTitleLbl = new Label("Listing: " + listing.getTitle());
+        listingTitleLbl.setStyle("-fx-font-size: 12px; -fx-text-fill: #5a5a7a;");
+
+        Label typeBadge = new Label(listing.getTypeDisplay());
+        typeBadge.getStyleClass().addAll("badge");
+        typeBadge.setStyle("-fx-background-color: #e2e8f0; -fx-text-fill: #334155; -fx-font-size: 10px;");
+
+        Label priceBadge = new Label(listing.getPriceDisplay());
+        priceBadge.setStyle("-fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: #003974;");
+
+        metaRow.getChildren().addAll(listingTitleLbl, typeBadge, priceBadge);
+        titleCol.getChildren().addAll(threadHeading, metaRow);
+
+        topBar.getChildren().addAll(backBtn, titleCol);
+
+        // 2. Search Chat History Bar (Subflow S3 & Alternative Flow A3)
+        HBox searchBar = new HBox(8);
+        searchBar.setAlignment(Pos.CENTER_LEFT);
+        searchBar.getStyleClass().add("chat-search-bar");
+        searchBar.setStyle("-fx-background-color: #f8fafc; -fx-padding: 8 12; -fx-background-radius: 8; -fx-border-color: #e2e8f0; -fx-border-width: 1; -fx-border-radius: 8;");
+
+        TextField searchField = new TextField();
+        searchField.setPromptText("Search message history in this thread...");
+        if (currentSearchQuery != null && !currentSearchQuery.isEmpty()) {
+            searchField.setText(currentSearchQuery);
+        }
+        HBox.setHgrow(searchField, Priority.ALWAYS);
+
+        Button searchBtn = new Button("🔍 Search");
+        searchBtn.getStyleClass().addAll("btn-primary", "btn-sm");
+
+        Button clearBtn = new Button("Clear");
+        clearBtn.getStyleClass().addAll("btn-outline", "btn-sm");
+
+        Label searchFeedback = new Label();
+        searchFeedback.setStyle("-fx-font-size: 11px;");
+        if (searchFeedbackMessage != null) {
+            searchFeedback.setText(searchFeedbackMessage);
+            searchFeedback.setStyle("-fx-font-size: 11px; -fx-font-weight: bold; -fx-text-fill: "
+                    + (isErrorFeedback ? "#d32f2f;" : "#2e7d32;"));
+        }
+
+        Runnable performSearch = () -> {
+            String query = searchField.getText();
+            if (query == null || query.trim().isEmpty()) {
+                renderChatThread(thread, listing, returnView, Collections.emptySet(), "", null, false);
+                return;
+            }
+            ChatSearchResult searchResult = DummyDataService.getInstance().getChatService()
+                    .searchChatHistory(thread.getId(), currentUsername, query);
+
+            if (searchResult.getStatus() == ChatOperationStatus.NO_MATCHES) {
+                renderChatThread(thread, listing, returnView, Collections.emptySet(), query.trim(),
+                        "No messages found matching '" + query.trim() + "'.", true);
+            } else if (searchResult.isSuccess()) {
+                Set<String> matchedIds = searchResult.getMatchingMessages().stream()
+                        .map(Message::getId)
+                        .collect(Collectors.toSet());
+                String feedback = "Found " + searchResult.getMatchCount() + " matching message"
+                        + (searchResult.getMatchCount() == 1 ? "." : "s.");
+                renderChatThread(thread, listing, returnView, matchedIds, query.trim(), feedback, false);
+            }
+        };
+
+        searchBtn.setOnAction(e -> performSearch.run());
+        searchField.setOnAction(e -> performSearch.run());
+        clearBtn.setOnAction(e -> renderChatThread(thread, listing, returnView, Collections.emptySet(), "", null, false));
+
+        searchBar.getChildren().addAll(searchField, searchBtn, clearBtn, searchFeedback);
+
+        // 3. Scrollable Message Container (Subflow S1 Step 3 & Alternative Flow A2)
+        ScrollPane scrollPane = new ScrollPane();
+        scrollPane.setFitToWidth(true);
+        scrollPane.setPrefHeight(420);
+        VBox.setVgrow(scrollPane, Priority.ALWAYS);
+        scrollPane.setStyle("-fx-background: white; -fx-background-color: white; -fx-border-color: #e2e8f0; -fx-border-radius: 8;");
+
+        VBox messageList = new VBox(10);
+        messageList.setPadding(new Insets(14));
+
+        if (!thread.hasMessages()) {
+            // Alternative Flow A2: No Chat History
+            VBox emptyBox = new VBox(10);
+            emptyBox.setAlignment(Pos.CENTER);
+            emptyBox.setPadding(new Insets(40, 20, 40, 20));
+
+            Label emptyIcon = new Label("💬");
+            emptyIcon.setStyle("-fx-font-size: 36px;");
+
+            Label emptyTitle = new Label("No messages yet");
+            emptyTitle.setStyle("-fx-font-size: 16px; -fx-font-weight: bold; -fx-text-fill: #1a1a2e;");
+
+            Label emptyDesc = new Label("Start the conversation with " + sellerName + " about '" + listing.getTitle() + "'!");
+            emptyDesc.setStyle("-fx-text-fill: #64748b; -fx-font-size: 13px;");
+
+            emptyBox.getChildren().addAll(emptyIcon, emptyTitle, emptyDesc);
+            messageList.getChildren().add(emptyBox);
+        } else {
+            DateTimeFormatter msgTimeFmt = DateTimeFormatter.ofPattern("MMM d, HH:mm");
+            for (Message msg : thread.getMessages()) {
+                boolean isMe = msg.getSenderUsername() != null && msg.getSenderUsername().equalsIgnoreCase(currentUsername);
+                boolean isMatch = highlightedMessageIds.contains(msg.getId());
+                boolean isFormalOffer = msg.isFormalOffer();
+
+                HBox row = new HBox();
+                row.setAlignment(isMe ? Pos.CENTER_RIGHT : Pos.CENTER_LEFT);
+
+                VBox bubble = new VBox(4);
+                bubble.setMaxWidth(520);
+
+                String senderDisplay = isMe ? "You" : sellerName + " (@" + msg.getSenderUsername() + ")";
+                String timeDisplay = msg.getSentDate() != null ? msg.getSentDate().format(msgTimeFmt) : "";
+                Label metaLabel = new Label(senderDisplay + " • " + timeDisplay);
+
+                if (isFormalOffer) {
+                    bubble.getStyleClass().add("chat-bubble-offer");
+                    metaLabel.setStyle("-fx-font-size: 11px; -fx-font-weight: bold; -fx-text-fill: #b45309;");
+
+                    Label offerBadge = new Label("🏷️ FORMAL OFFER");
+                    offerBadge.setStyle("-fx-font-size: 10px; -fx-font-weight: bold; -fx-text-fill: #92400e; -fx-background-color: #fde68a; -fx-padding: 2 6; -fx-background-radius: 4;");
+
+                    Label textLabel = new Label(msg.getText());
+                    textLabel.setStyle("-fx-font-size: 13px; -fx-font-weight: bold; -fx-text-fill: #78350f;");
+                    textLabel.setWrapText(true);
+
+                    bubble.getChildren().addAll(metaLabel, offerBadge, textLabel);
+                } else if (isMe) {
+                    bubble.getStyleClass().add("chat-bubble-me");
+                    metaLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #cbd5e1;");
+
+                    Label textLabel = new Label(msg.getText());
+                    textLabel.setStyle("-fx-font-size: 13px; -fx-text-fill: white;");
+                    textLabel.setWrapText(true);
+
+                    bubble.getChildren().addAll(metaLabel, textLabel);
+                } else {
+                    bubble.getStyleClass().add("chat-bubble-other");
+                    metaLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #64748b;");
+
+                    Label textLabel = new Label(msg.getText());
+                    textLabel.setStyle("-fx-font-size: 13px; -fx-text-fill: #1e293b;");
+                    textLabel.setWrapText(true);
+
+                    bubble.getChildren().addAll(metaLabel, textLabel);
+                }
+
+                if (isMatch) {
+                    bubble.getStyleClass().add("chat-bubble-highlight");
+                    Label matchBadge = new Label("★ SEARCH MATCH");
+                    matchBadge.setStyle("-fx-font-size: 9px; -fx-font-weight: bold; -fx-text-fill: #b45309; -fx-background-color: #fef08a; -fx-padding: 2 4; -fx-background-radius: 3;");
+                    bubble.getChildren().add(0, matchBadge);
+                }
+
+                row.getChildren().add(bubble);
+                messageList.getChildren().add(row);
+            }
+        }
+
+        scrollPane.setContent(messageList);
+        scrollPane.setVvalue(1.0);
+
+        // 4. Input & Action Bar (Subflow S1 & S2 & Alternative Flow A1)
+        VBox inputSection = new VBox(6);
+
+        Label validationErrorLabel = new Label();
+        validationErrorLabel.setStyle("-fx-text-fill: #d32f2f; -fx-font-size: 12px; -fx-font-weight: bold;");
+        validationErrorLabel.setVisible(false);
+
+        HBox inputRow = new HBox(8);
+        inputRow.setAlignment(Pos.CENTER_LEFT);
+
+        TextField msgField = new TextField();
+        msgField.setPromptText("Type your message to " + sellerName + "...");
+        HBox.setHgrow(msgField, Priority.ALWAYS);
+
+        Button sendBtn = new Button("Send ✉️");
+        sendBtn.getStyleClass().addAll("btn-primary");
+
+        Runnable doSendMessage = () -> {
+            String text = msgField.getText();
+            SendMessageResult res = DummyDataService.getInstance().getChatService()
+                    .sendMessage(thread.getId(), currentUsername, text);
+
+            if (res.getStatus() == ChatOperationStatus.EMPTY_MESSAGE) {
+                validationErrorLabel.setText("Message cannot be empty.");
+                validationErrorLabel.setVisible(true);
+            } else if (res.isSuccess()) {
+                msgField.clear();
+                validationErrorLabel.setVisible(false);
+                renderChatThread(thread, listing, returnView, Collections.emptySet(), "", null, false);
+            } else {
+                validationErrorLabel.setText(res.getErrorMessage());
+                validationErrorLabel.setVisible(true);
+            }
+        };
+
+        sendBtn.setOnAction(e -> doSendMessage.run());
+        msgField.setOnAction(e -> doSendMessage.run());
+        msgField.textProperty().addListener((obs, oldV, newV) -> {
+            if (validationErrorLabel.isVisible()) {
+                validationErrorLabel.setVisible(false);
+            }
+        });
+
+        inputRow.getChildren().addAll(msgField, sendBtn);
+
+        // Formal Offer Button (Subflow S2)
+        if (listing.getType() == ListingType.SELL) {
+            Button formalOfferBtn = new Button("🏷️ Make Formal Offer");
+            formalOfferBtn.getStyleClass().addAll("btn-gold");
+            formalOfferBtn.setOnAction(e -> showChatFormalPriceOfferDialog(thread, listing, returnView));
+            inputRow.getChildren().add(formalOfferBtn);
+        } else if (listing.getType() == ListingType.LEND) {
+            Button formalOfferBtn = new Button("📅 Formal Borrow Request");
+            formalOfferBtn.getStyleClass().addAll("btn-gold");
+            formalOfferBtn.setOnAction(e -> showChatFormalBorrowRequestDialog(thread, listing, returnView));
+            inputRow.getChildren().add(formalOfferBtn);
+        }
+
+        inputSection.getChildren().addAll(validationErrorLabel, inputRow);
+
+        root.getChildren().addAll(topBar, searchBar, scrollPane, inputSection);
+        contentPane.getChildren().add(root);
+    }
+
+    private void showChatFormalPriceOfferDialog(ChatThread thread, Listing listing, String returnView) {
+        Dialog<ButtonType> dialog = new Dialog<>();
+        dialog.setTitle("Make Formal Offer");
+        dialog.setHeaderText("Submit a formal price offer for '" + listing.getTitle() + "'\n"
+                + "Listed Price: " + listing.getPriceDisplay());
+
+        ButtonType submitBtnType = new ButtonType("Submit Offer", ButtonBar.ButtonData.OK_DONE);
+        dialog.getDialogPane().getButtonTypes().addAll(submitBtnType, ButtonType.CANCEL);
+
+        VBox form = new VBox(10);
+        form.setPadding(new Insets(20));
+
+        TextField priceInput = new TextField();
+        priceInput.setPromptText("Enter offer amount in HKD (e.g. 150)");
+
+        Label errorLbl = new Label();
+        errorLbl.setStyle("-fx-text-fill: #d32f2f; -fx-font-size: 12px;");
+        errorLbl.setVisible(false);
+
+        form.getChildren().addAll(new Label("Proposed Price (HKD):"), priceInput, errorLbl);
+        dialog.getDialogPane().setContent(form);
+
+        final Button submitBtn = (Button) dialog.getDialogPane().lookupButton(submitBtnType);
+        submitBtn.addEventFilter(javafx.event.ActionEvent.ACTION, event -> {
+            String txt = priceInput.getText();
+            Double amount = null;
+            try {
+                if (txt != null && !txt.trim().isEmpty()) {
+                    amount = Double.parseDouble(txt.trim());
+                }
+            } catch (NumberFormatException ex) {
+                // handled below
+            }
+
+            if (amount == null || amount <= 0) {
+                errorLbl.setText("Please enter a valid positive price amount.");
+                errorLbl.setVisible(true);
+                event.consume();
+                return;
+            }
+
+            User currentUser = SessionManager.getCurrentUser();
+            String buyerUsername = currentUser != null ? currentUser.getUsername() : "alice";
+
+            SendFormalOfferResult result = DummyDataService.getInstance().getChatService()
+                    .sendFormalPriceOffer(thread.getId(), buyerUsername, amount);
+
+            if (!result.isSuccess()) {
+                errorLbl.setText(result.getErrorMessage());
+                errorLbl.setVisible(true);
+                event.consume();
+                return;
+            }
+
+            Alert successAlert = new Alert(Alert.AlertType.INFORMATION);
+            successAlert.setTitle("Offer Sent");
+            successAlert.setHeaderText(null);
+            successAlert.setContentText(result.getConfirmationText());
+            successAlert.showAndWait();
+
+            renderChatThread(thread, listing, returnView, Collections.emptySet(), "", null, false);
+        });
+
+        dialog.showAndWait();
+    }
+
+    private void showChatFormalBorrowRequestDialog(ChatThread thread, Listing listing, String returnView) {
+        Dialog<ButtonType> dialog = new Dialog<>();
+        dialog.setTitle("Formal Borrow Request");
+        dialog.setHeaderText("Request to borrow '" + listing.getTitle() + "'\n"
+                + "Maximum Duration: " + (listing.getLendingDays() != null ? listing.getLendingDays() + " days" : "Flexible"));
+
+        ButtonType submitBtnType = new ButtonType("Submit Request", ButtonBar.ButtonData.OK_DONE);
+        dialog.getDialogPane().getButtonTypes().addAll(submitBtnType, ButtonType.CANCEL);
+
+        VBox form = new VBox(10);
+        form.setPadding(new Insets(20));
+
+        DatePicker startDatePicker = new DatePicker(LocalDate.now());
+        DatePicker endDatePicker = new DatePicker(LocalDate.now().plusDays(7));
+
+        Label errorLbl = new Label();
+        errorLbl.setStyle("-fx-text-fill: #d32f2f; -fx-font-size: 12px;");
+        errorLbl.setVisible(false);
+
+        form.getChildren().addAll(
+                new Label("Proposed Start Date:"), startDatePicker,
+                new Label("Proposed End Date:"), endDatePicker,
+                errorLbl
+        );
+        dialog.getDialogPane().setContent(form);
+
+        final Button submitBtn = (Button) dialog.getDialogPane().lookupButton(submitBtnType);
+        submitBtn.addEventFilter(javafx.event.ActionEvent.ACTION, event -> {
+            LocalDate start = startDatePicker.getValue();
+            LocalDate end = endDatePicker.getValue();
+
+            if (start == null || end == null) {
+                errorLbl.setText("Please select both start and end dates.");
+                errorLbl.setVisible(true);
+                event.consume();
+                return;
+            }
+
+            LocalDateTime startDateTime = start.atStartOfDay();
+            LocalDateTime endDateTime = end.atTime(23, 59, 59);
+
+            User currentUser = SessionManager.getCurrentUser();
+            String buyerUsername = currentUser != null ? currentUser.getUsername() : "alice";
+
+            SendFormalOfferResult result = DummyDataService.getInstance().getChatService()
+                    .sendFormalBorrowRequest(thread.getId(), buyerUsername, startDateTime, endDateTime);
+
+            if (!result.isSuccess()) {
+                errorLbl.setText(result.getErrorMessage());
+                errorLbl.setVisible(true);
+                event.consume();
+                return;
+            }
+
+            Alert successAlert = new Alert(Alert.AlertType.INFORMATION);
+            successAlert.setTitle("Borrow Request Sent");
+            successAlert.setHeaderText(null);
+            successAlert.setContentText(result.getConfirmationText());
+            successAlert.showAndWait();
+
+            renderChatThread(thread, listing, returnView, Collections.emptySet(), "", null, false);
+        });
+
+        dialog.showAndWait();
     }
 
     @FXML

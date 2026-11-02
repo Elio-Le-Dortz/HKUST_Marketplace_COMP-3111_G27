@@ -351,3 +351,51 @@
     -fx-border-radius: 10;
     -fx-padding: 14;
 }
+
+/* ========== Chat Thread & Messaging (US-B06) ========== */
+.chat-container {
+    -fx-background-color: white;
+    -fx-background-radius: 12;
+    -fx-border-color: #e2e8f0;
+    -fx-border-width: 1;
+    -fx-border-radius: 12;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.04), 8, 0, 0, 2);
+}
+
+.chat-bubble-me {
+    -fx-background-color: #003974;
+    -fx-background-radius: 14 14 2 14;
+    -fx-padding: 10 14;
+    -fx-effect: dropshadow(gaussian, rgba(0,57,116,0.15), 4, 0, 0, 1);
+}
+
+.chat-bubble-other {
+    -fx-background-color: #f1f5f9;
+    -fx-background-radius: 14 14 14 2;
+    -fx-padding: 10 14;
+    -fx-border-color: #e2e8f0;
+    -fx-border-width: 1;
+    -fx-border-radius: 14 14 14 2;
+}
+
+.chat-bubble-offer {
+    -fx-background-color: #fffbeb;
+    -fx-border-color: #f59e0b;
+    -fx-border-width: 1.5;
+    -fx-border-radius: 10;
+    -fx-background-radius: 10;
+    -fx-padding: 10 14;
+}
+
+.chat-bubble-highlight {
+    -fx-border-color: #eab308;
+    -fx-border-width: 2.5;
+    -fx-effect: dropshadow(gaussian, rgba(234,179,8,0.35), 8, 0, 0, 0);
+}
+
+.chat-search-bar {
+    -fx-background-color: #f8fafc;
+    -fx-padding: 10 14;
+    -fx-border-color: #e2e8f0;
+    -fx-border-width: 0 0 1 0;
+}

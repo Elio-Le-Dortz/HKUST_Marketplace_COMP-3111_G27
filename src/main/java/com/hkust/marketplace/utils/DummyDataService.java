@@ -310,6 +310,71 @@ public class DummyDataService {
     }
 
     /**
+     * Authenticates a Buyer with username and password, enforcing credentials, role,
+     * and active account status (US-B02).
+     *
+     * <p>Follows the formal specification of use case 1.2:</p>
+     * <ul>
+     *   <li>Flow A1: If username or password is empty, informs that both fields are required.</li>
+     *   <li>Flow A2: If username does not exist or password is incorrect, informs that the
+     *       credentials are incorrect without revealing which one.</li>
+     *   <li>Flow A3: If credentials match a Seller or Admin account, informs that this account
+     *       cannot log in to the Buyer Portal and must use its own portal.</li>
+     *   <li>Flow A4: If the Buyer account is deactivated or deleted, informs that the account
+     *       is deactivated.</li>
+     *   <li>Basic Flow: Returns a successful {@link LoginResult} wrapping the {@link Buyer}.</li>
+     * </ul>
+     *
+     * @param username Candidate username (trimmed, case-insensitive)
+     * @param password Candidate plaintext password (not trimmed)
+     * @return LoginResult indicating success or specific failure reason and affected fields
+     */
+    public synchronized LoginResult loginBuyer(String username, String password) {
+        boolean emptyUsername = (username == null || username.trim().isEmpty());
+        boolean emptyPassword = (password == null || password.isEmpty());
+
+        if (emptyUsername && emptyPassword) {
+            return LoginResult.failure(LoginResult.MSG_EMPTY_CREDENTIALS,
+                    Set.of("username", "password"), LoginErrorType.EMPTY_FIELDS);
+        }
+        if (emptyUsername) {
+            return LoginResult.failure(LoginResult.MSG_USERNAME_REQUIRED,
+                    Set.of("username"), LoginErrorType.EMPTY_FIELDS);
+        }
+        if (emptyPassword) {
+            return LoginResult.failure(LoginResult.MSG_PASSWORD_REQUIRED,
+                    Set.of("password"), LoginErrorType.EMPTY_FIELDS);
+        }
+
+        String cleanUsername = username.trim().toLowerCase();
+        User user = users.get(cleanUsername);
+
+        // Alternative Flow A2: username does not exist or password is incorrect
+        if (user == null || !PasswordUtil.verifyPassword(password, user.getPasswordHash())) {
+            return LoginResult.failure(LoginResult.MSG_INVALID_CREDENTIALS,
+                    Set.of("username", "password"), LoginErrorType.INVALID_CREDENTIALS);
+        }
+
+        // Alternative Flow A3: wrong account type (Seller or Admin)
+        if (user.getRole() != UserRole.BUYER) {
+            return LoginResult.failure(LoginResult.MSG_WRONG_ROLE_BUYER,
+                    Set.of("username"), LoginErrorType.WRONG_ROLE);
+        }
+
+        // Alternative Flow A4: account deactivated or deleted
+        if (!user.isActive()) {
+            if (user.getAccountStatus() == AccountStatus.DELETED) {
+                return LoginResult.failure(LoginResult.MSG_ACCOUNT_DELETED,
+                        Set.of("username"), LoginErrorType.ACCOUNT_DEACTIVATED);
+            }
+            return LoginResult.failure(LoginResult.MSG_ACCOUNT_DEACTIVATED,
+                    Set.of("username"), LoginErrorType.ACCOUNT_DEACTIVATED);
+        }
+
+        return LoginResult.success(user);
+    }
+
+    /**
      * Atomically stores a new user only if no account of any role already uses the
      * same username, ignoring case. Synchronized so that two concurrent registrations
      * with the same username cannot both succeed (only the first one is stored).

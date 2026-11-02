@@ -43,6 +43,14 @@ public class Notification {
         this.username = username;
     }
 
+    public String getRecipientUsername() {
+        return username;
+    }
+
+    public void setRecipientUsername(String recipientUsername) {
+        this.username = recipientUsername;
+    }
+
     public String getTitle() {
         return title;
     }

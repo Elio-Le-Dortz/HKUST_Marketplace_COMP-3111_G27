@@ -1182,48 +1182,112 @@ public class BuyerDashboardController {
         setActive(btnDeals, "My Deals");
         contentPane.getChildren().clear();
 
+        User currentUser = SessionManager.getCurrentUser();
+        String buyerUsername = currentUser != null ? currentUser.getUsername() : "alice";
+
+        // Auto-return check on entry (Use Case 1.6 Alternative Flow A4)
+        DummyDataService.getInstance().processAutoReturns();
+
         VBox root = new VBox(16);
-        root.setPadding(new Insets(4));
+        root.setPadding(new Insets(10));
 
-        Label info = new Label("Active offers, borrow requests and claims");
-        info.setStyle("-fx-text-fill: #5a5a7a;");
-        root.getChildren().add(info);
+        // Header and description
+        VBox headerBox = new VBox(4);
+        Label subtitle = new Label("Track and manage your active offers, counter-offers, borrowed items, and completed transactions.");
+        subtitle.setStyle("-fx-text-fill: #5a5a7a; -fx-font-size: 13px;");
+        Label autoReturnTip = new Label("💡 Borrowed loans automatically return to 'Live' when their duration expires (min 5s). You may also self-return early.");
+        autoReturnTip.setStyle("-fx-text-fill: #003974; -fx-font-size: 12px; -fx-font-style: italic;");
+        headerBox.getChildren().addAll(subtitle, autoReturnTip);
+        root.getChildren().add(headerBox);
 
-        TableView<String[]> table = new TableView<>();
+        // Filter / Controls bar
+        HBox filterBar = new HBox(12);
+        filterBar.setAlignment(Pos.CENTER_LEFT);
+
+        ComboBox<String> filterCombo = new ComboBox<>();
+        filterCombo.getItems().addAll("All Items", "Active Deals", "Pending & Countered Offers", "Completed & Returned");
+        filterCombo.setValue("All Items");
+        filterCombo.getStyleClass().add("combo-box");
+
+        TextField filterInput = new TextField();
+        filterInput.setPromptText("🔍 Search by title or seller...");
+        filterInput.setPrefWidth(240);
+        filterInput.getStyleClass().add("text-field");
+
+        Button btnRefresh = new Button("🔄 Refresh");
+        btnRefresh.getStyleClass().addAll("btn-outline", "btn-sm");
+
+        filterBar.getChildren().addAll(new Label("Filter:"), filterCombo, filterInput, btnRefresh);
+        root.getChildren().add(filterBar);
+
+        // Table
+        TableView<MyDealsItem> table = new TableView<>();
         table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
+        VBox.setVgrow(table, Priority.ALWAYS);
 
-        TableColumn<String[], String> colTitle = new TableColumn<>("Item");
-        colTitle.setCellValueFactory(c -> new javafx.beans.property.SimpleStringProperty(c.getValue()[0]));
-        TableColumn<String[], String> colSeller = new TableColumn<>("Seller");
-        colSeller.setCellValueFactory(c -> new javafx.beans.property.SimpleStringProperty(c.getValue()[1]));
-        TableColumn<String[], String> colType = new TableColumn<>("Type");
-        colType.setCellValueFactory(c -> new javafx.beans.property.SimpleStringProperty(c.getValue()[2]));
-        TableColumn<String[], String> colStatus = new TableColumn<>("Status");
-        colStatus.setCellValueFactory(c -> new javafx.beans.property.SimpleStringProperty(c.getValue()[3]));
-        TableColumn<String[], String> colAction = new TableColumn<>("Action");
-        colAction.setCellValueFactory(c -> new javafx.beans.property.SimpleStringProperty(c.getValue()[4]));
+        TableColumn<MyDealsItem, String> colTitle = new TableColumn<>("Item");
+        colTitle.setCellValueFactory(c -> new javafx.beans.property.SimpleStringProperty(c.getValue().getListingTitle()));
 
-        table.getColumns().addAll(colTitle, colSeller, colType, colStatus, colAction);
+        TableColumn<MyDealsItem, String> colSeller = new TableColumn<>("Seller");
+        colSeller.setCellValueFactory(c -> new javafx.beans.property.SimpleStringProperty("@" + c.getValue().getSellerUsername()));
 
-        // Dummy rows
-        table.setItems(FXCollections.observableArrayList(
-                new String[]{"Calculus Textbook (Stewart)", "Charlie Lee", "Buy", "Accepted", "Chat / Complete"},
-                new String[]{"Graphing Calculator TI-84", "Diana Ng", "Borrow", "Pending", "View"}
-        ));
+        TableColumn<MyDealsItem, String> colType = new TableColumn<>("Type");
+        colType.setCellValueFactory(c -> new javafx.beans.property.SimpleStringProperty(c.getValue().getTypeDisplay()));
 
-        // Enable opening listing detail directly from My Deals (Use Case 1.4 Step 1)
+        TableColumn<MyDealsItem, String> colStatus = new TableColumn<>("Status");
+        colStatus.setCellValueFactory(c -> new javafx.beans.property.SimpleStringProperty(c.getValue().getStatusDisplay()));
+        colStatus.setCellFactory(col -> new TableCell<>() {
+            @Override
+            protected void updateItem(String status, boolean empty) {
+                super.updateItem(status, empty);
+                if (empty || status == null) {
+                    setText(null);
+                    setGraphic(null);
+                } else {
+                    Label badge = new Label(status);
+                    badge.getStyleClass().add("badge");
+                    if ("Pending".equalsIgnoreCase(status)) badge.getStyleClass().add("badge-pending");
+                    else if ("Countered".equalsIgnoreCase(status)) badge.getStyleClass().add("badge-countered");
+                    else if ("Active".equalsIgnoreCase(status)) badge.getStyleClass().add("badge-active");
+                    else if ("Completed".equalsIgnoreCase(status)) badge.getStyleClass().add("badge-completed");
+                    else if ("Returned".equalsIgnoreCase(status)) badge.getStyleClass().add("badge-returned");
+                    else if ("Withdrawn".equalsIgnoreCase(status)) badge.getStyleClass().add("badge-withdrawn");
+                    else badge.getStyleClass().add("badge-live");
+                    setGraphic(badge);
+                    setText(null);
+                }
+            }
+        });
+
+        TableColumn<MyDealsItem, String> colDetails = new TableColumn<>("Due Date / Details");
+        colDetails.setCellValueFactory(c -> new javafx.beans.property.SimpleStringProperty(c.getValue().getDetailsSummary()));
+
+        table.getColumns().addAll(colTitle, colSeller, colType, colStatus, colDetails);
+
+        // Placeholder for empty table (Alternative Flow A1: No Deals)
+        VBox emptyPlaceholder = new VBox(10);
+        emptyPlaceholder.setAlignment(Pos.CENTER);
+        emptyPlaceholder.setPadding(new Insets(24));
+        Label emptyTitle = new Label("📦 No Deals or Offers Yet");
+        emptyTitle.setStyle("-fx-font-size: 16px; -fx-font-weight: bold; -fx-text-fill: #1a1a2e;");
+        Label emptyDesc = new Label("Explore the marketplace to make offers, request borrowed items, or claim giveaways.");
+        emptyDesc.setStyle("-fx-text-fill: #5a5a7a;");
+        Button btnBrowseMarketplace = new Button("Browse Marketplace");
+        btnBrowseMarketplace.getStyleClass().addAll("btn-primary", "btn-sm");
+        btnBrowseMarketplace.setOnAction(e -> showBrowse());
+        emptyPlaceholder.getChildren().addAll(emptyTitle, emptyDesc, btnBrowseMarketplace);
+        table.setPlaceholder(emptyPlaceholder);
+
+        // Double-click row handler: open listing details
         table.setRowFactory(tv -> {
-            TableRow<String[]> row = new TableRow<>();
+            TableRow<MyDealsItem> row = new TableRow<>();
             row.setStyle("-fx-cursor: hand;");
             row.setOnMouseClicked(event -> {
-                if (event.getClickCount() >= 1 && (!row.isEmpty())) {
-                    String[] rowData = row.getItem();
-                    String itemTitle = rowData[0];
-                    for (Listing l : DummyDataService.getInstance().getAllListings()) {
-                        if (l.getTitle().equalsIgnoreCase(itemTitle)) {
-                            showListingDetail(l);
-                            break;
-                        }
+                if (event.getClickCount() >= 2 && !row.isEmpty()) {
+                    MyDealsItem item = row.getItem();
+                    Listing l = DummyDataService.getInstance().findListing(item.getListingId());
+                    if (l != null) {
+                        showListingDetail(l);
                     }
                 }
             });
@@ -1232,53 +1296,317 @@ public class BuyerDashboardController {
 
         root.getChildren().add(table);
 
-        HBox dealActions = new HBox(10);
-        dealActions.setAlignment(Pos.CENTER_LEFT);
+        // Action Buttons Bar
+        HBox actionBox = new HBox(8);
+        actionBox.setAlignment(Pos.CENTER_LEFT);
 
-        Button btnOpenChat = new Button("💬 Open Chat with Seller");
-        btnOpenChat.getStyleClass().addAll("btn-primary", "btn-sm");
-        btnOpenChat.setOnAction(e -> {
-            String[] selected = table.getSelectionModel().getSelectedItem();
-            if (selected == null && !table.getItems().isEmpty()) {
-                selected = table.getItems().get(0);
-            }
-            if (selected != null) {
-                String itemTitle = selected[0];
-                for (Listing l : DummyDataService.getInstance().getAllListings()) {
-                    if (l.getTitle().equalsIgnoreCase(itemTitle)) {
-                        openChatForListing(l, "DEALS");
-                        return;
-                    }
-                }
-            }
-        });
+        Button btnWithdraw = new Button("Withdraw");
+        btnWithdraw.getStyleClass().addAll("btn-danger", "btn-sm");
+        btnWithdraw.setDisable(true);
 
-        Button btnViewListing = new Button("View Listing Details");
+        Button btnAcceptCounter = new Button("Accept Counter");
+        btnAcceptCounter.getStyleClass().addAll("btn-success", "btn-sm");
+        btnAcceptCounter.setDisable(true);
+
+        Button btnDeclineCounter = new Button("Decline Counter");
+        btnDeclineCounter.getStyleClass().addAll("btn-outline", "btn-sm");
+        btnDeclineCounter.setDisable(true);
+
+        Button btnSelfReturn = new Button("Return Item");
+        btnSelfReturn.getStyleClass().addAll("btn-primary", "btn-sm");
+        btnSelfReturn.setDisable(true);
+
+        Button btnMarkComplete = new Button("Mark Complete");
+        btnMarkComplete.getStyleClass().addAll("btn-gold", "btn-sm");
+        btnMarkComplete.setDisable(true);
+
+        Button btnRate = new Button("⭐ Rate");
+        btnRate.getStyleClass().addAll("btn-primary", "btn-sm");
+        btnRate.setDisable(true);
+
+        Button btnOpenChat = new Button("💬 Chat");
+        btnOpenChat.getStyleClass().addAll("btn-outline", "btn-sm");
+        btnOpenChat.setDisable(true);
+
+        Button btnViewListing = new Button("View Listing");
         btnViewListing.getStyleClass().addAll("btn-outline", "btn-sm");
-        btnViewListing.setOnAction(e -> {
-            String[] selected = table.getSelectionModel().getSelectedItem();
-            if (selected == null && !table.getItems().isEmpty()) {
-                selected = table.getItems().get(0);
-            }
-            if (selected != null) {
-                String itemTitle = selected[0];
-                for (Listing l : DummyDataService.getInstance().getAllListings()) {
-                    if (l.getTitle().equalsIgnoreCase(itemTitle)) {
-                        showListingDetail(l);
-                        return;
+        btnViewListing.setDisable(true);
+
+        actionBox.getChildren().addAll(
+                btnWithdraw, btnAcceptCounter, btnDeclineCounter,
+                btnSelfReturn, btnMarkComplete, btnRate,
+                btnOpenChat, btnViewListing
+        );
+        root.getChildren().add(actionBox);
+
+        // Selection listener to update button states
+        table.getSelectionModel().selectedItemProperty().addListener((obs, oldVal, newVal) -> {
+            boolean hasSel = newVal != null;
+            btnWithdraw.setDisable(!hasSel || !newVal.canWithdraw());
+            btnAcceptCounter.setDisable(!hasSel || !newVal.canAcceptCounter());
+            btnDeclineCounter.setDisable(!hasSel || !newVal.canDeclineCounter());
+            btnSelfReturn.setDisable(!hasSel || !newVal.canSelfReturn());
+            btnMarkComplete.setDisable(!hasSel || !newVal.canMarkComplete());
+            btnRate.setDisable(!hasSel || !newVal.canRate());
+            btnOpenChat.setDisable(!hasSel || !newVal.canOpenChat());
+            btnViewListing.setDisable(!hasSel || !newVal.canOpenListing());
+        });
+
+        // Function to refresh items
+        Runnable reloadItems = () -> {
+            DummyDataService.getInstance().processAutoReturns();
+            List<MyDealsItem> all = DummyDataService.getInstance().getMyDealsForBuyer(buyerUsername);
+            String selectedFilter = filterCombo.getValue();
+            String query = filterInput.getText() != null ? filterInput.getText().trim().toLowerCase() : "";
+
+            List<MyDealsItem> filtered = all.stream().filter(item -> {
+                // Filter dropdown
+                if ("Active Deals".equals(selectedFilter)) {
+                    if (!item.isDeal() || !"Active".equalsIgnoreCase(item.getStatusDisplay())) return false;
+                } else if ("Pending & Countered Offers".equals(selectedFilter)) {
+                    if (!item.isOffer() || (!"Pending".equalsIgnoreCase(item.getStatusDisplay()) && !"Countered".equalsIgnoreCase(item.getStatusDisplay()))) return false;
+                } else if ("Completed & Returned".equals(selectedFilter)) {
+                    if (!"Completed".equalsIgnoreCase(item.getStatusDisplay()) && !"Returned".equalsIgnoreCase(item.getStatusDisplay())) return false;
+                }
+
+                // Query match
+                if (!query.isEmpty()) {
+                    boolean matchTitle = item.getListingTitle() != null && item.getListingTitle().toLowerCase().contains(query);
+                    boolean matchSeller = item.getSellerUsername() != null && item.getSellerUsername().toLowerCase().contains(query);
+                    return matchTitle || matchSeller;
+                }
+                return true;
+            }).collect(Collectors.toList());
+
+            table.setItems(FXCollections.observableArrayList(filtered));
+        };
+
+        // Attach filter listeners
+        filterCombo.setOnAction(e -> reloadItems.run());
+        filterInput.textProperty().addListener((obs, o, n) -> reloadItems.run());
+        btnRefresh.setOnAction(e -> reloadItems.run());
+
+        // Wire Button Actions
+        // 1. Withdraw (Subflow S1 & Alternative Flow A2)
+        btnWithdraw.setOnAction(e -> {
+            MyDealsItem sel = table.getSelectionModel().getSelectedItem();
+            if (sel == null || !sel.canWithdraw()) return;
+
+            Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
+            confirm.setTitle("Withdraw Offer");
+            confirm.setHeaderText("Confirm Offer Withdrawal");
+            confirm.setContentText("Are you sure you want to withdraw your offer for '" + sel.getListingTitle() + "'?");
+            confirm.showAndWait().ifPresent(res -> {
+                if (res == ButtonType.OK) {
+                    DealOperationResult result = DummyDataService.getInstance().withdrawOffer(sel.getId(), buyerUsername);
+                    if (result.isSuccess()) {
+                        new Alert(Alert.AlertType.INFORMATION, result.getMessage()).showAndWait();
+                    } else {
+                        // Alternative Flow A2: Offer no longer pending
+                        new Alert(Alert.AlertType.WARNING, result.getMessage()).showAndWait();
                     }
+                    reloadItems.run();
+                }
+            });
+        });
+
+        // 2. Accept Counter (Subflow S2 & Alternative Flow A3)
+        btnAcceptCounter.setOnAction(e -> {
+            MyDealsItem sel = table.getSelectionModel().getSelectedItem();
+            if (sel == null || !sel.canAcceptCounter()) return;
+
+            Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
+            confirm.setTitle("Accept Counter Offer");
+            confirm.setHeaderText("Accept Counter Offer Terms");
+            confirm.setContentText(sel.getCounterDetails() + "\n\nDo you want to accept this counter-offer and confirm the deal?");
+            confirm.showAndWait().ifPresent(res -> {
+                if (res == ButtonType.OK) {
+                    DealOperationResult result = DummyDataService.getInstance().acceptCounterOffer(sel.getId(), buyerUsername);
+                    if (result.isSuccess()) {
+                        new Alert(Alert.AlertType.INFORMATION, result.getMessage()).showAndWait();
+                    } else {
+                        // Alternative Flow A3: Counter offer no longer valid
+                        new Alert(Alert.AlertType.WARNING, result.getMessage()).showAndWait();
+                    }
+                    reloadItems.run();
+                }
+            });
+        });
+
+        // 3. Decline Counter (Subflow S3)
+        btnDeclineCounter.setOnAction(e -> {
+            MyDealsItem sel = table.getSelectionModel().getSelectedItem();
+            if (sel == null || !sel.canDeclineCounter()) return;
+
+            Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
+            confirm.setTitle("Decline Counter Offer");
+            confirm.setHeaderText("Decline Counter Offer");
+            confirm.setContentText("Are you sure you want to decline the counter-offer for '" + sel.getListingTitle() + "'?");
+            confirm.showAndWait().ifPresent(res -> {
+                if (res == ButtonType.OK) {
+                    DealOperationResult result = DummyDataService.getInstance().declineCounterOffer(sel.getId(), buyerUsername);
+                    new Alert(Alert.AlertType.INFORMATION, result.getMessage()).showAndWait();
+                    reloadItems.run();
+                }
+            });
+        });
+
+        // 4. Self-Return (Subflow S4)
+        btnSelfReturn.setOnAction(e -> {
+            MyDealsItem sel = table.getSelectionModel().getSelectedItem();
+            if (sel == null || !sel.canSelfReturn()) return;
+
+            Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
+            confirm.setTitle("Return Borrowed Item");
+            confirm.setHeaderText("Confirm Early Return");
+            confirm.setContentText("Are you sure you want to return '" + sel.getListingTitle() + "' to @" + sel.getSellerUsername() + "?\nThis will restore the item to Live status.");
+            confirm.showAndWait().ifPresent(res -> {
+                if (res == ButtonType.OK) {
+                    DealOperationResult result = DummyDataService.getInstance().selfReturnItem(sel.getId(), buyerUsername);
+                    if (result.isSuccess()) {
+                        new Alert(Alert.AlertType.INFORMATION, result.getMessage()).showAndWait();
+                    } else {
+                        new Alert(Alert.AlertType.WARNING, result.getMessage()).showAndWait();
+                    }
+                    reloadItems.run();
+                }
+            });
+        });
+
+        // 5. Mark Deal Complete (Subflow S5) -> prompt rating
+        btnMarkComplete.setOnAction(e -> {
+            MyDealsItem sel = table.getSelectionModel().getSelectedItem();
+            if (sel == null || !sel.canMarkComplete()) return;
+
+            Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
+            confirm.setTitle("Mark Deal Complete");
+            confirm.setHeaderText("Confirm Transaction Completion");
+            confirm.setContentText("Have you received the item and completed the transaction for '" + sel.getListingTitle() + "'?");
+            confirm.showAndWait().ifPresent(res -> {
+                if (res == ButtonType.OK) {
+                    DealOperationResult result = DummyDataService.getInstance().markDealComplete(sel.getId(), buyerUsername);
+                    if (result.isSuccess()) {
+                        new Alert(Alert.AlertType.INFORMATION, result.getMessage()).showAndWait();
+                        reloadItems.run();
+                        // Subflow S5 Step 5: Prompt to rate seller
+                        if (result.isPromptRating() && result.getDeal() != null) {
+                            promptRatingDialog(result.getDeal(), reloadItems);
+                        }
+                    } else {
+                        new Alert(Alert.AlertType.WARNING, result.getMessage()).showAndWait();
+                    }
+                }
+            });
+        });
+
+        // 6. Rate Seller
+        btnRate.setOnAction(e -> {
+            MyDealsItem sel = table.getSelectionModel().getSelectedItem();
+            if (sel == null || !sel.canRate() || sel.getDeal() == null) return;
+            promptRatingDialog(sel.getDeal(), reloadItems);
+        });
+
+        // 7. Open Chat
+        btnOpenChat.setOnAction(e -> {
+            MyDealsItem sel = table.getSelectionModel().getSelectedItem();
+            if (sel != null && sel.canOpenChat()) {
+                Listing l = DummyDataService.getInstance().findListing(sel.getListingId());
+                if (l != null) {
+                    openChatForListing(l, "DEALS");
+                } else {
+                    new Alert(Alert.AlertType.WARNING, "Listing details not found.").showAndWait();
                 }
             }
         });
 
-        dealActions.getChildren().addAll(btnOpenChat, btnViewListing);
-        root.getChildren().add(dealActions);
+        // 8. View Listing
+        btnViewListing.setOnAction(e -> {
+            MyDealsItem sel = table.getSelectionModel().getSelectedItem();
+            if (sel != null && sel.canOpenListing()) {
+                Listing l = DummyDataService.getInstance().findListing(sel.getListingId());
+                if (l != null) {
+                    showListingDetail(l);
+                } else {
+                    new Alert(Alert.AlertType.WARNING, "Listing details not found.").showAndWait();
+                }
+            }
+        });
 
-        Label note = new Label("💡 Self-return for borrowed items and mark-complete are available here in the full version.");
-        note.setStyle("-fx-text-fill: #9aa0b0; -fx-font-size: 12px;");
-        root.getChildren().add(note);
+        // Initial population
+        reloadItems.run();
 
         contentPane.getChildren().add(root);
+    }
+
+    private void promptRatingDialog(Deal deal, Runnable onSubmitted) {
+        if (deal == null) return;
+
+        User currentUser = SessionManager.getCurrentUser();
+        String buyerUsername = currentUser != null ? currentUser.getUsername() : "alice";
+
+        Dialog<ButtonType> dialog = new Dialog<>();
+        dialog.setTitle("Rate Seller — @" + deal.getSellerUsername());
+        dialog.setHeaderText("Rate your transaction for '" + deal.getListingTitle() + "' with @" + deal.getSellerUsername());
+
+        VBox content = new VBox(12);
+        content.setPadding(new Insets(16));
+
+        Label ratingLabel = new Label("Select Star Rating (1 to 5):");
+        ratingLabel.setStyle("-fx-font-weight: bold;");
+
+        ComboBox<Integer> comboRating = new ComboBox<>();
+        comboRating.getItems().addAll(5, 4, 3, 2, 1);
+        comboRating.setValue(5);
+        comboRating.setCellFactory(lv -> new ListCell<>() {
+            @Override
+            protected void updateItem(Integer item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || item == null) {
+                    setText(null);
+                } else {
+                    setText("⭐".repeat(item) + " (" + item + " Star" + (item > 1 ? "s" : "") + ")");
+                }
+            }
+        });
+        comboRating.setButtonCell(new ListCell<>() {
+            @Override
+            protected void updateItem(Integer item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || item == null) {
+                    setText(null);
+                } else {
+                    setText("⭐".repeat(item) + " (" + item + " Star" + (item > 1 ? "s" : "") + ")");
+                }
+            }
+        });
+
+        Label commentLabel = new Label("Review Comment (optional):");
+        commentLabel.setStyle("-fx-font-weight: bold;");
+
+        TextArea txtComment = new TextArea();
+        txtComment.setPromptText("Share feedback on item condition, communication, and meetup...");
+        txtComment.setPrefRowCount(3);
+        txtComment.setWrapText(true);
+
+        content.getChildren().addAll(ratingLabel, comboRating, commentLabel, txtComment);
+        dialog.getDialogPane().setContent(content);
+        dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
+
+        dialog.showAndWait().ifPresent(res -> {
+            if (res == ButtonType.OK) {
+                int rating = comboRating.getValue() != null ? comboRating.getValue() : 5;
+                String comment = txtComment.getText();
+                DealOperationResult op = DummyDataService.getInstance().submitRating(deal.getId(), buyerUsername, rating, comment);
+                if (op.isSuccess()) {
+                    new Alert(Alert.AlertType.INFORMATION, op.getMessage()).showAndWait();
+                    if (onSubmitted != null) {
+                        onSubmitted.run();
+                    }
+                } else {
+                    new Alert(Alert.AlertType.WARNING, op.getMessage()).showAndWait();
+                }
+            }
+        });
     }
 
     @FXML

@@ -1,6 +1,7 @@
 package com.hkust.marketplace.utils;
 
 import com.hkust.marketplace.models.*;
+import com.hkust.marketplace.services.ListingDetailService;
 import com.hkust.marketplace.services.ListingFilterService;
 
 import java.time.LocalDate;
@@ -27,6 +28,7 @@ public class DummyDataService {
     private final List<Notification> notifications = new ArrayList<>();
     private final List<Review> reviews = new ArrayList<>();
     private final ListingFilterService listingFilterService = new ListingFilterService();
+    private final ListingDetailService listingDetailService = new ListingDetailService(this);
 
     private final AtomicInteger listingIdCounter = new AtomicInteger(100);
     private final AtomicInteger dealIdCounter = new AtomicInteger(500);
@@ -440,6 +442,22 @@ public class DummyDataService {
         return listingFilterService;
     }
 
+    public ListingDetailService getListingDetailService() {
+        return listingDetailService;
+    }
+
+    public synchronized ListingViewResult viewListing(String listingId, boolean requireLive) {
+        return listingDetailService.viewListing(listingId, requireLive);
+    }
+
+    public synchronized SellerRatingInfo getSellerRatingInfo(String sellerUsername) {
+        return listingDetailService.getSellerRatingInfo(sellerUsername);
+    }
+
+    public synchronized ReportResult reportListing(String listingId, String buyerUsername, String reason) {
+        return listingDetailService.submitReport(listingId, buyerUsername, reason);
+    }
+
     public synchronized List<Listing> getPendingListings() {
         return listings.values().stream()
                 .filter(l -> l.getStatus() == ListingStatus.PENDING_REVIEW)
@@ -544,11 +562,11 @@ public class DummyDataService {
     }
 
     // ========== Report methods ==========
-    public List<Report> getAllReports() {
+    public synchronized List<Report> getAllReports() {
         return new ArrayList<>(reports);
     }
 
-    public void addReport(Report report) {
+    public synchronized void addReport(Report report) {
         if (report.getId() == null) {
             report.setId("REP" + reportIdCounter.getAndIncrement());
         }
@@ -556,7 +574,7 @@ public class DummyDataService {
     }
 
     // ========== Chat methods ==========
-    public List<ChatThread> getChatThreadsForUser(String username) {
+    public synchronized List<ChatThread> getChatThreadsForUser(String username) {
         return chatThreads.stream()
                 .filter(t -> t.getBuyerUsername().equalsIgnoreCase(username)
                         || t.getSellerUsername().equalsIgnoreCase(username))
@@ -582,14 +600,14 @@ public class DummyDataService {
     }
 
     // ========== Notification methods ==========
-    public List<Notification> getNotificationsFor(String username) {
+    public synchronized List<Notification> getNotificationsFor(String username) {
         return notifications.stream()
                 .filter(n -> n.getUsername().equalsIgnoreCase(username))
                 .sorted(Comparator.comparing(Notification::getTimestamp).reversed())
                 .collect(Collectors.toList());
     }
 
-    public void addNotification(Notification n) {
+    public synchronized void addNotification(Notification n) {
         if (n.getId() == null) {
             n.setId("N" + notifIdCounter.getAndIncrement());
         }
@@ -597,17 +615,17 @@ public class DummyDataService {
     }
 
     // ========== Review methods ==========
-    public List<Review> getReviewsForSeller(String username) {
+    public synchronized List<Review> getReviewsForSeller(String username) {
         return reviews.stream()
                 .filter(r -> r.getSellerUsername().equalsIgnoreCase(username) && !r.isHidden())
                 .collect(Collectors.toList());
     }
 
-    public List<Review> getAllReviews() {
+    public synchronized List<Review> getAllReviews() {
         return new ArrayList<>(reviews);
     }
 
-    public void addReview(Review r) {
+    public synchronized void addReview(Review r) {
         if (r.getId() == null) {
             r.setId("R" + reviewIdCounter.getAndIncrement());
         }

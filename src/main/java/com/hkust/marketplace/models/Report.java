@@ -84,4 +84,16 @@ public class Report {
     public void setStatus(ReportStatus status) {
         this.status = status;
     }
+
+    @Override
+    public String toString() {
+        return "Report{" +
+                "id='" + id + '\'' +
+                ", listingId='" + listingId + '\'' +
+                ", listingTitle='" + listingTitle + '\'' +
+                ", buyerUsername='" + buyerUsername + '\'' +
+                ", reason='" + reason + '\'' +
+                ", status=" + status +
+                '}';
+    }
 }

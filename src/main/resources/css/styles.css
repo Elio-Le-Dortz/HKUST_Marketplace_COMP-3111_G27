@@ -306,3 +306,48 @@
     -fx-alignment: center;
     -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.06), 8, 0, 0, 2);
 }
+
+/* ---------- Listing Detail ---------- */
+.detail-card {
+    -fx-background-color: white;
+    -fx-background-radius: 12;
+    -fx-padding: 24;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.06), 8, 0, 0, 2);
+}
+
+.photo-main-container {
+    -fx-background-color: #f8fafd;
+    -fx-background-radius: 12;
+    -fx-border-color: #e2e8f0;
+    -fx-border-width: 1;
+    -fx-border-radius: 12;
+    -fx-alignment: center;
+    -fx-padding: 12;
+}
+
+.photo-thumb {
+    -fx-background-color: #eef2f7;
+    -fx-background-radius: 8;
+    -fx-border-color: #cbd5e1;
+    -fx-border-width: 1.5;
+    -fx-border-radius: 8;
+    -fx-cursor: hand;
+    -fx-alignment: center;
+}
+.photo-thumb:hover {
+    -fx-border-color: #003974;
+}
+
+.photo-thumb-active {
+    -fx-border-color: #003974;
+    -fx-border-width: 2.5;
+}
+
+.seller-info-box {
+    -fx-background-color: #f8fafd;
+    -fx-background-radius: 10;
+    -fx-border-color: #e2e8f0;
+    -fx-border-width: 1;
+    -fx-border-radius: 10;
+    -fx-padding: 14;
+}

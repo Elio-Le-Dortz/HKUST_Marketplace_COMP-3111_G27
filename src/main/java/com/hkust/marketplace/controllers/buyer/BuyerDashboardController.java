@@ -414,25 +414,422 @@ public class BuyerDashboardController {
         Label date = new Label("Posted: " + postedDateStr);
         date.setStyle("-fx-text-fill: #9aa0b0; -fx-font-size: 11px;");
 
+        card.setStyle("-fx-cursor: hand;");
+        card.setOnMouseClicked(e -> showListingDetail(listing));
+
         Button actionBtn = new Button();
         actionBtn.getStyleClass().addAll("btn-primary", "btn-sm");
         switch (listing.getType()) {
             case SELL -> {
                 actionBtn.setText("Make Offer");
-                actionBtn.setOnAction(e -> showOfferDialog(listing));
+                actionBtn.setOnAction(e -> {
+                    e.consume();
+                    showOfferDialog(listing);
+                });
             }
             case LEND -> {
                 actionBtn.setText("Request Borrow");
-                actionBtn.setOnAction(e -> showBorrowDialog(listing));
+                actionBtn.setOnAction(e -> {
+                    e.consume();
+                    showBorrowDialog(listing);
+                });
             }
             case GIVEAWAY -> {
                 actionBtn.setText("Claim Item");
-                actionBtn.setOnAction(e -> claimItem(listing));
+                actionBtn.setOnAction(e -> {
+                    e.consume();
+                    claimItem(listing);
+                });
             }
         }
 
-        card.getChildren().addAll(thumbContainer, top, title, meta, seller, location, date, actionBtn);
+        Button viewBtn = new Button("View Details");
+        viewBtn.getStyleClass().addAll("btn-outline", "btn-sm");
+        viewBtn.setOnAction(e -> {
+            e.consume();
+            showListingDetail(listing);
+        });
+
+        HBox btnRow = new HBox(8);
+        btnRow.setAlignment(Pos.CENTER_LEFT);
+        btnRow.getChildren().addAll(actionBtn, viewBtn);
+
+        card.getChildren().addAll(thumbContainer, top, title, meta, seller, location, date, btnRow);
         return card;
+    }
+
+    /**
+     * Opens and displays the listing detail screen (Use Case 1.4: View Listing Details).
+     * Enforces view count increment, photo gallery, full metadata, seller rating, and action buttons.
+     *
+     * @param initialListing the listing to display
+     */
+    public void showListingDetail(Listing initialListing) {
+        if (initialListing == null) return;
+
+        // Use service to increment view count and fetch full details & seller rating
+        ListingViewResult result = DummyDataService.getInstance().viewListing(initialListing.getId(), true);
+
+        // Alternative Flow A1: Listing No Longer Live
+        if (!result.isSuccess()) {
+            if (result.getStatus() == ListingViewStatus.NOT_LIVE) {
+                Alert alert = new Alert(Alert.AlertType.WARNING);
+                alert.setTitle("Listing Unavailable");
+                alert.setHeaderText(null);
+                alert.setContentText("This listing is no longer available.");
+                alert.showAndWait();
+            } else {
+                Alert alert = new Alert(Alert.AlertType.ERROR);
+                alert.setTitle("Error");
+                alert.setHeaderText(null);
+                alert.setContentText(result.getMessage());
+                alert.showAndWait();
+            }
+            return;
+        }
+
+        Listing listing = result.getListing();
+        SellerRatingInfo ratingInfo = result.getSellerRating();
+
+        pageTitle.setText("Listing Details");
+        contentPane.getChildren().clear();
+
+        VBox root = new VBox(16);
+        root.setPadding(new Insets(10));
+
+        // Top Navigation Bar
+        HBox navBar = new HBox(12);
+        navBar.setAlignment(Pos.CENTER_LEFT);
+
+        Button btnBack = new Button("← Back to Browse");
+        btnBack.getStyleClass().addAll("btn-outline", "btn-sm");
+        btnBack.setOnAction(e -> showBrowse());
+
+        Label availBadge = new Label(listing.getAvailabilityDisplay());
+        availBadge.getStyleClass().addAll("badge", "badge-live");
+
+        Label typeBadge = new Label(listing.getTypeDisplay());
+        typeBadge.getStyleClass().add("badge");
+        if (listing.getType() == ListingType.SELL) typeBadge.getStyleClass().add("badge-sold");
+        else if (listing.getType() == ListingType.LEND) typeBadge.getStyleClass().add("badge-pending");
+        else typeBadge.getStyleClass().add("badge-live");
+
+        Region navSpacer = new Region();
+        HBox.setHgrow(navSpacer, Priority.ALWAYS);
+
+        Label viewCountLabel = new Label("👁 " + listing.getViewCount() + " view" + (listing.getViewCount() == 1 ? "" : "s"));
+        viewCountLabel.setStyle("-fx-text-fill: #5a5a7a; -fx-font-weight: bold; -fx-font-size: 13px;");
+
+        navBar.getChildren().addAll(btnBack, availBadge, typeBadge, navSpacer, viewCountLabel);
+        root.getChildren().add(navBar);
+
+        // Main 2-column layout
+        HBox mainLayout = new HBox(24);
+        mainLayout.setAlignment(Pos.TOP_LEFT);
+
+        // Left Column: Photo Gallery (all photos up to 6)
+        VBox galleryCol = new VBox(12);
+        galleryCol.setPrefWidth(460);
+        galleryCol.setMinWidth(460);
+        galleryCol.setMaxWidth(460);
+
+        StackPane mainPhotoFrame = new StackPane();
+        mainPhotoFrame.getStyleClass().add("photo-main-container");
+        mainPhotoFrame.setPrefHeight(320);
+        mainPhotoFrame.setMinHeight(320);
+        mainPhotoFrame.setMaxHeight(320);
+
+        ImageView mainImageView = new ImageView();
+        mainImageView.setFitWidth(430);
+        mainImageView.setFitHeight(300);
+        mainImageView.setPreserveRatio(true);
+
+        VBox noPhotoPlaceholder = new VBox(8);
+        noPhotoPlaceholder.setAlignment(Pos.CENTER);
+        Label camIcon = new Label("📷");
+        camIcon.setStyle("-fx-font-size: 40px; -fx-text-fill: #8a94a6;");
+        Label noPhotoLabel = new Label("No photos uploaded for this listing");
+        noPhotoLabel.setStyle("-fx-text-fill: #8a94a6; -fx-font-size: 13px; -fx-font-weight: bold;");
+        noPhotoPlaceholder.getChildren().addAll(camIcon, noPhotoLabel);
+
+        List<Photo> photos = listing.getPhotos();
+        if (photos != null && !photos.isEmpty()) {
+            Photo firstPhoto = photos.get(0);
+            loadImageIntoView(firstPhoto, mainImageView, noPhotoPlaceholder, mainPhotoFrame);
+        } else {
+            mainPhotoFrame.getChildren().add(noPhotoPlaceholder);
+        }
+
+        galleryCol.getChildren().add(mainPhotoFrame);
+
+        // Thumbnail strip for up to 6 photos
+        if (photos != null && photos.size() > 1) {
+            HBox thumbStrip = new HBox(10);
+            thumbStrip.setAlignment(Pos.CENTER_LEFT);
+
+            for (int i = 0; i < Math.min(photos.size(), 6); i++) {
+                Photo p = photos.get(i);
+                StackPane thumbBox = new StackPane();
+                thumbBox.getStyleClass().add("photo-thumb");
+                thumbBox.setPrefSize(68, 68);
+                thumbBox.setMinSize(68, 68);
+                thumbBox.setMaxSize(68, 68);
+
+                ImageView thumbView = new ImageView();
+                thumbView.setFitWidth(60);
+                thumbView.setFitHeight(60);
+                thumbView.setPreserveRatio(true);
+
+                File f = p.getImageFile();
+                if (f != null && f.exists()) {
+                    try {
+                        thumbView.setImage(new Image(f.toURI().toString()));
+                        thumbBox.getChildren().add(thumbView);
+                    } catch (Exception ignored) {
+                    }
+                } else {
+                    Label smallCam = new Label("📷");
+                    smallCam.setStyle("-fx-font-size: 18px; -fx-text-fill: #8a94a6;");
+                    thumbBox.getChildren().add(smallCam);
+                }
+
+                if (i == 0) {
+                    thumbBox.getStyleClass().add("photo-thumb-active");
+                }
+
+                final int thumbIdx = i;
+                thumbBox.setOnMouseClicked(ev -> {
+                    for (javafx.scene.Node n : thumbStrip.getChildren()) {
+                        n.getStyleClass().remove("photo-thumb-active");
+                    }
+                    thumbBox.getStyleClass().add("photo-thumb-active");
+                    loadImageIntoView(photos.get(thumbIdx), mainImageView, noPhotoPlaceholder, mainPhotoFrame);
+                });
+
+                thumbStrip.getChildren().add(thumbBox);
+            }
+            galleryCol.getChildren().add(thumbStrip);
+        }
+
+        // Right Column: Details & Actions Card
+        VBox detailsCard = new VBox(14);
+        detailsCard.getStyleClass().add("detail-card");
+        HBox.setHgrow(detailsCard, Priority.ALWAYS);
+
+        Label titleLabel = new Label(listing.getTitle());
+        titleLabel.setStyle("-fx-font-size: 24px; -fx-font-weight: bold; -fx-text-fill: #003974;");
+        titleLabel.setWrapText(true);
+
+        Label priceBanner = new Label(listing.getPriceDisplay());
+        priceBanner.setStyle("-fx-font-size: 22px; -fx-font-weight: bold; -fx-text-fill: #A68137;");
+
+        // Details Grid (Category, Condition, Meetup, Date)
+        GridPane grid = new GridPane();
+        grid.setHgap(20);
+        grid.setVgap(8);
+
+        Label lblCat = new Label("Category:");
+        lblCat.setStyle("-fx-font-weight: bold; -fx-text-fill: #5a5a7a;");
+        Label valCat = new Label(listing.getCategory() != null ? listing.getCategory().getDisplayName() : "N/A");
+
+        Label lblCond = new Label("Condition:");
+        lblCond.setStyle("-fx-font-weight: bold; -fx-text-fill: #5a5a7a;");
+        Label valCond = new Label(listing.getCondition() != null ? listing.getCondition().getDisplayName() : "N/A");
+
+        Label lblMeet = new Label("Meet-up:");
+        lblMeet.setStyle("-fx-font-weight: bold; -fx-text-fill: #5a5a7a;");
+        Label valMeet = new Label("📍 " + (listing.getMeetupLocation() != null ? listing.getMeetupLocation().getDisplayName() : "HKUST Campus"));
+
+        Label lblDate = new Label("Posted Date:");
+        lblDate.setStyle("-fx-font-weight: bold; -fx-text-fill: #5a5a7a;");
+        DateTimeFormatter dtf = DateTimeFormatter.ofPattern("dd MMM yyyy, HH:mm");
+        String formattedDate = listing.getPostedAt() != null ? listing.getPostedAt().format(dtf) : "Recent";
+        Label valDate = new Label("📅 " + formattedDate);
+
+        grid.add(lblCat, 0, 0); grid.add(valCat, 1, 0);
+        grid.add(lblCond, 2, 0); grid.add(valCond, 3, 0);
+        grid.add(lblMeet, 0, 1); grid.add(valMeet, 1, 1);
+        grid.add(lblDate, 2, 1); grid.add(valDate, 3, 1);
+
+        // Description Section
+        VBox descBox = new VBox(6);
+        Label descHeader = new Label("Description");
+        descHeader.setStyle("-fx-font-weight: bold; -fx-font-size: 15px; -fx-text-fill: #1a1a2e;");
+        Label descContent = new Label(listing.getDescription() != null && !listing.getDescription().isEmpty()
+                ? listing.getDescription() : "No detailed description provided.");
+        descContent.setStyle("-fx-font-size: 14px; -fx-text-fill: #333344; -fx-line-spacing: 4px;");
+        descContent.setWrapText(true);
+        descBox.getChildren().addAll(descHeader, descContent);
+
+        Separator sep1 = new Separator();
+
+        // Seller Information Box (Basic Flow Step 3 & Alternative Flow A2)
+        VBox sellerBox = new VBox(6);
+        sellerBox.getStyleClass().add("seller-info-box");
+
+        Label sellerHeader = new Label("👤 Seller Information");
+        sellerHeader.setStyle("-fx-font-weight: bold; -fx-font-size: 14px; -fx-text-fill: #003974;");
+
+        HBox sellerRow = new HBox(12);
+        sellerRow.setAlignment(Pos.CENTER_LEFT);
+
+        Label sellerName = new Label(listing.getSellerFullName() != null ? listing.getSellerFullName() : listing.getSellerUsername());
+        sellerName.setStyle("-fx-font-weight: bold; -fx-font-size: 14px; -fx-text-fill: #1a1a2e;");
+
+        Label sellerHandle = new Label("@" + listing.getSellerUsername());
+        sellerHandle.setStyle("-fx-text-fill: #5a5a7a; -fx-font-size: 12px;");
+
+        Label ratingLabel = new Label(ratingInfo != null ? ratingInfo.getDisplayText() : SellerRatingInfo.NO_RATINGS_TEXT);
+        if (ratingInfo != null && ratingInfo.hasRatings()) {
+            ratingLabel.setStyle("-fx-text-fill: #A68137; -fx-font-weight: bold; -fx-font-size: 13px;");
+        } else {
+            // Alternative Flow A2: No ratings yet
+            ratingLabel.setStyle("-fx-text-fill: #8a94a6; -fx-font-style: italic; -fx-font-size: 13px;");
+        }
+
+        sellerRow.getChildren().addAll(sellerName, sellerHandle, new Label("•"), ratingLabel);
+        sellerBox.getChildren().addAll(sellerHeader, sellerRow);
+
+        Separator sep2 = new Separator();
+
+        // Action Buttons Row (Basic Flow Step 4)
+        HBox actionsRow = new HBox(12);
+        actionsRow.setAlignment(Pos.CENTER_LEFT);
+
+        Button primaryActionBtn = new Button();
+        primaryActionBtn.getStyleClass().addAll("btn-primary");
+        switch (listing.getType()) {
+            case SELL -> {
+                primaryActionBtn.setText("Make Offer");
+                primaryActionBtn.setOnAction(e -> showOfferDialog(listing));
+            }
+            case LEND -> {
+                primaryActionBtn.setText("Borrow Request");
+                primaryActionBtn.setOnAction(e -> showBorrowDialog(listing));
+            }
+            case GIVEAWAY -> {
+                primaryActionBtn.setText("Claim Item");
+                primaryActionBtn.setOnAction(e -> claimItem(listing));
+            }
+        }
+
+        Button chatBtn = new Button("💬 Chat");
+        chatBtn.getStyleClass().addAll("btn-outline");
+        chatBtn.setOnAction(e -> {
+            Alert chatAlert = new Alert(Alert.AlertType.INFORMATION);
+            chatAlert.setTitle("Chat with Seller");
+            chatAlert.setHeaderText(null);
+            chatAlert.setContentText("Opening chat with " + listing.getSellerFullName() + " about '" + listing.getTitle() + "'...");
+            chatAlert.showAndWait();
+        });
+
+        Button reportBtn = new Button("🚩 Report Listing");
+        reportBtn.getStyleClass().addAll("btn-danger");
+        reportBtn.setOnAction(e -> showReportListingDialog(listing));
+
+        actionsRow.getChildren().addAll(primaryActionBtn, chatBtn, reportBtn);
+
+        detailsCard.getChildren().addAll(titleLabel, priceBanner, grid, descBox, sep1, sellerBox, sep2, actionsRow);
+
+        mainLayout.getChildren().addAll(galleryCol, detailsCard);
+        root.getChildren().add(mainLayout);
+
+        ScrollPane scroll = new ScrollPane(root);
+        scroll.setFitToWidth(true);
+        scroll.setStyle("-fx-background-color: transparent;");
+        contentPane.getChildren().add(scroll);
+    }
+
+    private void loadImageIntoView(Photo photo, ImageView imageView, VBox placeholder, StackPane container) {
+        container.getChildren().clear();
+        boolean loaded = false;
+        if (photo != null && photo.getImagePath() != null) {
+            File f = photo.getImageFile();
+            if (f != null && f.exists()) {
+                try {
+                    imageView.setImage(new Image(f.toURI().toString()));
+                    container.getChildren().add(imageView);
+                    loaded = true;
+                } catch (Exception ignored) {
+                }
+            }
+        }
+        if (!loaded) {
+            container.getChildren().add(placeholder);
+        }
+    }
+
+    /**
+     * Displays a dialog asking for a written reason to report a listing (Alternative Flow A3).
+     *
+     * @param listing the listing being reported
+     */
+    private void showReportListingDialog(Listing listing) {
+        Dialog<String> dialog = new Dialog<>();
+        dialog.setTitle("Report Listing");
+        dialog.setHeaderText("Report: " + listing.getTitle());
+
+        ButtonType submitButtonType = new ButtonType("Submit Report", ButtonBar.ButtonData.OK_DONE);
+        dialog.getDialogPane().getButtonTypes().addAll(submitButtonType, ButtonType.CANCEL);
+
+        VBox content = new VBox(10);
+        content.setPrefWidth(420);
+        content.setPadding(new Insets(10));
+
+        Label instruction = new Label("Please explain why you are reporting this listing (e.g., inappropriate content, counterfeit item, duplicate, prohibited goods):");
+        instruction.setWrapText(true);
+        instruction.setStyle("-fx-text-fill: #5a5a7a; -fx-font-size: 13px;");
+
+        TextArea reasonArea = new TextArea();
+        reasonArea.setPromptText("Enter your reason here...");
+        reasonArea.setPrefRowCount(4);
+        reasonArea.setWrapText(true);
+
+        Label errorLabel = new Label("Please enter a reason for reporting this listing.");
+        errorLabel.setStyle("-fx-text-fill: #c62828; -fx-font-size: 12px;");
+        errorLabel.setVisible(false);
+        errorLabel.setManaged(false);
+
+        content.getChildren().addAll(instruction, reasonArea, errorLabel);
+        dialog.getDialogPane().setContent(content);
+
+        // Form validation on submit click (Alternative Flow A3)
+        final Button submitBtn = (Button) dialog.getDialogPane().lookupButton(submitButtonType);
+        submitBtn.addEventFilter(javafx.event.ActionEvent.ACTION, event -> {
+            String text = reasonArea.getText();
+            if (text == null || text.trim().isEmpty()) {
+                errorLabel.setVisible(true);
+                errorLabel.setManaged(true);
+                event.consume(); // keep dialog open
+            }
+        });
+
+        dialog.setResultConverter(dialogButton -> {
+            if (dialogButton == submitButtonType) {
+                return reasonArea.getText();
+            }
+            return null;
+        });
+
+        dialog.showAndWait().ifPresent(reason -> {
+            User currentUser = SessionManager.getCurrentUser();
+            String buyerUsername = currentUser != null ? currentUser.getUsername() : "buyer";
+
+            ReportResult reportResult = DummyDataService.getInstance().reportListing(listing.getId(), buyerUsername, reason);
+            if (reportResult.isSuccess()) {
+                Alert alert = new Alert(Alert.AlertType.INFORMATION);
+                alert.setTitle("Report Submitted");
+                alert.setHeaderText(null);
+                alert.setContentText("Your report has been submitted to the marketplace moderators. Thank you for helping keep our community safe.");
+                alert.showAndWait();
+            } else {
+                Alert alert = new Alert(Alert.AlertType.ERROR);
+                alert.setTitle("Report Failed");
+                alert.setHeaderText(null);
+                alert.setContentText(reportResult.getErrorMessage());
+                alert.showAndWait();
+            }
+        });
     }
 
     private void showOfferDialog(Listing listing) {
@@ -512,6 +909,25 @@ public class BuyerDashboardController {
                 new String[]{"Calculus Textbook (Stewart)", "Charlie Lee", "Buy", "Accepted", "Chat / Complete"},
                 new String[]{"Graphing Calculator TI-84", "Diana Ng", "Borrow", "Pending", "View"}
         ));
+
+        // Enable opening listing detail directly from My Deals (Use Case 1.4 Step 1)
+        table.setRowFactory(tv -> {
+            TableRow<String[]> row = new TableRow<>();
+            row.setStyle("-fx-cursor: hand;");
+            row.setOnMouseClicked(event -> {
+                if (event.getClickCount() >= 1 && (!row.isEmpty())) {
+                    String[] rowData = row.getItem();
+                    String itemTitle = rowData[0];
+                    for (Listing l : DummyDataService.getInstance().getAllListings()) {
+                        if (l.getTitle().equalsIgnoreCase(itemTitle)) {
+                            showListingDetail(l);
+                            break;
+                        }
+                    }
+                }
+            });
+            return row;
+        });
 
         root.getChildren().add(table);
         Label note = new Label("💡 Self-return for borrowed items and mark-complete are available here in the full version.");

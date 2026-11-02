@@ -1,6 +1,7 @@
 package com.hkust.marketplace.utils;
 
 import com.hkust.marketplace.models.*;
+import com.hkust.marketplace.services.ActOnListingService;
 import com.hkust.marketplace.services.ListingDetailService;
 import com.hkust.marketplace.services.ListingFilterService;
 
@@ -29,6 +30,7 @@ public class DummyDataService {
     private final List<Review> reviews = new ArrayList<>();
     private final ListingFilterService listingFilterService = new ListingFilterService();
     private final ListingDetailService listingDetailService = new ListingDetailService(this);
+    private final ActOnListingService actOnListingService = new ActOnListingService(this);
 
     private final AtomicInteger listingIdCounter = new AtomicInteger(100);
     private final AtomicInteger dealIdCounter = new AtomicInteger(500);
@@ -446,6 +448,10 @@ public class DummyDataService {
         return listingDetailService;
     }
 
+    public ActOnListingService getActOnListingService() {
+        return actOnListingService;
+    }
+
     public synchronized ListingViewResult viewListing(String listingId, boolean requireLive) {
         return listingDetailService.viewListing(listingId, requireLive);
     }
@@ -456,6 +462,23 @@ public class DummyDataService {
 
     public synchronized ReportResult reportListing(String listingId, String buyerUsername, String reason) {
         return listingDetailService.submitReport(listingId, buyerUsername, reason);
+    }
+
+    public synchronized ActOnListingResult submitPriceOffer(String listingId, String buyerUsername, Double price) {
+        return actOnListingService.submitPriceOffer(listingId, buyerUsername, price);
+    }
+
+    public synchronized ActOnListingResult submitBorrowRequest(String listingId, String buyerUsername,
+                                                               LocalDateTime startDate, LocalDateTime endDate) {
+        return actOnListingService.submitBorrowRequest(listingId, buyerUsername, startDate, endDate);
+    }
+
+    public synchronized ActOnListingResult submitClaim(String listingId, String buyerUsername) {
+        return actOnListingService.submitClaim(listingId, buyerUsername);
+    }
+
+    public synchronized boolean isGiveawayClaimed(String listingId) {
+        return actOnListingService.isGiveawayClaimed(listingId);
     }
 
     public synchronized List<Listing> getPendingListings() {
@@ -536,25 +559,29 @@ public class DummyDataService {
     }
 
     // ========== Offer methods ==========
-    public List<Offer> getOffersForListing(String listingId) {
+    public synchronized List<Offer> getAllOffers() {
+        return new ArrayList<>(offers);
+    }
+
+    public synchronized List<Offer> getOffersForListing(String listingId) {
         return offers.stream()
                 .filter(o -> o.getListingId().equals(listingId))
                 .collect(Collectors.toList());
     }
 
-    public List<Offer> getOffersForBuyer(String username) {
+    public synchronized List<Offer> getOffersForBuyer(String username) {
         return offers.stream()
                 .filter(o -> o.getBuyerUsername().equalsIgnoreCase(username))
                 .collect(Collectors.toList());
     }
 
-    public List<Offer> getOffersForSeller(String username) {
+    public synchronized List<Offer> getOffersForSeller(String username) {
         return offers.stream()
                 .filter(o -> o.getSellerUsername().equalsIgnoreCase(username))
                 .collect(Collectors.toList());
     }
 
-    public void addOffer(Offer offer) {
+    public synchronized void addOffer(Offer offer) {
         if (offer.getId() == null) {
             offer.setId("O" + offerIdCounter.getAndIncrement());
         }

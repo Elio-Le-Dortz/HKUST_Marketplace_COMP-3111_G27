@@ -36,7 +36,7 @@ public class SellerLoginController {
             showError("This account is not a Seller account. Use the correct portal.");
             return;
         }
-        if (!user.getPasswordHash().equals(password)) {
+        if (!com.hkust.marketplace.utils.PasswordUtil.verifyPassword(password, user.getPasswordHash())) {
             showError("Incorrect password.");
             return;
         }

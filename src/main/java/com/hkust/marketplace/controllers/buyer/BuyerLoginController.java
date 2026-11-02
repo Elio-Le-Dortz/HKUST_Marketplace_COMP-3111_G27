@@ -38,8 +38,7 @@ public class BuyerLoginController {
             showError("This account is not a Buyer account. Please use the correct portal.");
             return;
         }
-        // Demo: plaintext comparison. TODO: use hashed password verification
-        if (!user.getPasswordHash().equals(password)) {
+        if (!com.hkust.marketplace.utils.PasswordUtil.verifyPassword(password, user.getPasswordHash())) {
             showError("Incorrect password. Please try again.");
             return;
         }

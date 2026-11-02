@@ -32,7 +32,7 @@ public class AdminLoginController {
             showError("Invalid admin credentials.");
             return;
         }
-        if (!user.getPasswordHash().equals(password)) {
+        if (!com.hkust.marketplace.utils.PasswordUtil.verifyPassword(password, user.getPasswordHash())) {
             showError("Incorrect password.");
             return;
         }

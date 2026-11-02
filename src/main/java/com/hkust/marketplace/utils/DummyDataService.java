@@ -74,26 +74,49 @@ public class DummyDataService {
         return INSTANCE;
     }
 
+    /**
+     * Resets all in-memory collections and re-seeds original mock data.
+     * Useful for isolating automated unit and integration tests.
+     */
+    public synchronized void resetData() {
+        users.clear();
+        listings.clear();
+        deals.clear();
+        offers.clear();
+        reports.clear();
+        chatThreads.clear();
+        notifications.clear();
+        reviews.clear();
+        listingIdCounter.set(100);
+        dealIdCounter.set(500);
+        offerIdCounter.set(700);
+        reportIdCounter.set(300);
+        notifIdCounter.set(1);
+        reviewIdCounter.set(1);
+        threadIdCounter.set(1);
+        seedData();
+    }
+
     private void seedData() {
         // Admin
-        Admin admin = new Admin("admin", "HKUST Marketplace Admin", "admin123");
+        Admin admin = new Admin("admin", "HKUST Marketplace Admin", PasswordUtil.hashPassword("admin123"));
         users.put("admin", admin);
 
         // Sample buyers
-        Buyer buyer1 = new Buyer("alice", "Alice Chan", "password1", "Hall 3");
+        Buyer buyer1 = new Buyer("alice", "Alice Chan", PasswordUtil.hashPassword("password1"), "Hall 3");
         users.put("alice", buyer1);
 
-        Buyer buyer2 = new Buyer("bob", "Bob Wong", "password1", "Off-campus");
+        Buyer buyer2 = new Buyer("bob", "Bob Wong", PasswordUtil.hashPassword("password1"), "Off-campus");
         users.put("bob", buyer2);
 
         // Sample sellers
-        Seller seller1 = new Seller("charlie", "Charlie Lee", "password1", "Final year CSE student selling textbooks and gadgets.");
+        Seller seller1 = new Seller("charlie", "Charlie Lee", PasswordUtil.hashPassword("password1"), "Final year CSE student selling textbooks and gadgets.");
         seller1.setPreferredMeetup("Library");
         seller1.setAverageRating(4.7);
         seller1.setRatingCount(12);
         users.put("charlie", seller1);
 
-        Seller seller2 = new Seller("diana", "Diana Ng", "password1", "Selling furniture and kitchen items before graduation.");
+        Seller seller2 = new Seller("diana", "Diana Ng", PasswordUtil.hashPassword("password1"), "Selling furniture and kitchen items before graduation.");
         seller2.setPreferredMeetup("Hall 5 Lobby");
         seller2.setAverageRating(4.3);
         seller2.setRatingCount(8);
@@ -179,15 +202,99 @@ public class DummyDataService {
 
     // ========== User methods ==========
     public boolean usernameExists(String username) {
-        return users.containsKey(username.toLowerCase());
+        if (username == null) {
+            return false;
+        }
+        return users.containsKey(username.trim().toLowerCase());
     }
 
     public User findUser(String username) {
-        return users.get(username.toLowerCase());
+        if (username == null) {
+            return null;
+        }
+        return users.get(username.trim().toLowerCase());
     }
 
     public void registerUser(User user) {
-        users.put(user.getUsername().toLowerCase(), user);
+        if (user == null || user.getUsername() == null) {
+            throw new IllegalArgumentException("User and username cannot be null.");
+        }
+        users.put(user.getUsername().trim().toLowerCase(), user);
+    }
+
+    /**
+     * Registers a new Buyer account with validation and password hashing (US-B01).
+     *
+     * @param username        Desired username (case-insensitive uniqueness)
+     * @param fullName        Full name of the buyer (required)
+     * @param password        Plaintext password meeting strength criteria
+     * @param confirmPassword Confirmation password that must match
+     * @param residence       Optional residence hall or off-campus location
+     * @return RegistrationResult indicating success or failure with affected fields
+     */
+    public synchronized RegistrationResult registerBuyer(String username, String fullName,
+                                                        String password, String confirmPassword,
+                                                        String residence) {
+        Set<String> emptyFields = new LinkedHashSet<>();
+        if (username == null || username.trim().isEmpty()) {
+            emptyFields.add("username");
+        }
+        if (fullName == null || fullName.trim().isEmpty()) {
+            emptyFields.add("fullName");
+        }
+        if (password == null || password.isEmpty()) {
+            emptyFields.add("password");
+        }
+        if (confirmPassword == null || confirmPassword.isEmpty()) {
+            emptyFields.add("confirmPassword");
+        }
+
+        if (!emptyFields.isEmpty()) {
+            String message;
+            if (emptyFields.size() == 1) {
+                if (emptyFields.contains("username")) {
+                    message = "Username is required.";
+                } else if (emptyFields.contains("fullName")) {
+                    message = "Full Name cannot be empty.";
+                } else if (emptyFields.contains("password")) {
+                    message = "Password cannot be empty.";
+                } else {
+                    message = "Please confirm your password.";
+                }
+            } else {
+                message = "Please fill in all required fields.";
+            }
+            return RegistrationResult.failure(message, emptyFields);
+        }
+
+        String cleanUsername = username.trim();
+        if (cleanUsername.contains(" ")) {
+            return RegistrationResult.failure("Username cannot contain spaces.", "username");
+        }
+        if (cleanUsername.length() < 3) {
+            return RegistrationResult.failure("Username must be at least 3 characters long.", "username");
+        }
+
+        if (usernameExists(cleanUsername)) {
+            return RegistrationResult.failure("Username already taken. Please choose another.", "username");
+        }
+
+        String pwdCheck = checkPasswordStrength(password);
+        if (!"OK".equals(pwdCheck)) {
+            return RegistrationResult.failure(pwdCheck, "password");
+        }
+
+        if (!password.equals(confirmPassword)) {
+            return RegistrationResult.failure("Passwords do not match.", "confirmPassword");
+        }
+
+        String hashedPassword = PasswordUtil.hashPassword(password);
+        String cleanResidence = (residence != null && !residence.trim().isEmpty()) ? residence.trim() : null;
+        Buyer buyer = new Buyer(cleanUsername.toLowerCase(), fullName.trim(), hashedPassword, cleanResidence);
+        buyer.setAccountStatus(AccountStatus.ACTIVE);
+        registerUser(buyer);
+
+        return RegistrationResult.success(buyer);
     }
 
     public Collection<User> getAllUsers() {

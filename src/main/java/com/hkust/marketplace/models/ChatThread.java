@@ -6,6 +6,7 @@ import java.util.List;
 
 /**
  * Domain model for ChatThread as defined in the UML Class Diagram.
+ * Represents a private chat thread linked to a listing between a buyer and a seller (US-B06).
  */
 public class ChatThread {
     private String id;
@@ -84,10 +85,68 @@ public class ChatThread {
         this.messages = messages != null ? messages : new ArrayList<>();
     }
 
-    public void addMessage(Message message) {
+    public synchronized void addMessage(Message message) {
         if (this.messages == null) {
             this.messages = new ArrayList<>();
         }
-        this.messages.add(message);
+        if (message != null) {
+            this.messages.add(message);
+        }
+    }
+
+    /**
+     * Checks if this thread has any messages.
+     *
+     * @return {@code true} if messages list contains at least one message
+     */
+    public boolean hasMessages() {
+        return messages != null && !messages.isEmpty();
+    }
+
+    /**
+     * Returns the last message in this thread, or {@code null} if empty.
+     *
+     * @return the most recent {@link Message}, or {@code null}
+     */
+    public Message getLastMessage() {
+        if (!hasMessages()) {
+            return null;
+        }
+        return messages.get(messages.size() - 1);
+    }
+
+    /**
+     * Checks whether the given username is a participant (buyer or seller) in this chat thread.
+     *
+     * @param username the username to check (case-insensitive)
+     * @return {@code true} if the user is the buyer or seller of this thread
+     */
+    public boolean isParticipant(String username) {
+        if (username == null) {
+            return false;
+        }
+        String normalized = username.trim().toLowerCase();
+        return (buyerUsername != null && buyerUsername.trim().toLowerCase().equals(normalized))
+                || (sellerUsername != null && sellerUsername.trim().toLowerCase().equals(normalized));
+    }
+
+    /**
+     * Returns the counterpart participant's username in this thread.
+     *
+     * @param username the username of one participant
+     * @return the username of the counterpart participant, or {@code null} if user not in thread
+     */
+    public String getOtherParticipant(String username) {
+        if (username == null) {
+            return null;
+        }
+        String normalized = username.trim().toLowerCase();
+        if (buyerUsername != null && buyerUsername.trim().toLowerCase().equals(normalized)) {
+            return sellerUsername;
+        }
+        if (sellerUsername != null && sellerUsername.trim().toLowerCase().equals(normalized)) {
+            return buyerUsername;
+        }
+        return null;
     }
 }

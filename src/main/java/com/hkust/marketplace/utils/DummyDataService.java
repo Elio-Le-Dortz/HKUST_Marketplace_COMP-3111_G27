@@ -2,6 +2,7 @@ package com.hkust.marketplace.utils;
 
 import com.hkust.marketplace.models.*;
 import com.hkust.marketplace.services.ActOnListingService;
+import com.hkust.marketplace.services.ChatService;
 import com.hkust.marketplace.services.ListingDetailService;
 import com.hkust.marketplace.services.ListingFilterService;
 
@@ -31,6 +32,7 @@ public class DummyDataService {
     private final ListingFilterService listingFilterService = new ListingFilterService();
     private final ListingDetailService listingDetailService = new ListingDetailService(this);
     private final ActOnListingService actOnListingService = new ActOnListingService(this);
+    private final ChatService chatService = new ChatService(this);
 
     private final AtomicInteger listingIdCounter = new AtomicInteger(100);
     private final AtomicInteger dealIdCounter = new AtomicInteger(500);
@@ -39,6 +41,7 @@ public class DummyDataService {
     private final AtomicInteger notifIdCounter = new AtomicInteger(1);
     private final AtomicInteger reviewIdCounter = new AtomicInteger(1);
     private final AtomicInteger threadIdCounter = new AtomicInteger(1);
+    private final AtomicInteger messageIdCounter = new AtomicInteger(1);
 
     // Predefined HKUST locations
     public static final List<String> HKUST_LOCATIONS = List.of(
@@ -100,6 +103,7 @@ public class DummyDataService {
         notifIdCounter.set(1);
         reviewIdCounter.set(1);
         threadIdCounter.set(1);
+        messageIdCounter.set(1);
         seedData();
     }
 
@@ -195,6 +199,25 @@ public class DummyDataService {
                 "Your Mini Fridge listing is awaiting admin review.", "System"));
         notifications.add(new Notification("admin", "New Listing Submitted",
                 "Diana submitted 'Mini Fridge' for review.", "System"));
+
+        // Sample chat thread (US-B06)
+        ChatThread seedThread = new ChatThread("T" + threadIdCounter.getAndIncrement(),
+                l1.getId(), "alice", "charlie");
+        seedThread.setListingTitle(l1.getTitle());
+        seedThread.setCreatedDate(LocalDateTime.now().minusDays(1));
+        Message m1 = new Message("M" + messageIdCounter.getAndIncrement(), "alice",
+                "Hi Charlie, is the Calculus textbook still available?", LocalDateTime.now().minusHours(5));
+        Message m2 = new Message("M" + messageIdCounter.getAndIncrement(), "charlie",
+                "Hi Alice! Yes, it's available and in great condition.", LocalDateTime.now().minusHours(4));
+        Message m3 = new Message("M" + messageIdCounter.getAndIncrement(), "alice",
+                "[FORMAL OFFER] Proposed Price: HK$ 160.00", LocalDateTime.now().minusHours(3), d1.getId());
+        Message m4 = new Message("M" + messageIdCounter.getAndIncrement(), "charlie",
+                "Offer accepted! Let's arrange meetup at the Library.", LocalDateTime.now().minusHours(2));
+        seedThread.addMessage(m1);
+        seedThread.addMessage(m2);
+        seedThread.addMessage(m3);
+        seedThread.addMessage(m4);
+        chatThreads.add(seedThread);
 
         // Sample review
         Review r1 = new Review();
@@ -452,6 +475,18 @@ public class DummyDataService {
         return actOnListingService;
     }
 
+    public ChatService getChatService() {
+        return chatService;
+    }
+
+    public int nextMessageId() {
+        return messageIdCounter.getAndIncrement();
+    }
+
+    public int nextThreadId() {
+        return threadIdCounter.getAndIncrement();
+    }
+
     public synchronized ListingViewResult viewListing(String listingId, boolean requireLive) {
         return listingDetailService.viewListing(listingId, requireLive);
     }
@@ -601,6 +636,29 @@ public class DummyDataService {
     }
 
     // ========== Chat methods ==========
+    public synchronized List<ChatThread> getAllChatThreads() {
+        return new ArrayList<>(chatThreads);
+    }
+
+    public synchronized ChatThread findChatThread(String threadId) {
+        if (threadId == null) return null;
+        for (ChatThread t : chatThreads) {
+            if (t.getId() != null && t.getId().equalsIgnoreCase(threadId.trim())) {
+                return t;
+            }
+        }
+        return null;
+    }
+
+    public synchronized void addChatThread(ChatThread thread) {
+        if (thread != null) {
+            if (thread.getId() == null) {
+                thread.setId("T" + threadIdCounter.getAndIncrement());
+            }
+            chatThreads.add(thread);
+        }
+    }
+
     public synchronized List<ChatThread> getChatThreadsForUser(String username) {
         return chatThreads.stream()
                 .filter(t -> t.getBuyerUsername().equalsIgnoreCase(username)

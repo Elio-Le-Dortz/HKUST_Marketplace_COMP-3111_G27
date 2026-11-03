@@ -712,7 +712,11 @@ public class BuyerDashboardController {
             ratingLabel.setStyle("-fx-text-fill: #8a94a6; -fx-font-style: italic; -fx-font-size: 13px;");
         }
 
-        sellerRow.getChildren().addAll(sellerName, sellerHandle, new Label("•"), ratingLabel);
+        Button btnViewReviews = new Button("💬 Reviews");
+        btnViewReviews.getStyleClass().addAll("btn-outline", "btn-sm");
+        btnViewReviews.setOnAction(e -> showSellerReviewsDialog(listing.getSellerUsername(), listing.getSellerFullName()));
+
+        sellerRow.getChildren().addAll(sellerName, sellerHandle, new Label("•"), ratingLabel, btnViewReviews);
         sellerBox.getChildren().addAll(sellerHeader, sellerRow);
 
         Separator sep2 = new Separator();
@@ -1365,7 +1369,13 @@ public class BuyerDashboardController {
             btnDeclineCounter.setDisable(!hasSel || !newVal.canDeclineCounter());
             btnSelfReturn.setDisable(!hasSel || !newVal.canSelfReturn());
             btnMarkComplete.setDisable(!hasSel || !newVal.canMarkComplete());
-            btnRate.setDisable(!hasSel || !newVal.canRate());
+            if (hasSel && newVal.isRated()) {
+                btnRate.setText("⭐ View Review");
+                btnRate.setDisable(false);
+            } else {
+                btnRate.setText("⭐ Rate");
+                btnRate.setDisable(!hasSel || !newVal.canRate());
+            }
             btnOpenChat.setDisable(!hasSel || !newVal.canOpenChat());
             btnViewListing.setDisable(!hasSel || !newVal.canOpenListing());
         });
@@ -1504,11 +1514,26 @@ public class BuyerDashboardController {
                 if (res == ButtonType.OK) {
                     DealOperationResult result = DummyDataService.getInstance().markDealComplete(sel.getId(), buyerUsername);
                     if (result.isSuccess()) {
-                        new Alert(Alert.AlertType.INFORMATION, result.getMessage()).showAndWait();
                         reloadItems.run();
-                        // Subflow S5 Step 5: Prompt to rate seller
+                        // Subflow S5 Step 5: Prompt to rate seller (with Rate Now and Skip)
                         if (result.isPromptRating() && result.getDeal() != null) {
-                            promptRatingDialog(result.getDeal(), reloadItems);
+                            Alert ratePrompt = new Alert(Alert.AlertType.CONFIRMATION);
+                            ratePrompt.setTitle("Rate Seller");
+                            ratePrompt.setHeaderText("Transaction Completed Successfully!");
+                            ratePrompt.setContentText("Would you like to rate and review @" + result.getDeal().getSellerUsername() + " for '" + result.getDeal().getListingTitle() + "' now?");
+                            ButtonType btnRateNow = new ButtonType("Rate Now", ButtonBar.ButtonData.OK_DONE);
+                            ButtonType btnSkip = new ButtonType("Skip", ButtonBar.ButtonData.CANCEL_CLOSE);
+                            ratePrompt.getButtonTypes().setAll(btnRateNow, btnSkip);
+                            ratePrompt.showAndWait().ifPresent(rateChoice -> {
+                                if (rateChoice == btnRateNow) {
+                                    promptRatingDialog(result.getDeal(), reloadItems);
+                                } else {
+                                    // Alternative Flow A3: Skip Rating
+                                    DummyDataService.getInstance().getBuyerReviewService().skipRating(result.getDeal().getId(), buyerUsername);
+                                }
+                            });
+                        } else {
+                            new Alert(Alert.AlertType.INFORMATION, result.getMessage()).showAndWait();
                         }
                     } else {
                         new Alert(Alert.AlertType.WARNING, result.getMessage()).showAndWait();
@@ -1520,8 +1545,12 @@ public class BuyerDashboardController {
         // 6. Rate Seller
         btnRate.setOnAction(e -> {
             MyDealsItem sel = table.getSelectionModel().getSelectedItem();
-            if (sel == null || !sel.canRate() || sel.getDeal() == null) return;
-            promptRatingDialog(sel.getDeal(), reloadItems);
+            if (sel == null || sel.getDeal() == null) return;
+            if (sel.canRate()) {
+                promptRatingDialog(sel.getDeal(), reloadItems);
+            } else if (sel.isRated()) {
+                showDealReviewDialog(sel.getDeal().getId());
+            }
         });
 
         // 7. Open Chat
@@ -1562,19 +1591,39 @@ public class BuyerDashboardController {
         User currentUser = SessionManager.getCurrentUser();
         String buyerUsername = currentUser != null ? currentUser.getUsername() : "alice";
 
+        // Alternative Flow A2: Already Rated This Deal
+        if (deal.isRated() || DummyDataService.getInstance().getBuyerReviewService().getReviewForDeal(deal.getId()).isPresent()) {
+            Alert alert = new Alert(Alert.AlertType.INFORMATION);
+            alert.setTitle("Already Rated");
+            alert.setHeaderText("Deal Already Reviewed");
+            alert.setContentText("This deal has already been rated.");
+            alert.showAndWait();
+            return;
+        }
+
+        // Basic Flow Step 2: Rating form showing seller's name and item
         Dialog<ButtonType> dialog = new Dialog<>();
         dialog.setTitle("Rate Seller — @" + deal.getSellerUsername());
         dialog.setHeaderText("Rate your transaction for '" + deal.getListingTitle() + "' with @" + deal.getSellerUsername());
 
         VBox content = new VBox(12);
         content.setPadding(new Insets(16));
+        content.setPrefWidth(420);
 
-        Label ratingLabel = new Label("Select Star Rating (1 to 5):");
+        Label sellerInfoLabel = new Label("Seller: @" + deal.getSellerUsername());
+        sellerInfoLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: #003974;");
+
+        Label itemInfoLabel = new Label("Item: " + deal.getListingTitle());
+        itemInfoLabel.setStyle("-fx-text-fill: #5a5a7a; -fx-font-size: 13px;");
+
+        Label ratingLabel = new Label("Select Star Rating (1 to 5) *:");
         ratingLabel.setStyle("-fx-font-weight: bold;");
 
         ComboBox<Integer> comboRating = new ComboBox<>();
+        comboRating.setPromptText("Select a star rating...");
         comboRating.getItems().addAll(5, 4, 3, 2, 1);
         comboRating.setValue(5);
+        comboRating.setMaxWidth(Double.MAX_VALUE);
         comboRating.setCellFactory(lv -> new ListCell<>() {
             @Override
             protected void updateItem(Integer item, boolean empty) {
@@ -1591,7 +1640,7 @@ public class BuyerDashboardController {
             protected void updateItem(Integer item, boolean empty) {
                 super.updateItem(item, empty);
                 if (empty || item == null) {
-                    setText(null);
+                    setText("Select a star rating...");
                 } else {
                     setText("⭐".repeat(item) + " (" + item + " Star" + (item > 1 ? "s" : "") + ")");
                 }
@@ -1606,15 +1655,36 @@ public class BuyerDashboardController {
         txtComment.setPrefRowCount(3);
         txtComment.setWrapText(true);
 
-        content.getChildren().addAll(ratingLabel, comboRating, commentLabel, txtComment);
+        Label errorLabel = new Label();
+        errorLabel.setStyle("-fx-text-fill: #dc2626; -fx-font-size: 12px;");
+        errorLabel.setVisible(false);
+        errorLabel.setManaged(false);
+
+        content.getChildren().addAll(sellerInfoLabel, itemInfoLabel, ratingLabel, comboRating, commentLabel, txtComment, errorLabel);
         dialog.getDialogPane().setContent(content);
-        dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
+
+        ButtonType btnSubmit = new ButtonType("Submit Rating", ButtonBar.ButtonData.OK_DONE);
+        ButtonType btnCancel = new ButtonType("Cancel", ButtonBar.ButtonData.CANCEL_CLOSE);
+        dialog.getDialogPane().getButtonTypes().addAll(btnSubmit, btnCancel);
+
+        // Alternative Flow A1: Prevent dialog closing if no star rating selected
+        Button okButton = (Button) dialog.getDialogPane().lookupButton(btnSubmit);
+        okButton.addEventFilter(javafx.event.ActionEvent.ACTION, event -> {
+            Integer rating = comboRating.getValue();
+            if (rating == null || rating < 1 || rating > 5) {
+                event.consume();
+                errorLabel.setText("A star rating is required.");
+                errorLabel.setVisible(true);
+                errorLabel.setManaged(true);
+            }
+        });
 
         dialog.showAndWait().ifPresent(res -> {
-            if (res == ButtonType.OK) {
-                int rating = comboRating.getValue() != null ? comboRating.getValue() : 5;
+            if (res == btnSubmit) {
+                Integer rating = comboRating.getValue();
                 String comment = txtComment.getText();
-                DealOperationResult op = DummyDataService.getInstance().submitRating(deal.getId(), buyerUsername, rating, comment);
+                com.hkust.marketplace.models.RateSellerResult op = DummyDataService.getInstance()
+                        .getBuyerReviewService().submitRating(deal.getId(), buyerUsername, rating, comment);
                 if (op.isSuccess()) {
                     new Alert(Alert.AlertType.INFORMATION, op.getMessage()).showAndWait();
                     if (onSubmitted != null) {
@@ -1623,8 +1693,100 @@ public class BuyerDashboardController {
                 } else {
                     new Alert(Alert.AlertType.WARNING, op.getMessage()).showAndWait();
                 }
+            } else {
+                // Alternative Flow A4: Cancel Rating
+                DummyDataService.getInstance().getBuyerReviewService().cancelRating(deal.getId(), buyerUsername);
             }
         });
+    }
+
+    private void showDealReviewDialog(String dealId) {
+        if (dealId == null) return;
+        java.util.Optional<Review> optReview = DummyDataService.getInstance().getBuyerReviewService().getReviewForDeal(dealId);
+        if (optReview.isPresent()) {
+            showReviewDetailsDialog(optReview.get());
+        } else {
+            new Alert(Alert.AlertType.INFORMATION, "No review found for this deal.").showAndWait();
+        }
+    }
+
+    private void showSellerReviewsDialog(String sellerUsername, String sellerFullName) {
+        if (sellerUsername == null || sellerUsername.trim().isEmpty()) return;
+
+        Dialog<ButtonType> dialog = new Dialog<>();
+        dialog.setTitle("Reviews for @" + sellerUsername);
+        String name = (sellerFullName != null && !sellerFullName.trim().isEmpty()) ? sellerFullName : sellerUsername;
+        dialog.setHeaderText("Customer Reviews for " + name + " (@" + sellerUsername + ")");
+
+        VBox content = new VBox(12);
+        content.setPadding(new Insets(16));
+        content.setPrefWidth(480);
+        content.setMaxHeight(400);
+
+        SellerRatingInfo ratingInfo = DummyDataService.getInstance().getBuyerReviewService().getSellerRating(sellerUsername);
+        Label ratingSummary = new Label(ratingInfo != null ? ratingInfo.getDisplayText() : SellerRatingInfo.NO_RATINGS_TEXT);
+        ratingSummary.setStyle("-fx-font-size: 16px; -fx-font-weight: bold; -fx-text-fill: #A68137;");
+        content.getChildren().add(ratingSummary);
+
+        List<Review> sellerReviews = DummyDataService.getInstance().getBuyerReviewService().getReviewsForSeller(sellerUsername);
+        if (sellerReviews.isEmpty()) {
+            Label noRev = new Label("No reviews yet for this seller.");
+            noRev.setStyle("-fx-text-fill: #64748b; -fx-font-style: italic;");
+            content.getChildren().add(noRev);
+        } else {
+            VBox reviewsList = new VBox(10);
+            for (Review r : sellerReviews) {
+                VBox card = new VBox(4);
+                card.setStyle("-fx-background-color: #f8fafc; -fx-padding: 10; -fx-background-radius: 6; -fx-border-color: #e2e8f0; -fx-border-radius: 6;");
+
+                HBox topRow = new HBox(8);
+                topRow.setAlignment(Pos.CENTER_LEFT);
+                Label stars = new Label("⭐".repeat(Math.max(1, r.getRating())));
+                stars.setStyle("-fx-text-fill: #b45309; -fx-font-weight: bold;");
+
+                Label buyerLbl = new Label("by @" + r.getBuyerUsername());
+                buyerLbl.setStyle("-fx-text-fill: #64748b; -fx-font-size: 12px;");
+
+                DateTimeFormatter dtf = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+                String dateStr = r.getDate() != null ? r.getDate().format(dtf) : "";
+                Label dateLbl = new Label("· " + dateStr);
+                dateLbl.setStyle("-fx-text-fill: #94a3b8; -fx-font-size: 11px;");
+
+                topRow.getChildren().addAll(stars, buyerLbl, dateLbl);
+
+                Label itemLbl = new Label("Item: " + (r.getListingTitle() != null ? r.getListingTitle() : "—"));
+                itemLbl.setStyle("-fx-text-fill: #003974; -fx-font-size: 12px; -fx-font-weight: bold;");
+
+                Label commentLbl = new Label(r.hasComment() ? r.getComment() : "(No written comment)");
+                commentLbl.setWrapText(true);
+                commentLbl.setStyle("-fx-text-fill: #1e293b; -fx-font-size: 13px;");
+
+                card.getChildren().addAll(topRow, itemLbl, commentLbl);
+
+                if (r.hasReply()) {
+                    VBox replyBox = new VBox(2);
+                    replyBox.setStyle("-fx-background-color: #f1f5f9; -fx-padding: 6 10 6 10; -fx-background-radius: 4; -fx-border-left-color: #003974; -fx-border-left-width: 3;");
+                    Label replyHeader = new Label("Seller Reply:");
+                    replyHeader.setStyle("-fx-font-size: 11px; -fx-font-weight: bold; -fx-text-fill: #003974;");
+                    Label replyBody = new Label(r.getReply());
+                    replyBody.setWrapText(true);
+                    replyBody.setStyle("-fx-font-size: 12px; -fx-text-fill: #334155;");
+                    replyBox.getChildren().addAll(replyHeader, replyBody);
+                    card.getChildren().add(replyBox);
+                }
+
+                reviewsList.getChildren().add(card);
+            }
+            ScrollPane sp = new ScrollPane(reviewsList);
+            sp.setFitToWidth(true);
+            sp.setPrefHeight(250);
+            sp.setStyle("-fx-background-color: transparent;");
+            content.getChildren().add(sp);
+        }
+
+        dialog.getDialogPane().setContent(content);
+        dialog.getDialogPane().getButtonTypes().add(ButtonType.OK);
+        dialog.showAndWait();
     }
 
     @FXML
@@ -1841,7 +2003,13 @@ public class BuyerDashboardController {
         // Selection listener to update action button states
         table.getSelectionModel().selectedItemProperty().addListener((obs, oldVal, newVal) -> {
             boolean hasSel = newVal != null;
-            btnRate.setDisable(!hasSel || !newVal.canRate() || newVal.getDeal() == null);
+            if (hasSel && newVal.isRated()) {
+                btnRate.setText("⭐ View Review");
+                btnRate.setDisable(false);
+            } else {
+                btnRate.setText("⭐ Rate Seller");
+                btnRate.setDisable(!hasSel || !newVal.canRate() || newVal.getDeal() == null);
+            }
             btnOpenChat.setDisable(!hasSel || newVal.getListingId() == null);
             btnViewListing.setDisable(!hasSel || newVal.getListingId() == null);
         });
@@ -1922,8 +2090,12 @@ public class BuyerDashboardController {
         // Wire Action Buttons
         btnRate.setOnAction(e -> {
             DealHistoryItem sel = table.getSelectionModel().getSelectedItem();
-            if (sel == null || !sel.canRate() || sel.getDeal() == null) return;
-            promptRatingDialog(sel.getDeal(), reloadHistory);
+            if (sel == null || sel.getDeal() == null) return;
+            if (sel.canRate()) {
+                promptRatingDialog(sel.getDeal(), reloadHistory);
+            } else if (sel.isRated()) {
+                showDealReviewDialog(sel.getDealId());
+            }
         });
 
         btnOpenChat.setOnAction(e -> {

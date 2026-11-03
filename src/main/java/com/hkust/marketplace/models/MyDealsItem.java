@@ -245,6 +245,10 @@ public class MyDealsItem {
         return deal != null && deal.getStatus() == DealStatus.COMPLETED && !deal.isRated();
     }
 
+    public boolean isRated() {
+        return deal != null && deal.isRated();
+    }
+
     public boolean canOpenListing() {
         return listingId != null && !listingId.trim().isEmpty();
     }

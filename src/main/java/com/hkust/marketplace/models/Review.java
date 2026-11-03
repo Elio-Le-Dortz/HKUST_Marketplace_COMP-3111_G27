@@ -9,6 +9,7 @@ public class Review {
     private String id;
     private String sellerUsername;
     private String buyerUsername;
+    private String listingId;
     private String listingTitle;
     private String dealId;
     private int rating; // 1-5
@@ -23,6 +24,23 @@ public class Review {
         this.date = LocalDateTime.now();
         this.hidden = false;
         this.flagged = false;
+    }
+
+    public Review(String sellerUsername, String buyerUsername, String dealId,
+                  String listingId, String listingTitle, int rating, String comment) {
+        this();
+        this.sellerUsername = sellerUsername;
+        this.buyerUsername = buyerUsername;
+        this.dealId = dealId;
+        this.listingId = listingId;
+        this.listingTitle = listingTitle;
+        this.rating = rating;
+        this.comment = comment;
+    }
+
+    public Review(String sellerUsername, String buyerUsername, String dealId,
+                  String listingTitle, int rating, String comment) {
+        this(sellerUsername, buyerUsername, dealId, null, listingTitle, rating, comment);
     }
 
     // Getters & Setters
@@ -48,6 +66,14 @@ public class Review {
 
     public void setBuyerUsername(String buyerUsername) {
         this.buyerUsername = buyerUsername;
+    }
+
+    public String getListingId() {
+        return listingId;
+    }
+
+    public void setListingId(String listingId) {
+        this.listingId = listingId;
     }
 
     public String getListingTitle() {
@@ -138,5 +164,17 @@ public class Review {
 
     public void setCreatedAt(LocalDateTime createdAt) {
         this.date = createdAt;
+    }
+
+    public boolean isStarValid() {
+        return rating >= 1 && rating <= 5;
+    }
+
+    public boolean hasComment() {
+        return comment != null && !comment.trim().isEmpty();
+    }
+
+    public boolean hasReply() {
+        return reply != null && !reply.trim().isEmpty();
     }
 }

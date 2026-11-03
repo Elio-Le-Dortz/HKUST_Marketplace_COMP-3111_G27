@@ -4,6 +4,7 @@ import com.hkust.marketplace.models.*;
 import com.hkust.marketplace.services.ActOnListingService;
 import com.hkust.marketplace.services.BuyerProfileService;
 import com.hkust.marketplace.services.ChatService;
+import com.hkust.marketplace.services.DealHistoryService;
 import com.hkust.marketplace.services.DealService;
 import com.hkust.marketplace.services.ListingDetailService;
 import com.hkust.marketplace.services.ListingFilterService;
@@ -37,6 +38,7 @@ public class DummyDataService {
     private final ActOnListingService actOnListingService = new ActOnListingService(this);
     private final ChatService chatService = new ChatService(this);
     private final DealService dealService = new DealService(this);
+    private final DealHistoryService dealHistoryService = new DealHistoryService(this);
     private final BuyerProfileService buyerProfileService = new BuyerProfileService(this);
     private final com.hkust.marketplace.services.BuyerNotificationService buyerNotificationService = new com.hkust.marketplace.services.BuyerNotificationService(this);
 
@@ -207,6 +209,51 @@ public class DummyDataService {
         d2.setStartDate(LocalDateTime.now().minusDays(2));
         d2.setDueDate(LocalDateTime.now().plusDays(5));
         deals.add(d2);
+
+        // Completed deal (Bought item)
+        Deal d3 = new Deal();
+        d3.setId("D" + dealIdCounter.getAndIncrement());
+        d3.setListingId(l2.getId());
+        d3.setListingTitle(l2.getTitle());
+        d3.setBuyerUsername("alice");
+        d3.setSellerUsername("charlie");
+        d3.setType(DealType.SALE);
+        d3.setStatus(DealStatus.COMPLETED);
+        d3.setStartDate(LocalDateTime.now().minusDays(10));
+        d3.setClosedDate(LocalDateTime.now().minusDays(9));
+        d3.setOfferPrice(200.0);
+        d3.setRated(true);
+        deals.add(d3);
+
+        // Returned deal (Borrowed item)
+        Deal d4 = new Deal();
+        d4.setId("D" + dealIdCounter.getAndIncrement());
+        d4.setListingId(l5.getId());
+        d4.setListingTitle(l5.getTitle());
+        d4.setBuyerUsername("alice");
+        d4.setSellerUsername("diana");
+        d4.setType(DealType.LOAN);
+        d4.setStatus(DealStatus.RETURNED);
+        d4.setStartDate(LocalDateTime.now().minusDays(15));
+        d4.setDueDate(LocalDateTime.now().minusDays(12));
+        d4.setClosedDate(LocalDateTime.now().minusDays(12));
+        d4.setRated(false);
+        deals.add(d4);
+
+        // Completed deal (Giveaway received)
+        Deal d5 = new Deal();
+        d5.setId("D" + dealIdCounter.getAndIncrement());
+        d5.setListingId(l8.getId());
+        d5.setListingTitle(l8.getTitle());
+        d5.setBuyerUsername("alice");
+        d5.setSellerUsername("diana");
+        d5.setType(DealType.GIVEAWAY);
+        d5.setStatus(DealStatus.COMPLETED);
+        d5.setStartDate(LocalDateTime.now().minusDays(5));
+        d5.setClosedDate(LocalDateTime.now().minusDays(5));
+        d5.setOfferPrice(0.0);
+        d5.setRated(false);
+        deals.add(d5);
 
         // Sample offers
         Offer o1 = new Offer();
@@ -752,6 +799,18 @@ public class DummyDataService {
 
     public DealService getDealService() {
         return dealService;
+    }
+
+    public DealHistoryService getDealHistoryService() {
+        return dealHistoryService;
+    }
+
+    public synchronized List<DealHistoryItem> getDealHistory(String buyerUsername, DealHistoryFilterCriteria criteria) {
+        return dealHistoryService != null ? dealHistoryService.getDealHistory(buyerUsername, criteria) : new ArrayList<>();
+    }
+
+    public synchronized boolean hasCompletedDeals(String buyerUsername) {
+        return dealHistoryService != null && dealHistoryService.hasCompletedDeals(buyerUsername);
     }
 
     /**

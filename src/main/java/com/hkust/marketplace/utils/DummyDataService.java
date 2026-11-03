@@ -41,6 +41,7 @@ public class DummyDataService {
     private final DealHistoryService dealHistoryService = new DealHistoryService(this);
     private final BuyerProfileService buyerProfileService = new BuyerProfileService(this);
     private final com.hkust.marketplace.services.BuyerNotificationService buyerNotificationService = new com.hkust.marketplace.services.BuyerNotificationService(this);
+    private final com.hkust.marketplace.services.BuyerReviewService buyerReviewService = new com.hkust.marketplace.services.BuyerReviewService(this);
 
     private final AtomicInteger listingIdCounter = new AtomicInteger(100);
     private final AtomicInteger dealIdCounter = new AtomicInteger(500);
@@ -971,7 +972,11 @@ public class DummyDataService {
         return initial - notifications.size();
     }
 
-    // ========== Review methods ==========
+    // ========== Review methods (US-B11 / Task 1.10) ==========
+    public com.hkust.marketplace.services.BuyerReviewService getBuyerReviewService() {
+        return buyerReviewService;
+    }
+
     public synchronized List<Review> getReviewsForSeller(String username) {
         return reviews.stream()
                 .filter(r -> r.getSellerUsername().equalsIgnoreCase(username) && !r.isHidden())
@@ -982,11 +987,77 @@ public class DummyDataService {
         return new ArrayList<>(reviews);
     }
 
+    public synchronized List<Review> getReviewsByBuyer(String buyerUsername) {
+        if (buyerUsername == null || buyerUsername.trim().isEmpty()) {
+            return new ArrayList<>();
+        }
+        return reviews.stream()
+                .filter(r -> r != null && buyerUsername.trim().equalsIgnoreCase(r.getBuyerUsername()))
+                .collect(Collectors.toList());
+    }
+
+    public synchronized java.util.Optional<Review> getReviewForDeal(String dealId) {
+        if (dealId == null || dealId.trim().isEmpty()) {
+            return java.util.Optional.empty();
+        }
+        return reviews.stream()
+                .filter(r -> r != null && dealId.trim().equalsIgnoreCase(r.getDealId()))
+                .findFirst();
+    }
+
     public synchronized void addReview(Review r) {
         if (r.getId() == null) {
             r.setId("R" + reviewIdCounter.getAndIncrement());
         }
         reviews.add(r);
+        if (r.getSellerUsername() != null && !r.getSellerUsername().trim().isEmpty()) {
+            recalculateSellerRating(r.getSellerUsername());
+        }
+    }
+
+    /**
+     * Atomically recalculates a seller's average rating and review count from all valid,
+     * non-hidden reviews and updates the {@link Seller} user instance (US-B11 Step 6).
+     *
+     * @param sellerUsername the seller's username
+     * @return an updated {@link SellerRatingInfo}
+     */
+    public synchronized SellerRatingInfo recalculateSellerRating(String sellerUsername) {
+        if (sellerUsername == null || sellerUsername.trim().isEmpty()) {
+            return SellerRatingInfo.noRatings("", "Unknown Seller");
+        }
+
+        String username = sellerUsername.trim();
+        User user = findUser(username);
+        String fullName = (user != null && user.getFullName() != null) ? user.getFullName() : username;
+
+        List<Review> validReviews = reviews.stream()
+                .filter(r -> r != null && username.equalsIgnoreCase(r.getSellerUsername())
+                        && !r.isHidden() && r.getRating() >= 1 && r.getRating() <= 5)
+                .collect(Collectors.toList());
+
+        if (!validReviews.isEmpty()) {
+            int count = validReviews.size();
+            double sum = validReviews.stream().mapToInt(Review::getRating).sum();
+            double average = Math.round((sum / (double) count) * 10.0) / 10.0;
+            if (user instanceof Seller seller) {
+                seller.setAverageRating(average);
+                seller.setRatingCount(count);
+            }
+            return SellerRatingInfo.withRatings(username, fullName, average, count);
+        }
+
+        // Fallback to seller entity seeded rating if no individual reviews exist
+        if (user instanceof Seller seller && seller.getRatingCount() > 0) {
+            double avg = Math.round(seller.getAverageRating() * 10.0) / 10.0;
+            return SellerRatingInfo.withRatings(username, fullName, avg, seller.getRatingCount());
+        }
+
+        if (user instanceof Seller seller) {
+            seller.setAverageRating(0.0);
+            seller.setRatingCount(0);
+        }
+        return SellerRatingInfo.noRatings(username, fullName);
     }
 
     // Password strength helper (demo)

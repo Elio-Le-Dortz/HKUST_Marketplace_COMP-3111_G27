@@ -410,48 +410,18 @@ public class DealService {
      * @return a {@link DealOperationResult} describing the outcome
      */
     public synchronized DealOperationResult submitRating(String dealId, String buyerUsername, int rating, String comment) {
-        if (dealId == null || dealId.trim().isEmpty() || buyerUsername == null || buyerUsername.trim().isEmpty()) {
-            return DealOperationResult.failure(DealOperationStatus.INVALID_ACTION, "Deal ID and buyer username are required.");
+        RateSellerResult res = dataService.getBuyerReviewService().submitRating(dealId, buyerUsername, rating, comment);
+        if (res.isSuccess()) {
+            return DealOperationResult.success(res.getDeal(), res.getMessage());
         }
-
-        if (rating < 1 || rating > 5) {
-            return DealOperationResult.failure(DealOperationStatus.INVALID_RATING, "Rating must be between 1 and 5 stars.");
-        }
-
-        Deal deal = dataService.findDeal(dealId.trim());
-        if (deal == null) {
-            return DealOperationResult.failure(DealOperationStatus.DEAL_NOT_FOUND, "Deal not found.");
-        }
-
-        if (!deal.getBuyerUsername().equalsIgnoreCase(buyerUsername.trim())) {
-            return DealOperationResult.failure(DealOperationStatus.UNAUTHORIZED, "You are not authorized to rate this deal.");
-        }
-
-        if (deal.getStatus() != DealStatus.COMPLETED && deal.getStatus() != DealStatus.RETURNED) {
-            return DealOperationResult.failure(DealOperationStatus.DEAL_NOT_ACTIVE,
-                    "Ratings can only be submitted for completed or returned deals.");
-        }
-
-        if (deal.isRated()) {
-            return DealOperationResult.failure(DealOperationStatus.ALREADY_RATED, "This deal has already been reviewed.");
-        }
-
-        Review review = new Review();
-        review.setDealId(deal.getId());
-        review.setListingTitle(deal.getListingTitle());
-        review.setBuyerUsername(buyerUsername.trim());
-        review.setSellerUsername(deal.getSellerUsername());
-        review.setRating(rating);
-        review.setComment(comment != null ? comment.trim() : "");
-        review.setDate(LocalDateTime.now());
-
-        dataService.addReview(review);
-        deal.setRated(true);
-
-        // Notify seller
-        String sellerMsg = buyerUsername.trim() + " submitted a " + rating + "-star review for '" + deal.getListingTitle() + "'.";
-        dataService.addNotification(new Notification(deal.getSellerUsername(), "New Review Received", sellerMsg, "Review"));
-
-        return DealOperationResult.success(deal, "Thank you! Your " + rating + "-star review has been submitted.");
+        DealOperationStatus opStatus = switch (res.getStatus()) {
+            case NO_STAR_RATING -> DealOperationStatus.INVALID_RATING;
+            case ALREADY_RATED -> DealOperationStatus.ALREADY_RATED;
+            case DEAL_NOT_FOUND -> DealOperationStatus.DEAL_NOT_FOUND;
+            case UNAUTHORIZED -> DealOperationStatus.UNAUTHORIZED;
+            case DEAL_NOT_ELIGIBLE -> DealOperationStatus.DEAL_NOT_ACTIVE;
+            default -> DealOperationStatus.INVALID_ACTION;
+        };
+        return DealOperationResult.failure(opStatus, res.getMessage());
     }
 }

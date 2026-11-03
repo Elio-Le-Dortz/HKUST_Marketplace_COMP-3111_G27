@@ -2,6 +2,7 @@ package com.hkust.marketplace.utils;
 
 import com.hkust.marketplace.models.*;
 import com.hkust.marketplace.services.ActOnListingService;
+import com.hkust.marketplace.services.BuyerProfileService;
 import com.hkust.marketplace.services.ChatService;
 import com.hkust.marketplace.services.DealService;
 import com.hkust.marketplace.services.ListingDetailService;
@@ -35,6 +36,7 @@ public class DummyDataService {
     private final ActOnListingService actOnListingService = new ActOnListingService(this);
     private final ChatService chatService = new ChatService(this);
     private final DealService dealService = new DealService(this);
+    private final BuyerProfileService buyerProfileService = new BuyerProfileService(this);
 
     private final AtomicInteger listingIdCounter = new AtomicInteger(100);
     private final AtomicInteger dealIdCounter = new AtomicInteger(500);
@@ -527,6 +529,32 @@ public class DummyDataService {
 
     public ChatService getChatService() {
         return chatService;
+    }
+
+    public BuyerProfileService getBuyerProfileService() {
+        return buyerProfileService;
+    }
+
+    /**
+     * Updates buyer profile information (full name, residence hall, password)
+     * enforcing validation and password policies (US-B08).
+     *
+     * @param username username of the buyer
+     * @param request  profile details and optional password update
+     * @return ProfileUpdateResult indicating success or failure
+     */
+    public synchronized ProfileUpdateResult updateBuyerProfile(String username, ProfileUpdateRequest request) {
+        return buyerProfileService.updateProfile(username, request);
+    }
+
+    /**
+     * Retrieves the profile of an active buyer (US-B08).
+     *
+     * @param username username of the buyer
+     * @return Buyer entity if found and active, null otherwise
+     */
+    public synchronized Buyer getBuyerProfile(String username) {
+        return buyerProfileService.getProfile(username);
     }
 
     public int nextMessageId() {

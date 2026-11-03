@@ -1710,42 +1710,209 @@ public class BuyerDashboardController {
         setActive(btnProfile, "Manage Profile");
         contentPane.getChildren().clear();
 
-        User user = SessionManager.getCurrentUser();
-        VBox form = new VBox(14);
-        form.setPadding(new Insets(8));
-        form.setMaxWidth(420);
+        User currentUser = SessionManager.getCurrentUser();
+        Buyer buyer = SessionManager.getCurrentBuyer();
+        if (buyer == null && currentUser instanceof Buyer) {
+            buyer = (Buyer) currentUser;
+        }
+
+        final Buyer currentBuyer = buyer;
+        if (currentBuyer == null) {
+            Label notLoggedIn = new Label("Please log in as a buyer to manage your profile.");
+            notLoggedIn.setStyle("-fx-text-fill: #dc2626; -fx-font-size: 14px;");
+            contentPane.getChildren().add(notLoggedIn);
+            return;
+        }
+
+        VBox container = new VBox(16);
+        container.setPadding(new Insets(20));
+        container.setAlignment(Pos.TOP_CENTER);
+
+        VBox form = new VBox(16);
+        form.setPadding(new Insets(24));
+        form.setMaxWidth(560);
         form.getStyleClass().add("card");
 
-        Label title = new Label("Edit your profile");
+        Label title = new Label("Manage Buyer Profile");
         title.getStyleClass().add("section-title");
 
-        TextField nameField = new TextField(user != null ? user.getFullName() : "");
-        nameField.setPromptText("Full Name");
-        PasswordField newPass = new PasswordField();
-        newPass.setPromptText("New password (leave blank to keep)");
-        PasswordField confirmPass = new PasswordField();
-        confirmPass.setPromptText("Confirm new password");
-        ComboBox<String> residence = new ComboBox<>(FXCollections.observableArrayList(
+        Label subtitle = new Label("View and update your personal information or change your password.");
+        subtitle.setStyle("-fx-text-fill: #64748b; -fx-font-size: 13px;");
+
+        // Feedback label for status/validation messages
+        Label feedbackLabel = new Label();
+        feedbackLabel.setWrapText(true);
+        feedbackLabel.setMaxWidth(Double.MAX_VALUE);
+        feedbackLabel.setVisible(false);
+        feedbackLabel.setManaged(false);
+
+        // Basic Flow step 2: username (not editable)
+        Label usernameTitle = new Label("Username");
+        usernameTitle.setStyle("-fx-font-weight: bold; -fx-text-fill: #334155;");
+        TextField usernameField = new TextField(currentBuyer.getUsername());
+        usernameField.setEditable(false);
+        usernameField.setDisable(true);
+        usernameField.setStyle("-fx-opacity: 0.85; -fx-background-color: #f1f5f9;");
+        Label usernameNote = new Label("Username cannot be modified.");
+        usernameNote.setStyle("-fx-text-fill: #94a3b8; -fx-font-size: 11px;");
+
+        // Basic Flow step 2 & 3: Full Name (required)
+        Label nameTitle = new Label("Full Name *");
+        nameTitle.setStyle("-fx-font-weight: bold; -fx-text-fill: #334155;");
+        TextField nameField = new TextField(currentBuyer.getFullName() != null ? currentBuyer.getFullName() : "");
+        nameField.setPromptText("Enter your full name");
+
+        // Basic Flow step 2 & 3: Residence Hall preference (optional)
+        Label residenceTitle = new Label("Residence Hall Preference");
+        residenceTitle.setStyle("-fx-font-weight: bold; -fx-text-fill: #334155;");
+        ComboBox<String> residenceCombo = new ComboBox<>(FXCollections.observableArrayList(
                 "Hall 1", "Hall 2", "Hall 3", "Hall 4", "Hall 5",
                 "Hall 6", "Hall 7", "Hall 8", "Hall 9", "UG Hall 1", "UG Hall 2", "Off-campus"));
-        if (user != null && user.getResidenceHall() != null) {
-            residence.setValue(user.getResidenceHall());
+        residenceCombo.setMaxWidth(Double.MAX_VALUE);
+        if (currentBuyer.getResidence() != null) {
+            residenceCombo.setValue(currentBuyer.getResidence());
+        } else if (currentBuyer.getResidenceHall() != null) {
+            residenceCombo.setValue(currentBuyer.getResidenceHall());
         }
+
+        // Section: Change Password (step 4)
+        Separator sep = new Separator();
+        VBox pwdSection = new VBox(10);
+        Label pwdTitle = new Label("Change Password");
+        pwdTitle.setStyle("-fx-font-weight: bold; -fx-font-size: 14px; -fx-text-fill: #1e293b;");
+        Label pwdDesc = new Label("Leave all password fields blank to keep your existing password.");
+        pwdDesc.setStyle("-fx-text-fill: #64748b; -fx-font-size: 12px;");
+
+        Label currPassLabel = new Label("Current Password");
+        currPassLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: #334155;");
+        PasswordField currPassField = new PasswordField();
+        currPassField.setPromptText("Enter current password to verify");
+
+        Label newPassLabel = new Label("New Password");
+        newPassLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: #334155;");
+        PasswordField newPassField = new PasswordField();
+        newPassField.setPromptText("At least 8 chars, 1 uppercase, 1 lowercase, 1 digit");
+
+        Label confirmPassLabel = new Label("Confirm New Password");
+        confirmPassLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: #334155;");
+        PasswordField confirmPassField = new PasswordField();
+        confirmPassField.setPromptText("Re-enter new password");
+
+        pwdSection.getChildren().addAll(pwdTitle, pwdDesc,
+                currPassLabel, currPassField,
+                newPassLabel, newPassField,
+                confirmPassLabel, confirmPassField);
+
+        // Action buttons
+        HBox buttonBox = new HBox(12);
+        buttonBox.setAlignment(Pos.CENTER_RIGHT);
+
+        Button cancelBtn = new Button("Cancel");
+        cancelBtn.getStyleClass().add("btn-outline");
 
         Button saveBtn = new Button("Save Changes");
         saveBtn.getStyleClass().add("btn-primary");
-        saveBtn.setOnAction(e -> {
-            new Alert(Alert.AlertType.INFORMATION, "Profile updated successfully!\n(Demo only – changes are in-memory)").showAndWait();
+
+        buttonBox.getChildren().addAll(cancelBtn, saveBtn);
+
+        // Helper to clear error highlights
+        Runnable clearErrors = () -> {
+            nameField.getStyleClass().remove("field-error");
+            currPassField.getStyleClass().remove("field-error");
+            newPassField.getStyleClass().remove("field-error");
+            confirmPassField.getStyleClass().remove("field-error");
+            feedbackLabel.setVisible(false);
+            feedbackLabel.setManaged(false);
+            feedbackLabel.setText("");
+        };
+
+        // Alternative Flow A4: Cancel changes
+        cancelBtn.setOnAction(e -> {
+            clearErrors.run();
+            nameField.setText(currentBuyer.getFullName() != null ? currentBuyer.getFullName() : "");
+            residenceCombo.setValue(currentBuyer.getResidence());
+            currPassField.clear();
+            newPassField.clear();
+            confirmPassField.clear();
+            feedbackLabel.setText("Changes cancelled.");
+            feedbackLabel.setStyle("-fx-text-fill: #64748b; -fx-font-size: 13px; -fx-padding: 8; -fx-background-color: #f1f5f9; -fx-background-radius: 6;");
+            feedbackLabel.setVisible(true);
+            feedbackLabel.setManaged(true);
         });
 
-        form.getChildren().addAll(title,
-                new Label("Full Name"), nameField,
-                new Label("New Password"), newPass,
-                new Label("Confirm Password"), confirmPass,
-                new Label("Residence"), residence,
-                saveBtn);
+        // Save Profile (Basic Flow step 5-8, Alternative Flows A1, A2, A3)
+        saveBtn.setOnAction(e -> {
+            clearErrors.run();
 
-        contentPane.getChildren().add(form);
+            ProfileUpdateRequest req = new ProfileUpdateRequest(
+                    currentBuyer.getUsername(),
+                    nameField.getText(),
+                    residenceCombo.getValue(),
+                    currPassField.getText(),
+                    newPassField.getText(),
+                    confirmPassField.getText()
+            );
+
+            ProfileUpdateResult result = DummyDataService.getInstance()
+                    .getBuyerProfileService()
+                    .updateProfile(currentBuyer.getUsername(), req);
+
+            if (result.isSuccess()) {
+                Buyer updated = result.getUpdatedBuyer();
+                SessionManager.login(updated);
+                welcomeLabel.setText("Hello, " + updated.getFullName());
+                currPassField.clear();
+                newPassField.clear();
+                confirmPassField.clear();
+
+                feedbackLabel.setText("Profile updated successfully!");
+                feedbackLabel.setStyle("-fx-text-fill: #166534; -fx-font-size: 13px; -fx-padding: 10; -fx-background-color: #dcfce7; -fx-background-radius: 6; -fx-font-weight: bold;");
+                feedbackLabel.setVisible(true);
+                feedbackLabel.setManaged(true);
+
+                Alert alert = new Alert(Alert.AlertType.INFORMATION, "Profile updated successfully!");
+                alert.setTitle("Success");
+                alert.setHeaderText(null);
+                alert.showAndWait();
+            } else {
+                Set<String> fields = result.getAffectedFields();
+                if (fields.contains("fullName")) {
+                    nameField.getStyleClass().add("field-error");
+                }
+                if (fields.contains("currentPassword")) {
+                    currPassField.getStyleClass().add("field-error");
+                }
+                if (fields.contains("newPassword")) {
+                    newPassField.getStyleClass().add("field-error");
+                }
+                if (fields.contains("confirmPassword")) {
+                    confirmPassField.getStyleClass().add("field-error");
+                }
+
+                feedbackLabel.setText(result.getMessage());
+                feedbackLabel.setStyle("-fx-text-fill: #991b1b; -fx-font-size: 13px; -fx-padding: 10; -fx-background-color: #fee2e2; -fx-background-radius: 6; -fx-font-weight: bold;");
+                feedbackLabel.setVisible(true);
+                feedbackLabel.setManaged(true);
+
+                Alert alert = new Alert(Alert.AlertType.ERROR, result.getMessage());
+                alert.setTitle("Profile Update Failed");
+                alert.setHeaderText(null);
+                alert.showAndWait();
+            }
+        });
+
+        form.getChildren().addAll(
+                title, subtitle, feedbackLabel,
+                usernameTitle, usernameField, usernameNote,
+                nameTitle, nameField,
+                residenceTitle, residenceCombo,
+                sep, pwdSection, buttonBox
+        );
+
+        container.getChildren().add(form);
+        ScrollPane scroll = new ScrollPane(container);
+        scroll.setFitToWidth(true);
+        contentPane.getChildren().add(scroll);
     }
 
     // ==========================================

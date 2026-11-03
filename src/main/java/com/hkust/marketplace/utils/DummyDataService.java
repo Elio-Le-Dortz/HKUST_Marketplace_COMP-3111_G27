@@ -3,6 +3,7 @@ package com.hkust.marketplace.utils;
 import com.hkust.marketplace.models.*;
 import com.hkust.marketplace.services.ActOnListingService;
 import com.hkust.marketplace.services.ChatService;
+import com.hkust.marketplace.services.DealService;
 import com.hkust.marketplace.services.ListingDetailService;
 import com.hkust.marketplace.services.ListingFilterService;
 
@@ -33,6 +34,7 @@ public class DummyDataService {
     private final ListingDetailService listingDetailService = new ListingDetailService(this);
     private final ActOnListingService actOnListingService = new ActOnListingService(this);
     private final ChatService chatService = new ChatService(this);
+    private final DealService dealService = new DealService(this);
 
     private final AtomicInteger listingIdCounter = new AtomicInteger(100);
     private final AtomicInteger dealIdCounter = new AtomicInteger(500);
@@ -186,9 +188,57 @@ public class DummyDataService {
         d1.setBuyerUsername("alice");
         d1.setSellerUsername("charlie");
         d1.setDealType(ListingType.SELL);
-        d1.setStatus("Accepted");
+        d1.setStatus(DealStatus.ACTIVE);
         d1.setOfferPrice(160.0);
         deals.add(d1);
+
+        Deal d2 = new Deal();
+        d2.setId("D" + dealIdCounter.getAndIncrement());
+        d2.setListingId(l4.getId());
+        d2.setListingTitle(l4.getTitle());
+        d2.setBuyerUsername("alice");
+        d2.setSellerUsername("diana");
+        d2.setType(DealType.LOAN);
+        d2.setStatus(DealStatus.ACTIVE);
+        d2.setStartDate(LocalDateTime.now().minusDays(2));
+        d2.setDueDate(LocalDateTime.now().plusDays(5));
+        deals.add(d2);
+
+        // Sample offers
+        Offer o1 = new Offer();
+        o1.setId("O" + offerIdCounter.getAndIncrement());
+        o1.setType(OfferType.PRICE_OFFER);
+        o1.setListingId(l7.getId());
+        o1.setListingTitle(l7.getTitle());
+        o1.setBuyerUsername("alice");
+        o1.setSellerUsername("charlie");
+        o1.setPrice(100.0);
+        o1.setStatus(OfferStatus.PENDING);
+        o1.setCreatedDate(LocalDateTime.now().minusHours(6));
+        offers.add(o1);
+
+        Offer o2 = new Offer();
+        o2.setId("O" + offerIdCounter.getAndIncrement());
+        o2.setType(OfferType.PRICE_OFFER);
+        o2.setListingId(l2.getId());
+        o2.setListingTitle(l2.getTitle());
+        o2.setBuyerUsername("alice");
+        o2.setSellerUsername("charlie");
+        o2.setPrice(200.0);
+        o2.setStatus(OfferStatus.COUNTERED);
+        o2.setCreatedDate(LocalDateTime.now().minusHours(3));
+        Offer counterO2 = new Offer();
+        counterO2.setId("O" + offerIdCounter.getAndIncrement());
+        counterO2.setType(OfferType.PRICE_OFFER);
+        counterO2.setListingId(l2.getId());
+        counterO2.setListingTitle(l2.getTitle());
+        counterO2.setBuyerUsername("alice");
+        counterO2.setSellerUsername("charlie");
+        counterO2.setPrice(220.0);
+        counterO2.setStatus(OfferStatus.COUNTERED);
+        counterO2.setCreatedDate(LocalDateTime.now().minusHours(2));
+        o2.setCounterOffer(counterO2);
+        offers.add(o2);
 
         // Sample notifications
         notifications.add(new Notification("alice", "Offer Accepted",
@@ -548,21 +598,65 @@ public class DummyDataService {
     }
 
     // ========== Deal methods ==========
-    public List<Deal> getDealsForBuyer(String username) {
+    public synchronized List<Deal> getDealsForBuyer(String username) {
         return deals.stream()
                 .filter(d -> d.getBuyerUsername().equalsIgnoreCase(username))
                 .collect(Collectors.toList());
     }
 
-    public List<Deal> getAllDeals() {
+    public synchronized List<Deal> getAllDeals() {
         return new ArrayList<>(deals);
     }
 
-    public void addDeal(Deal deal) {
+    public synchronized Deal findDeal(String id) {
+        if (id == null) return null;
+        return deals.stream()
+                .filter(d -> id.equalsIgnoreCase(d.getId()))
+                .findFirst()
+                .orElse(null);
+    }
+
+    public synchronized void addDeal(Deal deal) {
         if (deal.getId() == null) {
             deal.setId("D" + dealIdCounter.getAndIncrement());
         }
         deals.add(deal);
+    }
+
+    public synchronized int processAutoReturns() {
+        return dealService != null ? dealService.processAutoReturns() : 0;
+    }
+
+    public synchronized List<MyDealsItem> getMyDealsForBuyer(String buyerUsername) {
+        return dealService != null ? dealService.getMyDealsForBuyer(buyerUsername) : new ArrayList<>();
+    }
+
+    public synchronized DealOperationResult withdrawOffer(String offerId, String buyerUsername) {
+        return dealService.withdrawOffer(offerId, buyerUsername);
+    }
+
+    public synchronized DealOperationResult acceptCounterOffer(String offerId, String buyerUsername) {
+        return dealService.acceptCounterOffer(offerId, buyerUsername);
+    }
+
+    public synchronized DealOperationResult declineCounterOffer(String offerId, String buyerUsername) {
+        return dealService.declineCounterOffer(offerId, buyerUsername);
+    }
+
+    public synchronized DealOperationResult selfReturnItem(String dealId, String buyerUsername) {
+        return dealService.selfReturnItem(dealId, buyerUsername);
+    }
+
+    public synchronized DealOperationResult markDealComplete(String dealId, String buyerUsername) {
+        return dealService.markDealComplete(dealId, buyerUsername);
+    }
+
+    public synchronized DealOperationResult submitRating(String dealId, String buyerUsername, int rating, String comment) {
+        return dealService.submitRating(dealId, buyerUsername, rating, comment);
+    }
+
+    public DealService getDealService() {
+        return dealService;
     }
 
     /**
@@ -621,6 +715,14 @@ public class DummyDataService {
             offer.setId("O" + offerIdCounter.getAndIncrement());
         }
         offers.add(offer);
+    }
+
+    public synchronized Offer findOffer(String id) {
+        if (id == null) return null;
+        return offers.stream()
+                .filter(o -> id.equalsIgnoreCase(o.getId()))
+                .findFirst()
+                .orElse(null);
     }
 
     // ========== Report methods ==========
@@ -685,6 +787,10 @@ public class DummyDataService {
     }
 
     // ========== Notification methods ==========
+    public synchronized List<Notification> getAllNotifications() {
+        return new ArrayList<>(notifications);
+    }
+
     public synchronized List<Notification> getNotificationsFor(String username) {
         return notifications.stream()
                 .filter(n -> n.getUsername().equalsIgnoreCase(username))

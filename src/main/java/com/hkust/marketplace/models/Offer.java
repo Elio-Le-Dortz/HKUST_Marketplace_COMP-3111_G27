@@ -138,4 +138,24 @@ public class Offer {
     public void setCounterOffer(Offer counterOffer) {
         this.counterOffer = counterOffer;
     }
+
+    public boolean isPending() {
+        return status == OfferStatus.PENDING;
+    }
+
+    public boolean isCountered() {
+        return status == OfferStatus.COUNTERED;
+    }
+
+    public boolean isAccepted() {
+        return status == OfferStatus.ACCEPTED;
+    }
+
+    public boolean isDeclined() {
+        return status == OfferStatus.DECLINED;
+    }
+
+    public boolean isWithdrawn() {
+        return status == OfferStatus.WITHDRAWN;
+    }
 }

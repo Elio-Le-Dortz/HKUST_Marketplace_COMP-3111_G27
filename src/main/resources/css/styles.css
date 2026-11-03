@@ -195,6 +195,26 @@
     -fx-background-color: #ffebee;
     -fx-text-fill: #c62828;
 }
+.badge-active {
+    -fx-background-color: #e0f2fe;
+    -fx-text-fill: #0369a1;
+}
+.badge-countered {
+    -fx-background-color: #fef3c7;
+    -fx-text-fill: #b45309;
+}
+.badge-returned {
+    -fx-background-color: #f3e8ff;
+    -fx-text-fill: #7e22ce;
+}
+.badge-completed {
+    -fx-background-color: #dcfce7;
+    -fx-text-fill: #15803d;
+}
+.badge-withdrawn {
+    -fx-background-color: #f1f5f9;
+    -fx-text-fill: #64748b;
+}
 
 /* ---------- Table ---------- */
 .table-view {

@@ -1628,43 +1628,349 @@ public class BuyerDashboardController {
     }
 
     @FXML
-    private void showHistory() {
+    public void showHistory() {
         setActive(btnHistory, "Deal History");
+        pageTitle.setText("Deal History");
         contentPane.getChildren().clear();
 
+        User currentUser = SessionManager.getCurrentUser();
+        String buyerUsername = currentUser != null ? currentUser.getUsername() : "alice";
+
+        com.hkust.marketplace.services.DealHistoryService historyService =
+                DummyDataService.getInstance().getDealHistoryService();
+
         VBox root = new VBox(16);
-        root.setPadding(new Insets(4));
+        root.setPadding(new Insets(10));
 
-        HBox filters = new HBox(12);
-        filters.setAlignment(Pos.CENTER_LEFT);
-        DatePicker from = new DatePicker();
-        from.setPromptText("From");
-        DatePicker to = new DatePicker();
-        to.setPromptText("To");
-        TextField search = new TextField();
-        search.setPromptText("Search by title / seller...");
-        filters.getChildren().addAll(new Label("Date range:"), from, new Label("–"), to, search);
-        root.getChildren().add(filters);
+        // Subtitle header
+        Label subtitle = new Label("Full searchable and filterable record of your completed purchases, returned borrows, and claimed giveaways.");
+        subtitle.setStyle("-fx-text-fill: #5a5a7a; -fx-font-size: 13px;");
 
-        TableView<String[]> table = new TableView<>();
+        // 1. Metric Summary Cards
+        DealHistorySummary summary = historyService.getSummary(buyerUsername);
+        HBox metricsRow = new HBox(12);
+        metricsRow.setAlignment(Pos.CENTER_LEFT);
+
+        VBox cardTotal = createHistoryMetricCard("Total Deals", String.valueOf(summary.getTotalCompletedDeals()), "#003974");
+        VBox cardBought = createHistoryMetricCard("Purchased", String.valueOf(summary.getTotalBought()), "#1565c0");
+        VBox cardBorrowed = createHistoryMetricCard("Borrowed & Returned", String.valueOf(summary.getTotalBorrowed()), "#7e22ce");
+        VBox cardReceived = createHistoryMetricCard("Claimed Free", String.valueOf(summary.getTotalReceived()), "#15803d");
+        VBox cardSpent = createHistoryMetricCard("Total Spent", summary.getFormattedTotalSpent(), "#b45309");
+
+        HBox.setHgrow(cardTotal, Priority.ALWAYS);
+        HBox.setHgrow(cardBought, Priority.ALWAYS);
+        HBox.setHgrow(cardBorrowed, Priority.ALWAYS);
+        HBox.setHgrow(cardReceived, Priority.ALWAYS);
+        HBox.setHgrow(cardSpent, Priority.ALWAYS);
+        metricsRow.getChildren().addAll(cardTotal, cardBought, cardBorrowed, cardReceived, cardSpent);
+
+        // 2. Filter & Search Control Bar (Subflow S1 & S2)
+        VBox filterCard = new VBox(12);
+        filterCard.getStyleClass().add("filter-box");
+
+        // Row 1: Search, Date Pickers, Category, Seller, Type
+        HBox filterControls = new HBox(10);
+        filterControls.setAlignment(Pos.CENTER_LEFT);
+
+        TextField searchField = new TextField();
+        searchField.setPromptText("🔍 Search item or seller...");
+        searchField.setPrefWidth(210);
+
+        DatePicker fromPicker = new DatePicker();
+        fromPicker.setPromptText("From Date");
+        fromPicker.setPrefWidth(125);
+
+        DatePicker toPicker = new DatePicker();
+        toPicker.setPromptText("To Date");
+        toPicker.setPrefWidth(125);
+
+        ComboBox<String> categoryCombo = new ComboBox<>();
+        categoryCombo.getItems().add("All Categories");
+        for (Category cat : Category.values()) {
+            categoryCombo.getItems().add(cat.getDisplayName());
+        }
+        categoryCombo.setValue("All Categories");
+        categoryCombo.setPrefWidth(140);
+
+        ComboBox<String> sellerCombo = new ComboBox<>();
+        sellerCombo.getItems().add("All Sellers");
+        sellerCombo.getItems().addAll(historyService.getDistinctSellers(buyerUsername));
+        sellerCombo.setValue("All Sellers");
+        sellerCombo.setPrefWidth(130);
+
+        ComboBox<String> typeCombo = new ComboBox<>();
+        typeCombo.getItems().addAll("All Types", "Sale (Bought)", "Loan (Borrowed)", "Giveaway (Received)");
+        typeCombo.setValue("All Types");
+        typeCombo.setPrefWidth(150);
+
+        Button btnReset = new Button("↻ Reset");
+        btnReset.getStyleClass().addAll("btn-outline", "btn-sm");
+
+        filterControls.getChildren().addAll(
+                searchField,
+                new Label("Date:"), fromPicker, new Label("–"), toPicker,
+                categoryCombo, sellerCombo, typeCombo, btnReset
+        );
+
+        // Row 2: Results count and status message
+        HBox statusRow = new HBox(12);
+        statusRow.setAlignment(Pos.CENTER_LEFT);
+        Label resultsCountLabel = new Label("Showing all deals");
+        resultsCountLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: #003974;");
+        statusRow.getChildren().add(resultsCountLabel);
+
+        filterCard.getChildren().addAll(filterControls, statusRow);
+
+        // 3. Alternative Flows Notice Banner
+        HBox bannerNotice = new HBox(10);
+        bannerNotice.setAlignment(Pos.CENTER_LEFT);
+        bannerNotice.setPadding(new Insets(10, 14, 10, 14));
+        bannerNotice.setStyle("-fx-background-color: #f8fafd; -fx-border-color: #cbd5e1; -fx-border-radius: 8; -fx-background-radius: 8;");
+        Label lblBannerText = new Label();
+        lblBannerText.setStyle("-fx-font-size: 13px;");
+        bannerNotice.getChildren().add(lblBannerText);
+        bannerNotice.setVisible(false);
+        bannerNotice.setManaged(false);
+
+        // 4. Deals TableView
+        TableView<DealHistoryItem> table = new TableView<>();
         table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
-        TableColumn<String[], String> c1 = new TableColumn<>("Item Title");
-        c1.setCellValueFactory(d -> new javafx.beans.property.SimpleStringProperty(d.getValue()[0]));
-        TableColumn<String[], String> c2 = new TableColumn<>("Seller");
-        c2.setCellValueFactory(d -> new javafx.beans.property.SimpleStringProperty(d.getValue()[1]));
-        TableColumn<String[], String> c3 = new TableColumn<>("Deal Date");
-        c3.setCellValueFactory(d -> new javafx.beans.property.SimpleStringProperty(d.getValue()[2]));
-        TableColumn<String[], String> c4 = new TableColumn<>("Type");
-        c4.setCellValueFactory(d -> new javafx.beans.property.SimpleStringProperty(d.getValue()[3]));
-        TableColumn<String[], String> c5 = new TableColumn<>("Outcome");
-        c5.setCellValueFactory(d -> new javafx.beans.property.SimpleStringProperty(d.getValue()[4]));
-        table.getColumns().addAll(c1, c2, c3, c4, c5);
-        table.setItems(FXCollections.observableArrayList(
-                new String[]{"Old Chemistry Book", "Charlie Lee", "2025-11-12", "Bought", "Completed"},
-                new String[]{"USB Hub", "Diana Ng", "2025-10-03", "Received", "Completed"}
-        ));
-        root.getChildren().add(table);
+        VBox.setVgrow(table, Priority.ALWAYS);
+
+        TableColumn<DealHistoryItem, String> cTitle = new TableColumn<>("Item Title");
+        cTitle.setCellValueFactory(d -> new javafx.beans.property.SimpleStringProperty(d.getValue().getItemTitle()));
+        cTitle.setPrefWidth(180);
+
+        TableColumn<DealHistoryItem, String> cCategory = new TableColumn<>("Category");
+        cCategory.setCellValueFactory(d -> new javafx.beans.property.SimpleStringProperty(d.getValue().getCategory().getDisplayName()));
+        cCategory.setPrefWidth(100);
+
+        TableColumn<DealHistoryItem, String> cSeller = new TableColumn<>("Seller");
+        cSeller.setCellValueFactory(d -> new javafx.beans.property.SimpleStringProperty("@" + d.getValue().getSellerUsername()));
+        cSeller.setPrefWidth(100);
+
+        TableColumn<DealHistoryItem, String> cType = new TableColumn<>("Deal Type");
+        cType.setCellValueFactory(d -> new javafx.beans.property.SimpleStringProperty(
+                d.getValue().getActionTypeDisplayName() + " (" + d.getValue().getTypeDisplayName() + ")"));
+        cType.setPrefWidth(130);
+        cType.setCellFactory(col -> new TableCell<>() {
+            @Override
+            protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || item == null) {
+                    setText(null);
+                    setGraphic(null);
+                } else {
+                    Label badge = new Label(item);
+                    badge.getStyleClass().add("badge");
+                    DealHistoryItem row = getTableView().getItems().get(getIndex());
+                    if (row.getDealType() == DealType.SALE) {
+                        badge.getStyleClass().add("badge-sold");
+                    } else if (row.getDealType() == DealType.LOAN) {
+                        badge.getStyleClass().add("badge-returned");
+                    } else {
+                        badge.getStyleClass().add("badge-completed");
+                    }
+                    setGraphic(badge);
+                    setText(null);
+                }
+            }
+        });
+
+        TableColumn<DealHistoryItem, String> cDealDate = new TableColumn<>("Deal Date");
+        cDealDate.setCellValueFactory(d -> new javafx.beans.property.SimpleStringProperty(d.getValue().getFormattedDealDateShort()));
+        cDealDate.setPrefWidth(95);
+
+        TableColumn<DealHistoryItem, String> cClosedDate = new TableColumn<>("Closed / Return");
+        cClosedDate.setCellValueFactory(d -> new javafx.beans.property.SimpleStringProperty(d.getValue().getFormattedClosedDateShort()));
+        cClosedDate.setPrefWidth(110);
+
+        TableColumn<DealHistoryItem, String> cPrice = new TableColumn<>("Price");
+        cPrice.setCellValueFactory(d -> new javafx.beans.property.SimpleStringProperty(d.getValue().getFormattedPrice()));
+        cPrice.setPrefWidth(90);
+
+        TableColumn<DealHistoryItem, String> cOutcome = new TableColumn<>("Outcome");
+        cOutcome.setCellValueFactory(d -> new javafx.beans.property.SimpleStringProperty(d.getValue().getOutcomeDisplayName()));
+        cOutcome.setPrefWidth(95);
+        cOutcome.setCellFactory(col -> new TableCell<>() {
+            @Override
+            protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || item == null) {
+                    setText(null);
+                    setGraphic(null);
+                } else {
+                    Label badge = new Label(item);
+                    badge.getStyleClass().add("badge");
+                    if ("Returned".equalsIgnoreCase(item)) {
+                        badge.getStyleClass().add("badge-returned");
+                    } else {
+                        badge.getStyleClass().add("badge-completed");
+                    }
+                    setGraphic(badge);
+                    setText(null);
+                }
+            }
+        });
+
+        TableColumn<DealHistoryItem, String> cRating = new TableColumn<>("Review");
+        cRating.setCellValueFactory(d -> new javafx.beans.property.SimpleStringProperty(
+                d.getValue().isRated() ? "⭐ Rated" : (d.getValue().canRate() ? "Unreviewed" : "—")));
+        cRating.setPrefWidth(95);
+
+        table.getColumns().addAll(cTitle, cCategory, cSeller, cType, cDealDate, cClosedDate, cPrice, cOutcome, cRating);
+
+        // 5. Action Bar
+        HBox actionBox = new HBox(12);
+        actionBox.setAlignment(Pos.CENTER_LEFT);
+
+        Button btnRate = new Button("⭐ Rate Seller");
+        btnRate.getStyleClass().addAll("btn-gold", "btn-sm");
+        btnRate.setDisable(true);
+
+        Button btnOpenChat = new Button("💬 Chat with Seller");
+        btnOpenChat.getStyleClass().addAll("btn-primary", "btn-sm");
+        btnOpenChat.setDisable(true);
+
+        Button btnViewListing = new Button("🔍 View Listing");
+        btnViewListing.getStyleClass().addAll("btn-outline", "btn-sm");
+        btnViewListing.setDisable(true);
+
+        actionBox.getChildren().addAll(btnRate, btnOpenChat, btnViewListing);
+
+        // Selection listener to update action button states
+        table.getSelectionModel().selectedItemProperty().addListener((obs, oldVal, newVal) -> {
+            boolean hasSel = newVal != null;
+            btnRate.setDisable(!hasSel || !newVal.canRate() || newVal.getDeal() == null);
+            btnOpenChat.setDisable(!hasSel || newVal.getListingId() == null);
+            btnViewListing.setDisable(!hasSel || newVal.getListingId() == null);
+        });
+
+        // 6. Reload & Filtering Logic
+        Runnable reloadHistory = () -> {
+            boolean hasHistory = historyService.hasCompletedDeals(buyerUsername);
+
+            DealHistoryFilterCriteria criteria = new DealHistoryFilterCriteria();
+            criteria.setFromDate(fromPicker.getValue());
+            criteria.setToDate(toPicker.getValue());
+
+            String catVal = categoryCombo.getValue();
+            if (catVal != null && !"All Categories".equalsIgnoreCase(catVal)) {
+                criteria.setCategory(Category.fromString(catVal));
+            }
+
+            String sellerVal = sellerCombo.getValue();
+            if (sellerVal != null && !"All Sellers".equalsIgnoreCase(sellerVal)) {
+                criteria.setSellerUsername(sellerVal);
+            }
+
+            String typeVal = typeCombo.getValue();
+            if (typeVal != null && !"All Types".equalsIgnoreCase(typeVal)) {
+                if (typeVal.contains("Sale")) criteria.setDealType(DealType.SALE);
+                else if (typeVal.contains("Loan")) criteria.setDealType(DealType.LOAN);
+                else if (typeVal.contains("Giveaway")) criteria.setDealType(DealType.GIVEAWAY);
+            }
+
+            String q = searchField.getText();
+            if (q != null && !q.trim().isEmpty()) {
+                criteria.setSearchQuery(q.trim());
+            }
+
+            List<DealHistoryItem> results = historyService.getDealHistory(buyerUsername, criteria);
+            table.setItems(FXCollections.observableArrayList(results));
+
+            // Alternative Flow A1: No Completed Deals at all
+            if (!hasHistory) {
+                lblBannerText.setText("ℹ️ No deal history yet. Your completed purchases, returned borrows, and claimed giveaways will appear here once finalized.");
+                bannerNotice.setStyle("-fx-background-color: #f1f5f9; -fx-border-color: #cbd5e1; -fx-border-radius: 8; -fx-background-radius: 8;");
+                bannerNotice.setVisible(true);
+                bannerNotice.setManaged(true);
+                resultsCountLabel.setText("No deals in history");
+            }
+            // Alternative Flow A2: No Results Match Active Filters
+            else if (results.isEmpty()) {
+                lblBannerText.setText("⚠️ No completed deals match the active search or filter criteria. Click 'Reset' to view all history.");
+                bannerNotice.setStyle("-fx-background-color: #fffbeb; -fx-border-color: #fcd34d; -fx-border-radius: 8; -fx-background-radius: 8;");
+                bannerNotice.setVisible(true);
+                bannerNotice.setManaged(true);
+                resultsCountLabel.setText("0 deals matching filters");
+            } else {
+                bannerNotice.setVisible(false);
+                bannerNotice.setManaged(false);
+                resultsCountLabel.setText("Showing " + results.size() + " deal" + (results.size() == 1 ? "" : "s"));
+            }
+        };
+
+        // Wire filter triggers
+        searchField.textProperty().addListener((obs, o, n) -> reloadHistory.run());
+        fromPicker.valueProperty().addListener((obs, o, n) -> reloadHistory.run());
+        toPicker.valueProperty().addListener((obs, o, n) -> reloadHistory.run());
+        categoryCombo.setOnAction(e -> reloadHistory.run());
+        sellerCombo.setOnAction(e -> reloadHistory.run());
+        typeCombo.setOnAction(e -> reloadHistory.run());
+
+        btnReset.setOnAction(e -> {
+            searchField.clear();
+            fromPicker.setValue(null);
+            toPicker.setValue(null);
+            categoryCombo.setValue("All Categories");
+            sellerCombo.setValue("All Sellers");
+            typeCombo.setValue("All Types");
+            reloadHistory.run();
+        });
+
+        // Wire Action Buttons
+        btnRate.setOnAction(e -> {
+            DealHistoryItem sel = table.getSelectionModel().getSelectedItem();
+            if (sel == null || !sel.canRate() || sel.getDeal() == null) return;
+            promptRatingDialog(sel.getDeal(), reloadHistory);
+        });
+
+        btnOpenChat.setOnAction(e -> {
+            DealHistoryItem sel = table.getSelectionModel().getSelectedItem();
+            if (sel != null && sel.getListingId() != null) {
+                Listing l = DummyDataService.getInstance().findListing(sel.getListingId());
+                if (l != null) {
+                    openChatForListing(l, "HISTORY");
+                } else {
+                    new Alert(Alert.AlertType.WARNING, "Listing details not found for this deal.").showAndWait();
+                }
+            }
+        });
+
+        btnViewListing.setOnAction(e -> {
+            DealHistoryItem sel = table.getSelectionModel().getSelectedItem();
+            if (sel != null && sel.getListingId() != null) {
+                Listing l = DummyDataService.getInstance().findListing(sel.getListingId());
+                if (l != null) {
+                    showListingDetail(l);
+                } else {
+                    new Alert(Alert.AlertType.WARNING, "Listing details not found.").showAndWait();
+                }
+            }
+        });
+
+        // Initial Load
+        reloadHistory.run();
+
+        root.getChildren().addAll(subtitle, metricsRow, filterCard, bannerNotice, table, actionBox);
         contentPane.getChildren().add(root);
+    }
+
+    private VBox createHistoryMetricCard(String title, String value, String colorHex) {
+        VBox card = new VBox(4);
+        card.getStyleClass().add("card");
+        card.setPadding(new Insets(12, 16, 12, 16));
+        card.setAlignment(Pos.CENTER_LEFT);
+
+        Label lblTitle = new Label(title);
+        lblTitle.setStyle("-fx-text-fill: #5a5a7a; -fx-font-size: 11px; -fx-font-weight: bold;");
+
+        Label lblVal = new Label(value);
+        lblVal.setStyle("-fx-text-fill: " + colorHex + "; -fx-font-size: 18px; -fx-font-weight: bold;");
+
+        card.getChildren().addAll(lblTitle, lblVal);
+        return card;
     }
 
     @FXML
@@ -2320,6 +2626,8 @@ public class BuyerDashboardController {
             backBtnText = "← Back to My Deals";
         } else if ("NOTIFICATIONS".equalsIgnoreCase(returnView)) {
             backBtnText = "← Back to Notifications";
+        } else if ("HISTORY".equalsIgnoreCase(returnView)) {
+            backBtnText = "← Back to Deal History";
         }
         Button backBtn = new Button(backBtnText);
         backBtn.getStyleClass().addAll("btn-outline", "btn-sm");
@@ -2328,6 +2636,8 @@ public class BuyerDashboardController {
                 showMyDeals();
             } else if ("NOTIFICATIONS".equalsIgnoreCase(returnView)) {
                 showNotifications();
+            } else if ("HISTORY".equalsIgnoreCase(returnView)) {
+                showHistory();
             } else {
                 showListingDetail(listing);
             }

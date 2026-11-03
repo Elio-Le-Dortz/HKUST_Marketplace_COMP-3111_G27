@@ -48,6 +48,11 @@ public class BuyerDashboardController {
     private Label priceValidationLabel;
     private VBox browseContainer;
 
+    // Notification Board state (US-B09)
+    private NotificationCategory currentNotifCategory = null;
+    private Boolean currentNotifUnreadOnly = false;
+    private String currentNotifSearch = "";
+
     @FXML
     public void initialize() {
         User user = SessionManager.getCurrentUser();
@@ -56,6 +61,19 @@ public class BuyerDashboardController {
         }
         currentActiveBtn = btnBrowse;
         showBrowse();
+        updateNotificationSidebarBadge();
+    }
+
+    public void updateNotificationSidebarBadge() {
+        if (btnNotifications == null) return;
+        User user = SessionManager.getCurrentUser();
+        String username = user != null ? user.getUsername() : "alice";
+        int unread = DummyDataService.getInstance().getBuyerNotificationService().getUnreadCount(username);
+        if (unread > 0) {
+            btnNotifications.setText("  Notifications (" + unread + ")");
+        } else {
+            btnNotifications.setText("  Notifications");
+        }
     }
 
     private void setActive(Button btn, String title) {
@@ -1668,41 +1686,357 @@ public class BuyerDashboardController {
     }
 
     @FXML
-    private void showNotifications() {
+    public void showNotifications() {
         setActive(btnNotifications, "Notification Board");
         contentPane.getChildren().clear();
 
-        VBox root = new VBox(12);
+        User currentUser = SessionManager.getCurrentUser();
+        String username = currentUser != null ? currentUser.getUsername() : "alice";
+
+        com.hkust.marketplace.services.BuyerNotificationService notifService =
+                DummyDataService.getInstance().getBuyerNotificationService();
+        // Check borrow reminders for active loans
+        notifService.checkAndGenerateBorrowReminders(username);
+        updateNotificationSidebarBadge();
+
+        VBox root = new VBox(16);
         root.setPadding(new Insets(4));
 
-        User user = SessionManager.getCurrentUser();
-        List<Notification> notifs = DummyDataService.getInstance()
-                .getNotificationsFor(user != null ? user.getUsername() : "");
+        // 1. Filter and Search Control Bar (Subflow S2 & Alternative Flow A2)
+        HBox filterBar = new HBox(12);
+        filterBar.setAlignment(Pos.CENTER_LEFT);
+        filterBar.getStyleClass().add("filter-box");
 
-        if (notifs.isEmpty()) {
-            Label empty = new Label("No notifications yet.");
-            empty.setStyle("-fx-text-fill: #5a5a7a;");
-            root.getChildren().add(empty);
-        } else {
-            for (Notification n : notifs) {
-                VBox item = new VBox(4);
-                item.getStyleClass().add("notif-item");
-                Label title = new Label(n.getTitle());
-                title.setStyle("-fx-font-weight: bold; -fx-text-fill: #1a1a2e;");
-                Label msg = new Label(n.getMessage());
-                msg.setStyle("-fx-text-fill: #5a5a7a; -fx-font-size: 13px;");
-                msg.setWrapText(true);
-                Label meta = new Label(n.getCategory() + " · " +
-                        n.getTimestamp().format(DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm")));
-                meta.setStyle("-fx-text-fill: #9aa0b0; -fx-font-size: 11px;");
-                item.getChildren().addAll(title, msg, meta);
-                root.getChildren().add(item);
-            }
+        // Search text field
+        TextField searchInput = new TextField(currentNotifSearch);
+        searchInput.setPromptText("🔍 Search notifications...");
+        searchInput.setPrefWidth(220);
+        searchInput.textProperty().addListener((obs, oldVal, newVal) -> {
+            currentNotifSearch = newVal;
+            renderNotificationCards(root, username);
+        });
+
+        // Category filter ComboBox
+        ComboBox<String> categoryCombo = new ComboBox<>();
+        categoryCombo.getItems().add("All Categories");
+        for (NotificationCategory cat : NotificationCategory.values()) {
+            categoryCombo.getItems().add(cat.getDisplayName());
         }
+        categoryCombo.setValue(currentNotifCategory != null ? currentNotifCategory.getDisplayName() : "All Categories");
+        categoryCombo.setOnAction(e -> {
+            String selected = categoryCombo.getValue();
+            if (selected == null || "All Categories".equalsIgnoreCase(selected)) {
+                currentNotifCategory = null;
+            } else {
+                currentNotifCategory = NotificationCategory.fromRaw(selected);
+            }
+            renderNotificationCards(root, username);
+        });
+
+        // Status filter ComboBox
+        ComboBox<String> statusCombo = new ComboBox<>();
+        statusCombo.getItems().addAll("All Status", "Unread Only");
+        statusCombo.setValue(Boolean.TRUE.equals(currentNotifUnreadOnly) ? "Unread Only" : "All Status");
+        statusCombo.setOnAction(e -> {
+            String selected = statusCombo.getValue();
+            currentNotifUnreadOnly = "Unread Only".equalsIgnoreCase(selected);
+            renderNotificationCards(root, username);
+        });
+
+        Region barSpacer = new Region();
+        HBox.setHgrow(barSpacer, Priority.ALWAYS);
+
+        // Mark All as Read button
+        Button btnMarkAllRead = new Button("✓ Mark All as Read");
+        btnMarkAllRead.getStyleClass().addAll("btn-outline", "btn-sm");
+        btnMarkAllRead.setOnAction(e -> {
+            int marked = notifService.markAllAsRead(username);
+            updateNotificationSidebarBadge();
+            renderNotificationCards(root, username);
+            if (marked > 0) {
+                new Alert(Alert.AlertType.INFORMATION, marked + " notification(s) marked as read.").showAndWait();
+            }
+        });
+
+        // Clear All button
+        Button btnClearAll = new Button("Clear All");
+        btnClearAll.getStyleClass().addAll("btn-outline", "btn-sm");
+        btnClearAll.setOnAction(e -> {
+            Alert confirm = new Alert(Alert.AlertType.CONFIRMATION, "Clear all your notifications?");
+            confirm.showAndWait().ifPresent(btn -> {
+                if (btn == ButtonType.OK) {
+                    notifService.clearAllNotifications(username);
+                    updateNotificationSidebarBadge();
+                    renderNotificationCards(root, username);
+                }
+            });
+        });
+
+        filterBar.getChildren().addAll(searchInput, categoryCombo, statusCombo, barSpacer, btnMarkAllRead, btnClearAll);
+        root.getChildren().add(filterBar);
+
+        // Container for notification list
+        VBox cardsContainer = new VBox(12);
+        cardsContainer.setId("notifCardsContainer");
+        root.getChildren().add(cardsContainer);
+
+        renderNotificationCards(root, username);
 
         ScrollPane scroll = new ScrollPane(root);
         scroll.setFitToWidth(true);
         contentPane.getChildren().add(scroll);
+    }
+
+    private void renderNotificationCards(VBox root, String username) {
+        VBox cardsContainer = (VBox) root.lookup("#notifCardsContainer");
+        if (cardsContainer == null) return;
+        cardsContainer.getChildren().clear();
+
+        com.hkust.marketplace.services.BuyerNotificationService notifService =
+                DummyDataService.getInstance().getBuyerNotificationService();
+        NotificationFilterCriteria criteria = new NotificationFilterCriteria(
+                currentNotifCategory,
+                currentNotifUnreadOnly,
+                currentNotifSearch
+        );
+        List<Notification> notifs = notifService.getNotifications(username, criteria);
+
+        // Header summary row
+        HBox summaryRow = new HBox(10);
+        summaryRow.setAlignment(Pos.CENTER_LEFT);
+        int totalUnread = notifService.getUnreadCount(username);
+        Label summaryLabel = new Label("Showing " + notifs.size() + " notification" + (notifs.size() == 1 ? "" : "s")
+                + " • " + totalUnread + " unread overall");
+        summaryLabel.setStyle("-fx-text-fill: #5a5a7a; -fx-font-size: 13px; -fx-font-weight: bold;");
+        summaryRow.getChildren().add(summaryLabel);
+        cardsContainer.getChildren().add(summaryRow);
+
+        // Alternative Flow A1: No Notifications
+        if (notifs.isEmpty()) {
+            VBox emptyCard = new VBox(10);
+            emptyCard.setAlignment(Pos.CENTER);
+            emptyCard.setPadding(new Insets(40, 20, 40, 20));
+            emptyCard.getStyleClass().add("card");
+
+            Label iconLabel = new Label("🔔");
+            iconLabel.setStyle("-fx-font-size: 36px;");
+
+            String msg = (currentNotifCategory != null || Boolean.TRUE.equals(currentNotifUnreadOnly)
+                    || (currentNotifSearch != null && !currentNotifSearch.isBlank()))
+                    ? "No notifications matching your filter criteria."
+                    : "You have no notifications.";
+            Label msgLabel = new Label(msg);
+            msgLabel.setStyle("-fx-text-fill: #5a5a7a; -fx-font-size: 14px; -fx-font-weight: bold;");
+
+            emptyCard.getChildren().addAll(iconLabel, msgLabel);
+
+            if (currentNotifCategory != null || Boolean.TRUE.equals(currentNotifUnreadOnly)
+                    || (currentNotifSearch != null && !currentNotifSearch.isBlank())) {
+                Button btnReset = new Button("View All Notifications");
+                btnReset.getStyleClass().addAll("btn-primary", "btn-sm");
+                btnReset.setOnAction(e -> {
+                    currentNotifCategory = null;
+                    currentNotifUnreadOnly = false;
+                    currentNotifSearch = "";
+                    showNotifications();
+                });
+                emptyCard.getChildren().add(btnReset);
+            }
+
+            cardsContainer.getChildren().add(emptyCard);
+            return;
+        }
+
+        // Basic Flow step 2: List notifications, newest first, unread highlighted
+        for (Notification n : notifs) {
+            VBox card = new VBox(8);
+            card.getStyleClass().add("notif-item");
+            if (n.isUnread()) {
+                card.getStyleClass().add("notif-item-unread");
+            } else {
+                card.getStyleClass().add("notif-item-read");
+            }
+            card.setCursor(javafx.scene.Cursor.HAND);
+
+            // Header row
+            HBox header = new HBox(8);
+            header.setAlignment(Pos.CENTER_LEFT);
+
+            NotificationCategory cat = NotificationCategory.fromRaw(n.getCategory());
+            Label catBadge = new Label(cat.getIcon() + " " + cat.getDisplayName());
+            catBadge.getStyleClass().addAll("badge", getBadgeClassForCategory(cat));
+            header.getChildren().add(catBadge);
+
+            if (n.isUnread()) {
+                Label unreadBadge = new Label("NEW");
+                unreadBadge.getStyleClass().addAll("badge-unread");
+                header.getChildren().add(unreadBadge);
+            }
+
+            Region spacer = new Region();
+            HBox.setHgrow(spacer, Priority.ALWAYS);
+            header.getChildren().add(spacer);
+
+            Label timeLabel = new Label(n.getFormattedTimestamp());
+            timeLabel.setStyle("-fx-text-fill: #9aa0b0; -fx-font-size: 11px;");
+            header.getChildren().add(timeLabel);
+
+            // Title & Message
+            Label title = new Label(n.getTitle());
+            title.setStyle("-fx-font-weight: bold; -fx-font-size: 14px; -fx-text-fill: #003974;");
+
+            Label msg = new Label(n.getMessage());
+            msg.setStyle("-fx-text-fill: #334155; -fx-font-size: 13px;");
+            msg.setWrapText(true);
+
+            // Action footer
+            HBox actions = new HBox(8);
+            actions.setAlignment(Pos.CENTER_RIGHT);
+
+            Button viewBtn = new Button("View Related →");
+            viewBtn.getStyleClass().addAll("btn-primary", "btn-sm");
+            viewBtn.setOnAction(e -> handleNotificationSelection(username, n));
+
+            Button toggleReadBtn = new Button(n.isRead() ? "Mark Unread" : "Mark Read");
+            toggleReadBtn.getStyleClass().addAll("btn-outline", "btn-sm");
+            toggleReadBtn.setOnAction(e -> {
+                if (n.isRead()) {
+                    notifService.markAsUnread(username, n.getId());
+                } else {
+                    notifService.markAsRead(username, n.getId());
+                }
+                updateNotificationSidebarBadge();
+                renderNotificationCards(root, username);
+            });
+
+            Button deleteBtn = new Button("✕");
+            deleteBtn.getStyleClass().addAll("btn-outline", "btn-sm");
+            deleteBtn.setTooltip(new Tooltip("Delete notification"));
+            deleteBtn.setOnAction(e -> {
+                notifService.deleteNotification(username, n.getId());
+                updateNotificationSidebarBadge();
+                renderNotificationCards(root, username);
+            });
+
+            actions.getChildren().addAll(toggleReadBtn, deleteBtn, viewBtn);
+
+            // Clicking card directly triggers selection (Basic Flow step 3)
+            card.setOnMouseClicked(e -> {
+                if (e.getTarget() != viewBtn && e.getTarget() != toggleReadBtn && e.getTarget() != deleteBtn) {
+                    handleNotificationSelection(username, n);
+                }
+            });
+
+            card.getChildren().addAll(header, title, msg, actions);
+            cardsContainer.getChildren().add(card);
+        }
+    }
+
+    private void handleNotificationSelection(String username, Notification n) {
+        com.hkust.marketplace.services.BuyerNotificationService notifService =
+                DummyDataService.getInstance().getBuyerNotificationService();
+        NotificationTargetResult result = notifService.resolveNotificationTarget(username, n.getId());
+        updateNotificationSidebarBadge();
+
+        if (result.getStatus() == NotificationTargetStatus.SUCCESS) {
+            switch (result.getTargetType()) {
+                case OFFER:
+                case DEAL:
+                    showMyDeals();
+                    break;
+                case CHAT_THREAD:
+                    ChatThread thread = (ChatThread) result.getTargetObject();
+                    Listing listing = DummyDataService.getInstance().getListing(thread.getListingId());
+                    if (listing != null) {
+                        openChatForListing(listing, "NOTIFICATIONS");
+                    } else {
+                        showRelatedItemDeletedDialog(n, "The listing associated with this chat thread is no longer available.");
+                    }
+                    break;
+                case LISTING:
+                    Listing l = (Listing) result.getTargetObject();
+                    showListingDetail(l);
+                    break;
+                case REVIEW:
+                    Review r = (Review) result.getTargetObject();
+                    showReviewDetailsDialog(r);
+                    break;
+                case ANNOUNCEMENT:
+                case NONE:
+                default:
+                    showAnnouncementDialog(n);
+                    break;
+            }
+        } else if (result.getStatus() == NotificationTargetStatus.ITEM_DELETED) {
+            // Alternative Flow A3: Related Item No Longer Exists
+            showRelatedItemDeletedDialog(n, result.getMessage());
+            showNotifications();
+        } else {
+            showAnnouncementDialog(n);
+            showNotifications();
+        }
+    }
+
+    private String getBadgeClassForCategory(NotificationCategory cat) {
+        switch (cat) {
+            case OFFERS: return "badge-offers";
+            case CHAT: return "badge-chat";
+            case BORROW_REMINDERS: return "badge-borrow";
+            case LISTINGS: return "badge-listings";
+            case REVIEWS: return "badge-reviews";
+            case ANNOUNCEMENTS:
+            default:
+                return "badge-announcements";
+        }
+    }
+
+    private void showRelatedItemDeletedDialog(Notification n, String detailMsg) {
+        Alert alert = new Alert(Alert.AlertType.INFORMATION);
+        alert.setTitle("Related Item No Longer Available");
+        alert.setHeaderText(n.getTitle());
+        alert.setContentText(n.getMessage() + "\n\nNotice: " + detailMsg);
+        alert.showAndWait();
+    }
+
+    private void showAnnouncementDialog(Notification n) {
+        Alert alert = new Alert(Alert.AlertType.INFORMATION);
+        alert.setTitle(n.getCategory() != null ? n.getCategory() : "Notification Details");
+        alert.setHeaderText(n.getTitle());
+        alert.setContentText(n.getMessage() + "\n\nReceived: " + n.getFormattedTimestamp());
+        alert.showAndWait();
+    }
+
+    private void showReviewDetailsDialog(Review review) {
+        Dialog<Void> dialog = new Dialog<>();
+        dialog.setTitle("Review & Seller Reply");
+        dialog.setHeaderText("Feedback on: " + review.getListingTitle());
+
+        VBox content = new VBox(12);
+        content.setPadding(new Insets(16));
+        content.setPrefWidth(420);
+
+        Label sellerLabel = new Label("Seller: @" + review.getSellerUsername());
+        sellerLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: #003974;");
+
+        Label ratingLabel = new Label("Rating: " + "⭐".repeat(Math.max(1, review.getRating())) + " (" + review.getRating() + "/5)");
+        ratingLabel.setStyle("-fx-text-fill: #b45309; -fx-font-weight: bold;");
+
+        Label commentTitle = new Label("Your Review Comment:");
+        commentTitle.setStyle("-fx-font-weight: bold; -fx-text-fill: #1a1a2e;");
+        Label commentText = new Label(review.getComment() != null ? review.getComment() : "(No comment provided)");
+        commentText.setWrapText(true);
+        commentText.setStyle("-fx-text-fill: #475569; -fx-font-style: italic;");
+
+        Label replyTitle = new Label("Seller's Reply:");
+        replyTitle.setStyle("-fx-font-weight: bold; -fx-text-fill: #003974;");
+        Label replyText = new Label(review.getReply() != null ? review.getReply() : "(No reply yet)");
+        replyText.setWrapText(true);
+        replyText.setStyle("-fx-text-fill: #1e293b; -fx-background-color: #f1f5f9; -fx-padding: 8; -fx-background-radius: 6;");
+
+        content.getChildren().addAll(sellerLabel, ratingLabel, commentTitle, commentText, replyTitle, replyText);
+        dialog.getDialogPane().setContent(content);
+        dialog.getDialogPane().getButtonTypes().add(ButtonType.OK);
+        dialog.showAndWait();
     }
 
     @FXML
@@ -1981,11 +2315,19 @@ public class BuyerDashboardController {
         HBox topBar = new HBox(12);
         topBar.setAlignment(Pos.CENTER_LEFT);
 
-        Button backBtn = new Button("DEALS".equalsIgnoreCase(returnView) ? "← Back to My Deals" : "← Back to Listing");
+        String backBtnText = "← Back to Listing";
+        if ("DEALS".equalsIgnoreCase(returnView)) {
+            backBtnText = "← Back to My Deals";
+        } else if ("NOTIFICATIONS".equalsIgnoreCase(returnView)) {
+            backBtnText = "← Back to Notifications";
+        }
+        Button backBtn = new Button(backBtnText);
         backBtn.getStyleClass().addAll("btn-outline", "btn-sm");
         backBtn.setOnAction(e -> {
             if ("DEALS".equalsIgnoreCase(returnView)) {
                 showMyDeals();
+            } else if ("NOTIFICATIONS".equalsIgnoreCase(returnView)) {
+                showNotifications();
             } else {
                 showListingDetail(listing);
             }

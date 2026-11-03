@@ -206,6 +206,10 @@ public class Deal {
         return type == DealType.LOAN && dueDate != null && now != null && now.isAfter(dueDate) && status == DealStatus.ACTIVE;
     }
 
+    public boolean isExpired() {
+        return isExpired(LocalDateTime.now());
+    }
+
     public boolean isLoan() {
         return type == DealType.LOAN;
     }

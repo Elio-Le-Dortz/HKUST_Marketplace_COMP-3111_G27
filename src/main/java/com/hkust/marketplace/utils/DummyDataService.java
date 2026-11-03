@@ -10,6 +10,7 @@ import com.hkust.marketplace.services.ListingFilterService;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
@@ -37,6 +38,7 @@ public class DummyDataService {
     private final ChatService chatService = new ChatService(this);
     private final DealService dealService = new DealService(this);
     private final BuyerProfileService buyerProfileService = new BuyerProfileService(this);
+    private final com.hkust.marketplace.services.BuyerNotificationService buyerNotificationService = new com.hkust.marketplace.services.BuyerNotificationService(this);
 
     private final AtomicInteger listingIdCounter = new AtomicInteger(100);
     private final AtomicInteger dealIdCounter = new AtomicInteger(500);
@@ -242,16 +244,6 @@ public class DummyDataService {
         o2.setCounterOffer(counterO2);
         offers.add(o2);
 
-        // Sample notifications
-        notifications.add(new Notification("alice", "Offer Accepted",
-                "Charlie accepted your offer of HK$160 for Calculus Textbook.", "Offer"));
-        notifications.add(new Notification("charlie", "New Offer Received",
-                "Alice offered HK$160 for your Calculus Textbook.", "Offer"));
-        notifications.add(new Notification("diana", "Listing Pending",
-                "Your Mini Fridge listing is awaiting admin review.", "System"));
-        notifications.add(new Notification("admin", "New Listing Submitted",
-                "Diana submitted 'Mini Fridge' for review.", "System"));
-
         // Sample chat thread (US-B06)
         ChatThread seedThread = new ChatThread("T" + threadIdCounter.getAndIncrement(),
                 l1.getId(), "alice", "charlie");
@@ -271,7 +263,7 @@ public class DummyDataService {
         seedThread.addMessage(m4);
         chatThreads.add(seedThread);
 
-        // Sample review
+        // Sample reviews
         Review r1 = new Review();
         r1.setId("R" + reviewIdCounter.getAndIncrement());
         r1.setSellerUsername("charlie");
@@ -280,6 +272,73 @@ public class DummyDataService {
         r1.setRating(5);
         r1.setComment("Very smooth transaction, book in excellent condition!");
         reviews.add(r1);
+
+        Review r2 = new Review();
+        r2.setId("R" + reviewIdCounter.getAndIncrement());
+        r2.setSellerUsername("charlie");
+        r2.setBuyerUsername("alice");
+        r2.setListingTitle(l1.getTitle());
+        r2.setRating(5);
+        r2.setComment("Great seller, very responsive!");
+        r2.setReply("Thanks Alice, enjoy the book!");
+        reviews.add(r2);
+
+        // Sample notifications covering all categories in specs_buyer.tex (US-B09)
+        Notification n1 = new Notification("alice", "Offer Accepted",
+                "Charlie accepted your offer of HK$160 for Calculus Textbook.", "Offers", o1.getId(), "OFFER");
+        n1.setId("N" + notifIdCounter.getAndIncrement());
+        n1.setRead(true);
+        n1.setTimestamp(LocalDateTime.now().minusHours(3));
+        notifications.add(n1);
+
+        Notification n2 = new Notification("alice", "Counter-Offer Received",
+                "Charlie countered your offer for Engineering Physics to HK$220.", "Offers", o2.getId(), "OFFER");
+        n2.setId("N" + notifIdCounter.getAndIncrement());
+        n2.setRead(false);
+        n2.setTimestamp(LocalDateTime.now().minusHours(2));
+        notifications.add(n2);
+
+        Notification n3 = new Notification("alice", "New Message from Charlie",
+                "Charlie: 'Offer accepted! Let's arrange meetup at the Library.'", "Chat", seedThread.getId(), "CHAT_THREAD");
+        n3.setId("N" + notifIdCounter.getAndIncrement());
+        n3.setRead(false);
+        n3.setTimestamp(LocalDateTime.now().minusHours(1));
+        notifications.add(n3);
+
+        Notification n4 = new Notification("alice", "Borrow Due-Date Reminder",
+                "Borrowed item 'Scientific Calculator' is due on " + d2.getDueDate().format(DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm")) + ". Please prepare to return it.", "Borrow Reminders", d2.getId(), "DEAL");
+        n4.setId("N" + notifIdCounter.getAndIncrement());
+        n4.setRead(false);
+        n4.setTimestamp(LocalDateTime.now().minusMinutes(45));
+        notifications.add(n4);
+
+        Notification n5 = new Notification("alice", "Listing Removed by Admin",
+                "A listing you had an open offer on ('Vintage Mechanical Keyboard') was removed by the administrator.", "Listings", "L999", "LISTING");
+        n5.setId("N" + notifIdCounter.getAndIncrement());
+        n5.setRead(true);
+        n5.setTimestamp(LocalDateTime.now().minusHours(5));
+        notifications.add(n5);
+
+        Notification n6 = new Notification("alice", "Seller Replied to Your Review",
+                "Charlie replied to your review on 'Calculus Textbook': \"Thanks Alice, enjoy the book!\"", "Reviews", r2.getId(), "REVIEW");
+        n6.setId("N" + notifIdCounter.getAndIncrement());
+        n6.setRead(false);
+        n6.setTimestamp(LocalDateTime.now().minusMinutes(20));
+        notifications.add(n6);
+
+        Notification n7 = new Notification("alice", "Welcome to HKUST Marketplace",
+                "Welcome! You can browse listings, negotiate offers, chat with sellers, and borrow items.", "Announcements", null, "NONE");
+        n7.setId("N" + notifIdCounter.getAndIncrement());
+        n7.setRead(true);
+        n7.setTimestamp(LocalDateTime.now().minusDays(1));
+        notifications.add(n7);
+
+        notifications.add(new Notification("charlie", "New Offer Received",
+                "Alice offered HK$160 for your Calculus Textbook.", "Offers"));
+        notifications.add(new Notification("diana", "Listing Pending",
+                "Your Mini Fridge listing is awaiting admin review.", "Announcements"));
+        notifications.add(new Notification("admin", "New Listing Submitted",
+                "Diana submitted 'Mini Fridge' for review.", "Announcements"));
     }
 
     private Listing createListing(String title, String desc, String cat, ListingType type,
@@ -535,6 +594,10 @@ public class DummyDataService {
         return buyerProfileService;
     }
 
+    public com.hkust.marketplace.services.BuyerNotificationService getBuyerNotificationService() {
+        return buyerNotificationService;
+    }
+
     /**
      * Updates buyer profile information (full name, residence hall, password)
      * enforcing validation and password policies (US-B08).
@@ -608,6 +671,10 @@ public class DummyDataService {
 
     public synchronized Listing findListing(String id) {
         return listings.get(id);
+    }
+
+    public synchronized Listing getListing(String id) {
+        return findListing(id);
     }
 
     public synchronized void addListing(Listing listing) {
@@ -831,6 +898,18 @@ public class DummyDataService {
             n.setId("N" + notifIdCounter.getAndIncrement());
         }
         notifications.add(n);
+    }
+
+    public synchronized boolean removeNotification(String id) {
+        if (id == null) return false;
+        return notifications.removeIf(n -> id.equalsIgnoreCase(n.getId()));
+    }
+
+    public synchronized int removeNotificationsFor(String username) {
+        if (username == null) return 0;
+        int initial = notifications.size();
+        notifications.removeIf(n -> username.equalsIgnoreCase(n.getUsername()));
+        return initial - notifications.size();
     }
 
     // ========== Review methods ==========

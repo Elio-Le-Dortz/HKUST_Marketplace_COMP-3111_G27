@@ -163,6 +163,8 @@ public class AdminDashboardController {
                 Alert conf = new Alert(Alert.AlertType.CONFIRMATION, "Permanently remove this listing?");
                 conf.showAndWait().ifPresent(r -> {
                     if (r == ButtonType.OK) {
+                        DummyDataService.getInstance().getBuyerNotificationService()
+                                .notifyBuyersOfListingRemoval(l, "Removed by Administrator");
                         DummyDataService.getInstance().removeListing(l.getId());
                         showAllListings();
                     }

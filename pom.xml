@@ -103,6 +103,18 @@
                     </execution>
                 </executions>
             </plugin>
+            <!-- JavaDoc (QA-02): run 'mvnw javadoc:javadoc' (or Maven tool window in IntelliJ) -->
+            <!-- HTML output: target/site/apidocs/index.html -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-javadoc-plugin</artifactId>
+                <version>3.6.3</version>
+                <configuration>
+                    <doctitle>HKUST Marketplace API</doctitle>
+                    <windowtitle>HKUST Marketplace API</windowtitle>
+                    <quiet>true</quiet>
+                </configuration>
+            </plugin>
             <plugin>
                 <groupId>org.openjfx</groupId>
                 <artifactId>javafx-maven-plugin</artifactId>

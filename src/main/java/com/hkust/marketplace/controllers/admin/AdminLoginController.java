@@ -28,7 +28,6 @@ public class AdminLoginController {
             showError(validationError);
             return;
         }
-
         SceneManager.showAdminDashboard();
     }
 

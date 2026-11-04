@@ -96,6 +96,16 @@
     -fx-border-color: #003974;
     -fx-effect: dropshadow(gaussian, rgba(0,57,116,0.25), 6, 0, 0, 0);
 }
+/* Field that failed form validation (password fields also have the text-field class) */
+.text-field.field-error, .text-field.field-error:focused {
+    -fx-border-color: #c62828;
+    -fx-effect: dropshadow(gaussian, rgba(198,40,40,0.25), 6, 0, 0, 0);
+}
+
+.field-error {
+    -fx-border-color: #c62828 !important;
+    -fx-effect: dropshadow(gaussian, rgba(198, 40, 40, 0.25), 4, 0, 0, 0);
+}
 
 /* ---------- Cards ---------- */
 .card {
@@ -185,6 +195,26 @@
     -fx-background-color: #ffebee;
     -fx-text-fill: #c62828;
 }
+.badge-active {
+    -fx-background-color: #e0f2fe;
+    -fx-text-fill: #0369a1;
+}
+.badge-countered {
+    -fx-background-color: #fef3c7;
+    -fx-text-fill: #b45309;
+}
+.badge-returned {
+    -fx-background-color: #f3e8ff;
+    -fx-text-fill: #7e22ce;
+}
+.badge-completed {
+    -fx-background-color: #dcfce7;
+    -fx-text-fill: #15803d;
+}
+.badge-withdrawn {
+    -fx-background-color: #f1f5f9;
+    -fx-text-fill: #64748b;
+}
 
 /* ---------- Table ---------- */
 .table-view {
@@ -252,9 +282,64 @@
     -fx-background-color: white;
     -fx-background-radius: 10;
     -fx-padding: 14 18;
-    -fx-border-color: #e8f0f8;
-    -fx-border-width: 0 0 0 4;
-    -fx-border-color: #A68137;
+    -fx-border-color: #e2e8f0;
+    -fx-border-width: 1 1 1 4;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.04), 4, 0, 0, 1);
+}
+
+.notif-item:hover {
+    -fx-effect: dropshadow(gaussian, rgba(0,57,116,0.12), 8, 0, 0, 2);
+}
+
+.notif-item-unread {
+    -fx-background-color: #f8fafc;
+    -fx-border-color: #003974;
+    -fx-border-width: 1 1 1 5;
+}
+
+.notif-item-read {
+    -fx-background-color: white;
+    -fx-border-color: #cbd5e1;
+    -fx-border-width: 1 1 1 3;
+}
+
+.badge-unread {
+    -fx-background-color: #003974;
+    -fx-text-fill: white;
+    -fx-background-radius: 10;
+    -fx-padding: 2 8;
+    -fx-font-size: 11px;
+    -fx-font-weight: bold;
+}
+
+.badge-offers {
+    -fx-background-color: #e0f2fe;
+    -fx-text-fill: #0369a1;
+}
+
+.badge-chat {
+    -fx-background-color: #f3e8ff;
+    -fx-text-fill: #7e22ce;
+}
+
+.badge-borrow {
+    -fx-background-color: #fef3c7;
+    -fx-text-fill: #b45309;
+}
+
+.badge-listings {
+    -fx-background-color: #ffe4e6;
+    -fx-text-fill: #be123c;
+}
+
+.badge-reviews {
+    -fx-background-color: #fef9c3;
+    -fx-text-fill: #854d0e;
+}
+
+.badge-announcements {
+    -fx-background-color: #f1f5f9;
+    -fx-text-fill: #475569;
 }
 
 /* ---------- Misc ---------- */
@@ -270,4 +355,122 @@
 }
 .hyperlink:hover {
     -fx-text-fill: #A68137;
+}
+
+/* ---------- Browse & Filters ---------- */
+.filter-box {
+    -fx-background-color: white;
+    -fx-background-radius: 12;
+    -fx-padding: 16;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.06), 6, 0, 0, 2);
+}
+
+.thumbnail-placeholder {
+    -fx-background-color: #eef2f7;
+    -fx-background-radius: 8;
+    -fx-alignment: center;
+    -fx-min-height: 120px;
+    -fx-pref-height: 120px;
+    -fx-max-height: 120px;
+}
+
+.empty-state-box {
+    -fx-background-color: white;
+    -fx-background-radius: 12;
+    -fx-padding: 40;
+    -fx-alignment: center;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.06), 8, 0, 0, 2);
+}
+
+/* ---------- Listing Detail ---------- */
+.detail-card {
+    -fx-background-color: white;
+    -fx-background-radius: 12;
+    -fx-padding: 24;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.06), 8, 0, 0, 2);
+}
+
+.photo-main-container {
+    -fx-background-color: #f8fafd;
+    -fx-background-radius: 12;
+    -fx-border-color: #e2e8f0;
+    -fx-border-width: 1;
+    -fx-border-radius: 12;
+    -fx-alignment: center;
+    -fx-padding: 12;
+}
+
+.photo-thumb {
+    -fx-background-color: #eef2f7;
+    -fx-background-radius: 8;
+    -fx-border-color: #cbd5e1;
+    -fx-border-width: 1.5;
+    -fx-border-radius: 8;
+    -fx-cursor: hand;
+    -fx-alignment: center;
+}
+.photo-thumb:hover {
+    -fx-border-color: #003974;
+}
+
+.photo-thumb-active {
+    -fx-border-color: #003974;
+    -fx-border-width: 2.5;
+}
+
+.seller-info-box {
+    -fx-background-color: #f8fafd;
+    -fx-background-radius: 10;
+    -fx-border-color: #e2e8f0;
+    -fx-border-width: 1;
+    -fx-border-radius: 10;
+    -fx-padding: 14;
+}
+
+/* ========== Chat Thread & Messaging (US-B06) ========== */
+.chat-container {
+    -fx-background-color: white;
+    -fx-background-radius: 12;
+    -fx-border-color: #e2e8f0;
+    -fx-border-width: 1;
+    -fx-border-radius: 12;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.04), 8, 0, 0, 2);
+}
+
+.chat-bubble-me {
+    -fx-background-color: #003974;
+    -fx-background-radius: 14 14 2 14;
+    -fx-padding: 10 14;
+    -fx-effect: dropshadow(gaussian, rgba(0,57,116,0.15), 4, 0, 0, 1);
+}
+
+.chat-bubble-other {
+    -fx-background-color: #f1f5f9;
+    -fx-background-radius: 14 14 14 2;
+    -fx-padding: 10 14;
+    -fx-border-color: #e2e8f0;
+    -fx-border-width: 1;
+    -fx-border-radius: 14 14 14 2;
+}
+
+.chat-bubble-offer {
+    -fx-background-color: #fffbeb;
+    -fx-border-color: #f59e0b;
+    -fx-border-width: 1.5;
+    -fx-border-radius: 10;
+    -fx-background-radius: 10;
+    -fx-padding: 10 14;
+}
+
+.chat-bubble-highlight {
+    -fx-border-color: #eab308;
+    -fx-border-width: 2.5;
+    -fx-effect: dropshadow(gaussian, rgba(234,179,8,0.35), 8, 0, 0, 0);
+}
+
+.chat-search-bar {
+    -fx-background-color: #f8fafc;
+    -fx-padding: 10 14;
+    -fx-border-color: #e2e8f0;
+    -fx-border-width: 0 0 1 0;
 }

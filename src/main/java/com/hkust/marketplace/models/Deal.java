@@ -201,4 +201,28 @@ public class Deal {
     public void setCompletedAt(LocalDateTime dt) {
         this.closedDate = dt;
     }
+
+    public boolean isExpired(LocalDateTime now) {
+        return type == DealType.LOAN && dueDate != null && now != null && now.isAfter(dueDate) && status == DealStatus.ACTIVE;
+    }
+
+    public boolean isExpired() {
+        return isExpired(LocalDateTime.now());
+    }
+
+    public boolean isLoan() {
+        return type == DealType.LOAN;
+    }
+
+    public boolean isCompleted() {
+        return status == DealStatus.COMPLETED;
+    }
+
+    public boolean isReturned() {
+        return status == DealStatus.RETURNED;
+    }
+
+    public boolean isActive() {
+        return status == DealStatus.ACTIVE;
+    }
 }

@@ -171,15 +171,15 @@ public class Listing {
         // no-op or store if needed
     }
 
-    public int getViewCount() {
+    public synchronized int getViewCount() {
         return viewCount;
     }
 
-    public void setViewCount(int viewCount) {
+    public synchronized void setViewCount(int viewCount) {
         this.viewCount = viewCount;
     }
 
-    public void incrementViewCount() {
+    public synchronized void incrementViewCount() {
         this.viewCount++;
     }
 
@@ -216,19 +216,25 @@ public class Listing {
         this.sellerFullName = sellerFullName;
     }
 
-    public List<Photo> getPhotos() {
-        return photos;
+    public synchronized List<Photo> getPhotos() {
+        return new ArrayList<>(photos);
     }
 
-    public void setPhotos(List<Photo> photos) {
-        this.photos = photos != null ? photos : new ArrayList<>();
+    public synchronized void setPhotos(List<Photo> photos) {
+        this.photos.clear();
+        if (photos != null) {
+            int limit = Math.min(photos.size(), 6);
+            for (int i = 0; i < limit; i++) {
+                this.photos.add(photos.get(i));
+            }
+        }
     }
 
-    public void addPhoto(Photo photo) {
+    public synchronized void addPhoto(Photo photo) {
         if (this.photos == null) {
             this.photos = new ArrayList<>();
         }
-        if (this.photos.size() < 6) {
+        if (this.photos.size() < 6 && photo != null) {
             this.photos.add(photo);
         }
     }
@@ -266,5 +272,38 @@ public class Listing {
         } else {
             return "FREE";
         }
+    }
+
+    public double getEffectivePrice() {
+        if (type == ListingType.SELL && price != null) {
+            return price;
+        }
+        return 0.0;
+    }
+
+    public String getAvailabilityDisplay() {
+        if (status == null) return "Unknown";
+        return switch (status) {
+            case LIVE -> "Live";
+            case PENDING_REVIEW -> "Pending Review";
+            case RESERVED -> "Reserved";
+            case SOLD -> "Sold";
+            case LENT -> "Lent";
+            case GIVEN -> "Given";
+            case REJECTED -> "Rejected";
+            case REMOVED -> "Removed";
+        };
+    }
+
+    public Photo getFirstPhoto() {
+        if (photos != null && !photos.isEmpty()) {
+            return photos.get(0);
+        }
+        return null;
+    }
+
+    public String getThumbnailPath() {
+        Photo photo = getFirstPhoto();
+        return photo != null ? photo.getImagePath() : null;
     }
 }

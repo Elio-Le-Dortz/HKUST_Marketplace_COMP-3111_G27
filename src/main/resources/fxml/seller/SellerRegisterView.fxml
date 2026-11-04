@@ -37,19 +37,18 @@
                     <Label text="Confirm Password *" style="-fx-font-weight: 600;"/>
                     <PasswordField fx:id="confirmPasswordField" promptText="Re-enter password" prefHeight="38"/>
                 </VBox>
-                <VBox spacing="5">
-                    <Label text="Preferred Meet-up Location (optional)" style="-fx-font-weight: 600;"/>
-                    <ComboBox fx:id="meetupCombo" promptText="Select location" prefHeight="38" maxWidth="Infinity"/>
+                <VBox spacing="8">
+                    <Label text="Preferred Meet-up Locations (optional)" style="-fx-font-weight: 600;"/>
+                    <!-- One check box per MeetupLocation, added by SellerRegisterController.initialize() -->
+                    <FlowPane fx:id="meetupPane" hgap="16" vgap="8" prefWrapLength="400"/>
                 </VBox>
                 <VBox spacing="5">
                     <Label text="Seller Bio (optional)" style="-fx-font-weight: 600;"/>
-                    <TextArea fx:id="bioArea" promptText="Short introduction..." prefRowCount="3"/>
+                    <TextArea fx:id="bioArea" promptText="Short introduction..." prefRowCount="3" wrapText="true"/>
                 </VBox>
 
                 <Label fx:id="errorLabel" text="" style="-fx-text-fill: #c62828; -fx-font-size: 13px;"
-                       wrapText="true" managed="false" visible="false"/>
-                <Label fx:id="successLabel" text="" style="-fx-text-fill: #2e7d32; -fx-font-size: 13px;"
-                       wrapText="true" managed="false" visible="false"/>
+                       wrapText="true" managed="false" visible="false" maxWidth="Infinity"/>
 
                 <Button text="Create Seller Account" styleClass="btn-gold" onAction="#handleRegister"
                         prefWidth="Infinity" prefHeight="42"/>

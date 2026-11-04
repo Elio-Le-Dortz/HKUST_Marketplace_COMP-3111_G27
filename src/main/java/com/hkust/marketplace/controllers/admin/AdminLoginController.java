@@ -18,26 +18,44 @@ public class AdminLoginController {
 
     @FXML
     private void handleLogin() {
-        String username = usernameField.getText().trim();
-        String password = passwordField.getText();
+        String username = usernameField.getText() != null ? usernameField.getText().trim() : "";
+        String password = passwordField.getText() != null ? passwordField.getText() : "";
         errorLabel.setVisible(false);
         errorLabel.setManaged(false);
 
-        if (username.isEmpty() || password.isEmpty()) {
-            showError("Please enter credentials.");
+        String validationError = authenticateAdmin(username, password);
+        if (!"OK".equals(validationError)) {
+            showError(validationError);
             return;
         }
-        User user = DummyDataService.getInstance().findUser(username);
-        if (user == null || user.getRole() != UserRole.ADMIN) {
-            showError("Invalid admin credentials.");
-            return;
-        }
-        if (!com.hkust.marketplace.utils.PasswordUtil.verifyPassword(password, user.getPasswordHash())) {
-            showError("Incorrect password.");
-            return;
-        }
-        SessionManager.login(user);
         SceneManager.showAdminDashboard();
+    }
+
+    public String authenticateAdmin(String username, String password) {
+        if (username == null || username.trim().isEmpty() || password == null || password.isEmpty()) {
+            return "Please enter credentials.";
+        }
+
+        String normalizedUsername = username.trim();
+        if (!DummyDataService.SEEDED_ADMIN_USERNAME.equalsIgnoreCase(normalizedUsername)) {
+            return "Invalid admin credentials.";
+        }
+
+        User user = DummyDataService.getInstance().findUser(normalizedUsername);
+        if (user == null || user.getRole() != UserRole.ADMIN) {
+            return "Invalid admin credentials.";
+        }
+
+        if (!user.isActive()) {
+            return "Admin account is deactivated.";
+        }
+
+        if (!user.getPasswordHash().equals(password)) {
+            return "Incorrect password.";
+        }
+
+        SessionManager.login(user);
+        return "OK";
     }
 
     private void showError(String msg) {

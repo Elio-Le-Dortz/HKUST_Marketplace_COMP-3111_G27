@@ -84,6 +84,10 @@ public class DummyDataService {
             "New", "Like New", "Used", "For Parts"
     );
 
+    public static final String SEEDED_ADMIN_USERNAME = "admin";
+    public static final String SEEDED_ADMIN_FULLNAME = "HKUST Marketplace Admin";
+    public static final String SEEDED_ADMIN_PASSWORD = "admin123";
+
     private DummyDataService() {
         seedData();
     }
@@ -121,8 +125,8 @@ public class DummyDataService {
 
     private void seedData() {
         // Admin
-        Admin admin = new Admin("admin", "HKUST Marketplace Admin", SEED_ADMIN_HASH);
-        users.put("admin", admin);
+        seedAdmin();
+
 
         // Sample buyers
         Buyer buyer1 = new Buyer("alice", "Alice Chan", SEED_USER_HASH, "Hall 3");
@@ -389,6 +393,20 @@ public class DummyDataService {
                 "Diana submitted 'Mini Fridge' for review.", "Announcements"));
     }
 
+    /**
+     * Call inside the DummyDataService constructor / seed initialization method.
+     */
+    private void seedAdmin() {
+        users.values().removeIf(u -> u.getRole() == UserRole.ADMIN);
+        Admin seededAdmin = new Admin(
+                SEEDED_ADMIN_USERNAME,
+                SEEDED_ADMIN_FULLNAME,
+                SEEDED_ADMIN_PASSWORD
+        );
+        seededAdmin.setActive(true);
+        users.put(SEEDED_ADMIN_USERNAME, seededAdmin);
+    }
+
     private Listing createListing(String title, String desc, String cat, ListingType type,
                                   String condition, Double price, Integer days,
                                   String meetup, String sellerUser, String sellerName) {
@@ -409,6 +427,7 @@ public class DummyDataService {
     }
 
     // ========== User methods ==========
+
     /**
      * Tells whether any account (buyer, seller or admin, whatever its status) already
      * uses a username, ignoring case. Soft-deleted accounts keep their username reserved.
@@ -418,6 +437,7 @@ public class DummyDataService {
      */
     public synchronized boolean usernameExists(String username) {
         if (username == null) {
+
             return false;
         }
         return users.containsKey(username.trim().toLowerCase());
@@ -431,10 +451,19 @@ public class DummyDataService {
     }
 
     public void registerUser(User user) {
+
         if (user == null || user.getUsername() == null) {
             throw new IllegalArgumentException("User and username cannot be null.");
         }
-        users.put(user.getUsername().trim().toLowerCase(), user);
+        if (user.getRole() == UserRole.ADMIN || SEEDED_ADMIN_USERNAME.equalsIgnoreCase(user.getUsername().trim())) {
+            throw new IllegalArgumentException("Admin accounts cannot be registered.");
+        }
+        String key = user.getUsername().trim().toLowerCase();
+        if (users.containsKey(key)) {
+            throw new IllegalArgumentException("Username already exists.");
+        }
+        users.put(key, user);
+
     }
 
     /**
@@ -588,7 +617,28 @@ public class DummyDataService {
      */
     public synchronized boolean registerUserIfAbsent(User user) {
         return users.putIfAbsent(user.getUsername().toLowerCase(), user) == null;
+
     }
+
+    public void resetToSeedData() {
+        users.clear();
+        listings.clear();
+        deals.clear();
+        offers.clear();
+        reports.clear();
+        chatThreads.clear();
+        notifications.clear();
+        reviews.clear();
+        listingIdCounter.set(100);
+        dealIdCounter.set(500);
+        offerIdCounter.set(700);
+        reportIdCounter.set(300);
+        notifIdCounter.set(1);
+        reviewIdCounter.set(1);
+        threadIdCounter.set(1);
+        seedData();
+    }
+
 
     public Collection<User> getAllUsers() {
         return users.values();

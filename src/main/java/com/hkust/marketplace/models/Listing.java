@@ -24,6 +24,7 @@ public class Listing {
     private String adminReason;           // Rejection / Takedown reason
     private String sellerUsername;
     private String sellerFullName;
+    private boolean deletedBySeller;      // Soft delete by the seller (US-S04): status REMOVED, hidden from My Listings
     private List<Photo> photos = new ArrayList<>();
 
     public Listing() {
@@ -226,6 +227,28 @@ public class Listing {
 
     public void setSellerFullName(String sellerFullName) {
         this.sellerFullName = sellerFullName;
+    }
+
+    /**
+     * Tells whether the seller deleted this listing (use case 2.4, US-S04). A deleted listing
+     * is kept with status {@link ListingStatus#REMOVED} (soft delete), so that the deals,
+     * reviews and chats about it keep their history, but it no longer appears in the
+     * marketplace nor on the seller's My Listings screen. A listing taken down by the admin
+     * is also {@code REMOVED}, but not deleted by the seller.
+     *
+     * @return {@code true} if the seller deleted the listing
+     */
+    public boolean isDeletedBySeller() {
+        return deletedBySeller;
+    }
+
+    /**
+     * Records whether the seller deleted this listing (use case 2.4, US-S04).
+     *
+     * @param deletedBySeller {@code true} once the seller has deleted the listing
+     */
+    public void setDeletedBySeller(boolean deletedBySeller) {
+        this.deletedBySeller = deletedBySeller;
     }
 
     public synchronized List<Photo> getPhotos() {

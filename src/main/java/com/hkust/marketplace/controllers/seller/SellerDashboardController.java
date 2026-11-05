@@ -2,6 +2,7 @@ package com.hkust.marketplace.controllers.seller;
 
 import com.hkust.marketplace.models.*;
 import com.hkust.marketplace.services.CreateListingService;
+import com.hkust.marketplace.services.MyListingsService;
 import com.hkust.marketplace.services.OfferManagementService;
 import com.hkust.marketplace.utils.DummyDataService;
 import com.hkust.marketplace.utils.SceneManager;
@@ -26,6 +27,8 @@ import javafx.scene.layout.*;
 import javafx.stage.FileChooser;
 
 import java.io.File;
+import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -34,12 +37,15 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.EnumMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
@@ -62,8 +68,11 @@ public class SellerDashboardController {
     /** Business logic of the Create Listing screen (use case 2.3, US-S03). */
     private final CreateListingService createListingService = new CreateListingService();
 
-    /** The Create Listing form currently shown, {@code null} before it is first opened. */
-    private CreateListingForm createListingForm;
+    /** Business logic of the My Listings screen (use case 2.4, US-S04). */
+    private final MyListingsService myListingsService = new MyListingsService();
+
+    /** The listing form currently shown (create or edit), {@code null} before it is first opened. */
+    private ListingForm listingForm;
 
     /** Folder the photo chooser opens in: the folder of the last photos chosen. */
     private File lastPhotoFolder;
@@ -96,74 +105,410 @@ public class SellerDashboardController {
         pageTitle.setText(title);
     }
 
+    // =====================================================================
+    // US-S04: My Listings screen (use case 2.4 "Manage My Listings")
+    // =====================================================================
+
+    /** Size, in pixels, of the cover photo of a listing card. */
+    private static final double CARD_THUMBNAIL_SIZE = 72;
+    /** Format of the date a listing was posted. */
+    private static final DateTimeFormatter POSTED_FORMAT = DateTimeFormatter.ofPattern("dd MMM yyyy", Locale.ENGLISH);
+    /** Style of a note about a rejected or taken-down listing. */
+    private static final String NOTE_ERROR_STYLE = "-fx-background-color: #fff5f5; -fx-background-radius: 8;"
+            + " -fx-padding: 8 10; -fx-text-fill: #b91c1c; -fx-font-size: 12px;";
+    /** Style of a note about a listing awaiting review. */
+    private static final String NOTE_PENDING_STYLE = "-fx-background-color: #fffbeb; -fx-background-radius: 8;"
+            + " -fx-padding: 8 10; -fx-text-fill: #92400e; -fx-font-size: 12px;";
+    /** Style of a note about a listing whose deal is in progress or completed. */
+    private static final String NOTE_DEAL_STYLE = "-fx-background-color: #eff6ff; -fx-background-radius: 8;"
+            + " -fx-padding: 8 10; -fx-text-fill: #1e3a8a; -fx-font-size: 12px;";
+
+    /**
+     * Shows the Seller's listings, newest first, with their status, views, open offers and
+     * the admin's reason for a rejected or taken-down listing (basic flow, step 2), each with
+     * its Edit and Delete buttons. Without listings, the screen says so (alternative flow A1).
+     * Without an active Seller session, the seller login screen is shown instead.
+     */
     @FXML
     private void showMyListings() {
+        Map<Listing, List<Offer>> listings = new LinkedHashMap<>();
+        Map<Listing, MyListingResult> editChecks = new LinkedHashMap<>();
+        int pendingCount;
+        try {
+            for (Listing listing : myListingsService.getMyListings()) {
+                listings.put(listing, myListingsService.getOpenOffers(listing.getId()));
+                editChecks.put(listing, myListingsService.checkCanEdit(listing.getId()));
+            }
+            pendingCount = offerService.getPendingOffers().size();
+        } catch (SecurityException e) {
+            endSellerSession();
+            return;
+        }
         setActive(btnListings, "My Listings");
+        updateOffersButton(pendingCount);
         contentPane.getChildren().clear();
 
         VBox root = new VBox(14);
         root.setPadding(new Insets(4));
 
-        User user = SessionManager.getCurrentUser();
-        List<Listing> myListings = DummyDataService.getInstance()
-                .getListingsBySeller(user != null ? user.getUsername() : "");
+        Label intro = new Label(listingsSummary(listings.keySet()));
+        intro.setStyle(MUTED_STYLE);
+        intro.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(intro, Priority.ALWAYS);
+        Button create = smallButton("+ New Listing", "btn-gold", this::showCreateListing);
+        create.setId("myListingsNewButton");
+        HBox header = new HBox(12, intro, create);
+        header.setAlignment(Pos.CENTER_LEFT);
+        root.getChildren().add(header);
 
-        if (myListings.isEmpty()) {
-            Label empty = new Label("You have not posted any listings yet.");
-            empty.setStyle("-fx-text-fill: #5a5a7a;");
-            root.getChildren().add(empty);
+        if (listings.isEmpty()) {
+            root.getChildren().add(emptyStateCard("📦", "No listings yet",
+                    "You have not posted any listings yet. Use New Listing to sell, lend or give away an item."));
         } else {
-            for (Listing l : myListings) {
-                root.getChildren().add(createListingRow(l));
-            }
+            listings.forEach((listing, openOffers) ->
+                    root.getChildren().add(createListingCard(listing, openOffers, editChecks.get(listing))));
         }
         ScrollPane scroll = new ScrollPane(root);
         scroll.setFitToWidth(true);
         contentPane.getChildren().add(scroll);
     }
 
-    private HBox createListingRow(Listing l) {
-        HBox row = new HBox(16);
-        row.getStyleClass().add("card");
-        row.setAlignment(Pos.CENTER_LEFT);
-        row.setPadding(new Insets(14));
+    /**
+     * Summarises the Seller's listings by status, for example
+     * {@code 3 listings · 1 awaiting review · 2 live}.
+     *
+     * @param listings the Seller's listings
+     * @return the summary shown above the list
+     */
+    private static String listingsSummary(Collection<Listing> listings) {
+        if (listings.isEmpty()) {
+            return "Your listings appear here once you post them.";
+        }
+        Map<ListingStatus, Integer> counts = new EnumMap<>(ListingStatus.class);
+        listings.forEach(listing -> counts.merge(listing.getStatus(), 1, Integer::sum));
+        StringBuilder summary = new StringBuilder(listings.size() + (listings.size() == 1 ? " listing" : " listings"));
+        counts.forEach((status, count) -> summary.append(" · ").append(count).append(' ')
+                .append(statusName(status).toLowerCase(Locale.ENGLISH)));
+        return summary.toString();
+    }
 
-        VBox info = new VBox(4);
-        HBox.setHgrow(info, Priority.ALWAYS);
-        Label title = new Label(l.getTitle());
+    /**
+     * Names a status as shown on My Listings. A Removed listing on this screen is always one
+     * taken down by the admin, since the listings the Seller deleted are not shown.
+     *
+     * @param status the status
+     * @return the name, for example {@code Awaiting review} or {@code Taken down}
+     */
+    private static String statusName(ListingStatus status) {
+        return switch (status) {
+            case PENDING_REVIEW -> "Awaiting review";
+            case LIVE -> "Live";
+            case REJECTED -> "Rejected";
+            case RESERVED -> "Reserved";
+            case SOLD -> "Sold";
+            case LENT -> "Lent";
+            case GIVEN -> "Given";
+            case REMOVED -> "Taken down";
+        };
+    }
+
+    /**
+     * Builds the card of one of the Seller's listings: its cover photo, title, status,
+     * terms, category, condition, meet-up location, views, open offers, a note explaining
+     * its status, and the Edit and Delete buttons.
+     *
+     * @param listing    the listing
+     * @param openOffers its open offers, oldest first
+     * @param editCheck  whether the listing can be edited, which tells if a deal is in progress
+     * @return the card
+     */
+    private HBox createListingCard(Listing listing, List<Offer> openOffers, MyListingResult editCheck) {
+        HBox card = new HBox(14);
+        card.setId("myListing-" + listing.getId());
+        card.getStyleClass().add("card");
+        card.setAlignment(Pos.TOP_LEFT);
+        card.setPadding(new Insets(14));
+
+        Label title = new Label(listing.getTitle());
         title.setStyle("-fx-font-weight: bold; -fx-font-size: 15px;");
-        Label meta = new Label(l.getCategory() + " · " + l.getTypeDisplay() + " · " + l.getMeetupLocation());
-        meta.setStyle("-fx-text-fill: #5a5a7a; -fx-font-size: 12px;");
-        info.getChildren().addAll(title, meta);
+        title.setWrapText(true);
+        HBox titleRow = new HBox(10, title, myListingBadge(listing));
+        titleRow.setAlignment(Pos.CENTER_LEFT);
+        Label terms = new Label(listingTerms(listing));
+        terms.setStyle("-fx-font-size: 13px; -fx-font-weight: bold; -fx-text-fill: #003974;");
+        Label meta = new Label(listing.getCategory() + " · " + listing.getCondition()
+                + " · 📍 " + listing.getMeetupLocation());
+        meta.setStyle(MUTED_STYLE);
+        int views = listing.getViewCount();
+        StringBuilder activity = new StringBuilder("👁 ").append(views).append(views == 1 ? " view" : " views");
+        if (listing.getPostedDate() != null) {
+            activity.append("  ·  Posted ").append(listing.getPostedDate().format(POSTED_FORMAT));
+        }
+        if (!openOffers.isEmpty()) {
+            activity.append("  ·  ").append(openOffers.size())
+                    .append(openOffers.size() == 1 ? " open offer" : " open offers");
+        }
+        Label activityLabel = new Label(activity.toString());
+        activityLabel.setStyle("-fx-text-fill: #64748b; -fx-font-size: 11px;");
 
-        Label status = new Label(l.getStatus().name().replace('_', ' '));
-        status.getStyleClass().add("badge");
-        switch (l.getStatus()) {
-            case LIVE -> status.getStyleClass().add("badge-live");
-            case PENDING_REVIEW -> status.getStyleClass().add("badge-pending");
-            case REJECTED -> status.getStyleClass().add("badge-rejected");
-            default -> status.getStyleClass().add("badge-sold");
+        VBox info = new VBox(5, titleRow, terms, meta, activityLabel);
+        HBox.setHgrow(info, Priority.ALWAYS);
+        Label note = statusNote(listing, editCheck);
+        if (note != null) {
+            info.getChildren().add(note);
         }
 
-        Button editBtn = new Button("Edit");
-        editBtn.getStyleClass().addAll("btn-outline", "btn-sm");
-        editBtn.setOnAction(e -> new Alert(Alert.AlertType.INFORMATION,
-                "Edit form would open here.\n(Demo placeholder)").showAndWait());
+        Button edit = smallButton("Edit", "btn-outline", () -> handleEditListing(listing));
+        edit.setId("editListing-" + listing.getId());
+        Button delete = smallButton("Delete", "btn-danger", () -> handleDeleteListing(listing));
+        delete.setId("deleteListing-" + listing.getId());
+        VBox actions = new VBox(8, edit, delete);
+        if (!openOffers.isEmpty()) {
+            actions.getChildren().add(smallButton("View offers", "btn-outline", this::showOffers));
+        }
+        actions.getChildren().forEach(node -> ((Button) node).setMaxWidth(Double.MAX_VALUE));
+        actions.setMinWidth(Region.USE_PREF_SIZE);
 
-        Button delBtn = new Button("Delete");
-        delBtn.getStyleClass().addAll("btn-danger", "btn-sm");
-        delBtn.setOnAction(e -> {
-            Alert conf = new Alert(Alert.AlertType.CONFIRMATION, "Delete this listing?");
-            conf.showAndWait().ifPresent(r -> {
-                if (r == ButtonType.OK) {
-                    DummyDataService.getInstance().removeListing(l.getId());
-                    showMyListings();
-                }
-            });
-        });
+        card.getChildren().addAll(listingThumbnail(listing), info, actions);
+        return card;
+    }
 
-        row.getChildren().addAll(info, status, editBtn, delBtn);
-        return row;
+    /**
+     * Builds the note explaining a listing's status: the admin's reason of a rejected or
+     * taken-down listing (basic flow, step 2), that it awaits review, or that its deal is in
+     * progress or completed (alternative flow A2).
+     *
+     * @param listing   the listing
+     * @param editCheck whether the listing can be edited
+     * @return the note, {@code null} for a Live listing that can be changed
+     */
+    private static Label statusNote(Listing listing, MyListingResult editCheck) {
+        String reason = listing.getAdminReason() == null || listing.getAdminReason().isBlank()
+                ? "No reason was given." : listing.getAdminReason().trim();
+        Label note = new Label();
+        note.setWrapText(true);
+        note.setMaxWidth(Double.MAX_VALUE);
+        note.setId("myListingNote-" + listing.getId());
+        if (editCheck != null && editCheck.getStatus() == MyListingStatus.DEAL_IN_PROGRESS_OR_COMPLETED) {
+            boolean completed = listing.getStatus() == ListingStatus.SOLD || listing.getStatus() == ListingStatus.GIVEN;
+            note.setText(completed
+                    ? "✅  Deal completed: this listing can no longer be edited or deleted."
+                    : "🤝  Deal in progress: this listing cannot be edited or deleted until the deal is over.");
+            note.setStyle(NOTE_DEAL_STYLE);
+        } else if (listing.getStatus() == ListingStatus.REJECTED) {
+            note.setText("❌  Rejected by the admin: " + reason + "\nEdit the listing to submit it for review again.");
+            note.setStyle(NOTE_ERROR_STYLE);
+        } else if (MyListingsService.isTakenDown(listing)) {
+            note.setText("🚫  Taken down by the admin: " + reason
+                    + "\nIt can no longer be edited. You can delete it from your listings.");
+            note.setStyle(NOTE_ERROR_STYLE);
+        } else if (listing.getStatus() == ListingStatus.PENDING_REVIEW) {
+            note.setText("⏳  Awaiting the admin's review. Buyers will see it once it is approved.");
+            note.setStyle(NOTE_PENDING_STYLE);
+        } else {
+            return null;
+        }
+        return note;
+    }
+
+    /**
+     * Builds the status badge of a listing on My Listings, where a Removed listing is one
+     * taken down by the admin.
+     *
+     * @param listing the listing
+     * @return the badge
+     */
+    private static Label myListingBadge(Listing listing) {
+        Label badge = listingStatusBadge(listing);
+        if (listing.getStatus() == ListingStatus.PENDING_REVIEW || listing.getStatus() == ListingStatus.REMOVED) {
+            badge.setText(statusName(listing.getStatus()));
+        }
+        return badge;
+    }
+
+    /**
+     * Builds the cover photo of a listing card, or an icon of its type if it has no photo
+     * that can still be read.
+     *
+     * @param listing the listing
+     * @return the thumbnail
+     */
+    private static StackPane listingThumbnail(Listing listing) {
+        StackPane box = new StackPane();
+        box.setMinSize(CARD_THUMBNAIL_SIZE, CARD_THUMBNAIL_SIZE);
+        box.setMaxSize(CARD_THUMBNAIL_SIZE, CARD_THUMBNAIL_SIZE);
+        box.setStyle("-fx-background-color: #f1f5f9; -fx-background-radius: 8;");
+        Path cover = readablePhoto(listing.getThumbnailPath());
+        if (cover != null) {
+            ImageView view = new ImageView(new Image(cover.toUri().toString(),
+                    CARD_THUMBNAIL_SIZE, CARD_THUMBNAIL_SIZE, true, true, true));
+            view.setFitWidth(CARD_THUMBNAIL_SIZE);
+            view.setFitHeight(CARD_THUMBNAIL_SIZE);
+            view.setPreserveRatio(true);
+            box.getChildren().add(view);
+        } else {
+            Label icon = new Label(listing.getType() == ListingType.LEND ? "🤝"
+                    : listing.getType() == ListingType.GIVEAWAY ? "🎁" : "🏷️");
+            icon.setStyle("-fx-font-size: 28px;");
+            box.getChildren().add(icon);
+        }
+        return box;
+    }
+
+    /**
+     * Returns the file of a stored photo path if it still exists.
+     *
+     * @param path the stored path, may be {@code null}
+     * @return the file, or {@code null} if there is none or it cannot be found
+     */
+    private static Path readablePhoto(String path) {
+        if (path == null || path.isBlank()) {
+            return null;
+        }
+        try {
+            Path file = Path.of(path);
+            return Files.isRegularFile(file) ? file : null;
+        } catch (InvalidPathException e) {
+            return null;
+        }
+    }
+
+    /**
+     * Subflow S1, Begin Editing: if the listing can still be edited, shows the listing form
+     * filled with its details; otherwise tells the Seller why (alternative flow A2).
+     *
+     * @param listing the listing to edit
+     */
+    private void handleEditListing(Listing listing) {
+        Seller seller;
+        MyListingResult check;
+        try {
+            seller = SessionManager.requireSeller();
+            check = myListingsService.checkCanEdit(listing.getId());
+        } catch (SecurityException e) {
+            endSellerSession();
+            return;
+        }
+        if (!check.isSuccess()) {
+            showListingResult(check, null);
+            showMyListings();
+            return;
+        }
+        setActive(btnListings, "Edit Listing");
+        contentPane.getChildren().clear();
+        listingForm = new ListingForm(seller, check);
+        contentPane.getChildren().add(listingForm.getView());
+    }
+
+    /**
+     * Subflow S2: if the listing can still be deleted (alternative flow A2), asks the Seller
+     * to confirm, warns again about its open offers if it has any (A3), then deletes it.
+     * Cancelling changes nothing (A5).
+     *
+     * @param listing the listing to delete
+     */
+    private void handleDeleteListing(Listing listing) {
+        MyListingResult check;
+        try {
+            check = myListingsService.checkCanDelete(listing.getId());
+        } catch (SecurityException e) {
+            endSellerSession();
+            return;
+        }
+        if (!check.isSuccess()) {
+            showListingResult(check, null);
+            showMyListings();
+            return;
+        }
+        if (!confirm("Delete listing", "Delete \"" + check.getListing().getTitle() + "\"?", check.getMessage())) {
+            return;
+        }
+        MyListingResult result = runListingChange(
+                confirmed -> myListingsService.deleteListing(listing.getId(), confirmed), "Delete listing");
+        if (result != null) {
+            showListingResult(result, "Listing deleted");
+            showMyListings();
+        }
+    }
+
+    /**
+     * Runs an edit or a delete. While the listing has open offers that the Seller has not
+     * agreed to decline (alternative flow A3), the Seller is warned with the list of these
+     * offers and asked to confirm again; the action is then retried with them. An offer that
+     * arrives in the meantime is shown in a new warning.
+     *
+     * @param action      the edit or delete, given the identifiers of the offers the Seller
+     *                    agreed to decline
+     * @param actionTitle title of the warning dialog
+     * @return the outcome of the action, or {@code null} if the Seller cancelled (the My
+     *         Listings screen is then shown) or the session ended (the login screen is shown)
+     */
+    private MyListingResult runListingChange(Function<Set<String>, MyListingResult> action, String actionTitle) {
+        Set<String> confirmed = Set.of();
+        while (true) {
+            MyListingResult result;
+            try {
+                result = action.apply(confirmed);
+            } catch (SecurityException e) {
+                endSellerSession();
+                return null;
+            }
+            if (result.getStatus() != MyListingStatus.PENDING_OFFERS) {
+                return result;
+            }
+            if (!confirmDeclineOffers(result, actionTitle)) {
+                // A3, step 3: the flow resumes at Select Activity.
+                showMyListings();
+                return null;
+            }
+            confirmed = result.getOfferIds();
+        }
+    }
+
+    /**
+     * Warns the Seller that continuing will decline the listing's open offers and notify the
+     * buyers (alternative flow A3), and asks to confirm again.
+     *
+     * @param result      the {@link MyListingStatus#PENDING_OFFERS} result, listing the offers
+     * @param actionTitle title of the dialog
+     * @return {@code true} if the Seller agreed to decline the offers
+     */
+    private boolean confirmDeclineOffers(MyListingResult result, String actionTitle) {
+        StringBuilder details = new StringBuilder(result.getMessage()).append('\n');
+        List<Offer> offers = result.getOffers();
+        int shown = Math.min(offers.size(), 6);
+        for (Offer offer : offers.subList(0, shown)) {
+            details.append("\n•  ").append(buyerName(offer)).append(": ").append(termsLine(offer));
+            if (offer.isCountered()) {
+                details.append(" (you countered, waiting for the buyer)");
+            }
+        }
+        if (offers.size() > shown) {
+            details.append("\n•  and ").append(offers.size() - shown).append(" more");
+        }
+        ButtonType declineAndContinue = new ButtonType("Decline Offers and Continue", ButtonBar.ButtonData.OK_DONE);
+        Alert alert = new Alert(Alert.AlertType.WARNING, details.toString(), declineAndContinue, ButtonType.CANCEL);
+        alert.initOwner(SceneManager.getPrimaryStage());
+        alert.setTitle(actionTitle);
+        alert.setHeaderText("This listing has open offers");
+        return alert.showAndWait().filter(declineAndContinue::equals).isPresent();
+    }
+
+    /**
+     * Reports the outcome of an action on a listing to the Seller.
+     *
+     * @param result       the outcome
+     * @param successTitle header used when the action succeeded, {@code null} for a check
+     */
+    private void showListingResult(MyListingResult result, String successTitle) {
+        boolean information = result.isSuccess() || result.getStatus() == MyListingStatus.NO_CHANGES;
+        Alert alert = new Alert(information ? Alert.AlertType.INFORMATION : Alert.AlertType.WARNING,
+                result.getMessage(), ButtonType.OK);
+        alert.initOwner(SceneManager.getPrimaryStage());
+        alert.setTitle("My Listings");
+        alert.setHeaderText(result.isSuccess() ? successTitle
+                : information ? "Nothing to save" : "This listing cannot be changed");
+        alert.showAndWait();
     }
 
     // =====================================================================
@@ -207,19 +552,25 @@ public class SellerDashboardController {
         }
         setActive(btnCreate, "Create New Listing");
         contentPane.getChildren().clear();
-        createListingForm = new CreateListingForm(seller);
-        contentPane.getChildren().add(createListingForm.getView());
+        listingForm = new ListingForm(seller, null);
+        contentPane.getChildren().add(listingForm.getView());
     }
 
     /**
-     * The Create Listing form: its fields, the photos chosen so far, and the display of the
-     * errors of each field. The rules are checked by {@link CreateListingService}; this class
-     * only reads the form, shows the errors and lets the Seller choose the photos.
+     * The listing form, used to create a listing (use case 2.3, US-S03) and to edit one
+     * (use case 2.4 subflow S1, US-S04): its fields, the photos chosen so far, and the display
+     * of the errors of each field. The rules are checked by {@link CreateListingService} and
+     * {@link MyListingsService}; this class only reads the form, shows the errors and lets the
+     * Seller choose the photos.
      */
-    private final class CreateListingForm {
+    private final class ListingForm {
 
         /** The Seller who posts the listing. */
         private final Seller seller;
+        /** The listing being edited, {@code null} when creating a listing. */
+        private final Listing editing;
+        /** The check that allowed the edit, {@code null} when creating a listing. */
+        private final MyListingResult editCheck;
         /** The three listing type buttons (basic flow, step 2). */
         private final ToggleGroup typeGroup = new ToggleGroup();
         /** Item name input. */
@@ -272,12 +623,17 @@ public class SellerDashboardController {
         private final ScrollPane scroll = new ScrollPane();
 
         /**
-         * Builds the form for a Seller.
+         * Builds the form for a Seller, empty to create a listing, or filled with the details
+         * of a listing to edit it (use case 2.4, subflow S1, step 1).
          *
-         * @param seller the logged-in Seller
+         * @param seller    the logged-in Seller
+         * @param editCheck the successful {@link MyListingsService#checkCanEdit} result of the
+         *                  listing to edit, or {@code null} to create a listing
          */
-        CreateListingForm(Seller seller) {
+        ListingForm(Seller seller, MyListingResult editCheck) {
             this.seller = seller;
+            this.editCheck = editCheck;
+            this.editing = editCheck != null ? editCheck.getListing() : null;
             page.setPadding(new Insets(4));
             page.setMaxWidth(720);
 
@@ -306,7 +662,14 @@ public class SellerDashboardController {
 
             page.getChildren().addAll(buildTypeCard(), buildDetailsCard());
             setShown(detailsCard, false);
-            preselectMeetup();
+            if (editing == null) {
+                preselectMeetup();
+            } else {
+                page.getChildren().add(0, buildEditBanner());
+                submitButton.setText(editing.getStatus() == ListingStatus.PENDING_REVIEW
+                        ? "Save Changes" : "Save and Resubmit for Review");
+                fill(MyListingsService.toEditRequest(editing));
+            }
             clearErrorsOnEdit();
             refreshPhotos();
 
@@ -329,7 +692,7 @@ public class SellerDashboardController {
          * @return the card
          */
         private VBox buildTypeCard() {
-            Label heading = new Label("What do you want to do with your item?");
+            Label heading = new Label(editing == null ? "What do you want to do with your item?" : "Listing type");
             heading.getStyleClass().add("section-title");
             HBox buttons = new HBox(12,
                     typeButton(ListingType.SELL, "🏷️", "Sell", "Set a price"),
@@ -345,6 +708,65 @@ public class SellerDashboardController {
             card.getStyleClass().add("card");
             card.setPadding(new Insets(20));
             return card;
+        }
+
+        /**
+         * Builds the banner at the top of the edit form: the listing's title and status, the
+         * admin's reason if it was rejected, what saving will do (for example send it back to
+         * review) and how many open offers saving will decline.
+         *
+         * @return the banner
+         */
+        private VBox buildEditBanner() {
+            Label heading = new Label("Editing \"" + editing.getTitle() + "\"");
+            heading.getStyleClass().add("section-title");
+            heading.setWrapText(true);
+            HBox top = new HBox(10, heading, myListingBadge(editing));
+            top.setAlignment(Pos.CENTER_LEFT);
+            VBox banner = new VBox(10, top);
+            if (editing.getStatus() == ListingStatus.REJECTED) {
+                String reason = editing.getAdminReason() == null || editing.getAdminReason().isBlank()
+                        ? "No reason was given." : editing.getAdminReason().trim();
+                Label rejected = new Label("❌  Rejected by the admin: " + reason);
+                rejected.setWrapText(true);
+                rejected.setMaxWidth(Double.MAX_VALUE);
+                rejected.setStyle(NOTE_ERROR_STYLE);
+                banner.getChildren().add(rejected);
+            }
+            int offers = editCheck.getOffers().size();
+            Label outcome = new Label(editCheck.getMessage() + (offers == 0 ? ""
+                    : offers == 1 ? " Its open offer will be declined and the buyer notified."
+                    : " Its " + offers + " open offers will be declined and the buyers notified."));
+            outcome.setId("editListingOutcome");
+            outcome.setWrapText(true);
+            outcome.setMaxWidth(Double.MAX_VALUE);
+            outcome.setStyle(NOTE_PENDING_STYLE);
+            banner.getChildren().add(outcome);
+            banner.getStyleClass().add("card");
+            banner.setPadding(new Insets(20));
+            return banner;
+        }
+
+        /**
+         * Fills the form with the details of the listing being edited. The type is chosen
+         * first, since choosing it clears the values of the other types.
+         *
+         * @param values the current values of the listing
+         */
+        private void fill(CreateListingRequest values) {
+            typeGroup.getToggles().stream()
+                    .filter(toggle -> toggle.getUserData() == values.type())
+                    .findFirst()
+                    .ifPresent(typeGroup::selectToggle);
+            titleField.setText(values.title());
+            descriptionArea.setText(values.description());
+            categoryBox.setValue(values.category());
+            conditionBox.setValue(values.condition());
+            priceField.setText(values.price());
+            lendingAmountField.setText(values.lendingAmount());
+            lendingUnitBox.setValue(values.lendingUnit());
+            meetupBox.setValue(values.meetupLocation());
+            photos.addAll(values.photos());
         }
 
         /**
@@ -693,12 +1115,21 @@ public class SellerDashboardController {
          * @return the thumbnail
          */
         private StackPane photoTile(Path photo, boolean cover) {
-            ImageView view = new ImageView(new Image(photo.toUri().toString(),
-                    THUMBNAIL_SIZE, THUMBNAIL_SIZE, true, true, true));
-            view.setFitWidth(THUMBNAIL_SIZE);
-            view.setFitHeight(THUMBNAIL_SIZE);
-            view.setPreserveRatio(true);
-            StackPane tile = new StackPane(view);
+            Node picture;
+            if (Files.isRegularFile(photo)) {
+                ImageView view = new ImageView(new Image(photo.toUri().toString(),
+                        THUMBNAIL_SIZE, THUMBNAIL_SIZE, true, true, true));
+                view.setFitWidth(THUMBNAIL_SIZE);
+                view.setFitHeight(THUMBNAIL_SIZE);
+                view.setPreserveRatio(true);
+                picture = view;
+            } else {
+                // A photo of an edited listing whose file was moved or deleted (US-S04).
+                Label missing = new Label("File not\nfound");
+                missing.setStyle("-fx-text-fill: #b91c1c; -fx-font-size: 11px; -fx-text-alignment: center;");
+                picture = missing;
+            }
+            StackPane tile = new StackPane(picture);
             tile.setPrefSize(THUMBNAIL_SIZE + 8, THUMBNAIL_SIZE + 8);
             tile.setMaxSize(THUMBNAIL_SIZE + 8, THUMBNAIL_SIZE + 8);
             tile.setStyle("-fx-background-color: white; -fx-background-radius: 8; -fx-border-color: "
@@ -735,6 +1166,10 @@ public class SellerDashboardController {
         private void submit() {
             clearAllErrors();
             submitButton.setDisable(true);
+            if (editing != null) {
+                submitEdit();
+                return;
+            }
             CreateListingResult result;
             try {
                 result = createListingService.createListing(toRequest());
@@ -759,11 +1194,42 @@ public class SellerDashboardController {
         }
 
         /**
-         * Cancels the listing (alternative flow A5): after a confirmation if something was
-         * entered, the My Listings screen is shown and nothing is stored.
+         * Saves the changes to the listing being edited (use case 2.4, subflow S1, steps 3 to
+         * 6). If the listing has open offers, the Seller is warned and asked to confirm again
+         * (alternative flow A3). On success, or if the listing can no longer be edited (A2),
+         * the Seller is told and sees the My Listings screen; if some fields are invalid (A4),
+         * they are highlighted with their reason and the first one gets the focus.
+         */
+        private void submitEdit() {
+            CreateListingRequest request = toRequest();
+            MyListingResult result = runListingChange(
+                    confirmed -> myListingsService.editListing(editing.getId(), request, confirmed), "Save changes");
+            if (result == null) {
+                return;
+            }
+            if (result.getStatus() == MyListingStatus.INVALID_FIELDS) {
+                submitButton.setDisable(false);
+                result.getErrors().forEach(this::markInvalid);
+                showError(formError, result.getMessage());
+                focus(result.getFirstInvalidField());
+                return;
+            }
+            showListingResult(result, "Listing updated");
+            showMyListings();
+        }
+
+        /**
+         * Cancels the listing (use case 2.3, alternative flow A5) or the edit (use case 2.4,
+         * alternative flow A5): after a confirmation if something was entered or changed, the
+         * My Listings screen is shown and nothing is saved.
          */
         private void cancel() {
-            if (hasInput() && !confirm("Cancel listing", "Discard this listing?", "Nothing will be saved.")) {
+            if (editing == null) {
+                if (hasInput() && !confirm("Cancel listing", "Discard this listing?", "Nothing will be saved.")) {
+                    return;
+                }
+            } else if (!MyListingsService.isUnchanged(editing, toRequest())
+                    && !confirm("Cancel editing", "Discard your changes?", "The listing stays as it was.")) {
                 return;
             }
             showMyListings();

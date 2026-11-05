@@ -123,6 +123,38 @@ edit a listing (US-S04) or by the admin's "add listing on behalf of a seller" (U
 `CreateListingServiceTest` (all flows, real image files, integration with the admin review and buyer
 offers, concurrency) and `CreateListingModelsTest`.
 
+## Manage My Listings (US-S04)
+
+Seller sidebar → **My Listings** (the screen shown after login). Every listing of the seller is shown,
+newest first, with its cover photo, status, terms, category, condition, meet-up location, views and
+open offers. A **Rejected** listing shows the admin's reason; a listing **taken down** by the admin shows
+the admin's reason too.
+
+- **Edit** opens the listing form filled with the listing's details. The fields follow the same rules as
+  Create Listing (see above); the type can be changed. Saving a **Live** or **Rejected** listing sends it
+  back to **Pending Review**: it leaves the marketplace until the admin approves it again, the old rejection
+  reason is cleared, and the admin gets a "Listing Submissions" notification. A listing already awaiting
+  review stays Pending Review. Saving without changing anything changes nothing. **Cancel** asks for
+  confirmation if something was changed.
+- **Delete** asks for confirmation, then **soft-deletes** the listing: its status becomes `REMOVED` and it is
+  marked as deleted by the seller (`Listing.isDeletedBySeller()`). It disappears from the marketplace and
+  from My Listings, but its deals, reviews and chats keep their history.
+- A listing that is **Reserved, Sold, Lent or Given**, or that has an active deal, can be neither edited nor
+  deleted. A listing taken down by the admin cannot be edited, but can be deleted from the list.
+- If the listing has **open offers** (pending offers, borrow requests, claims, or counter offers waiting for
+  the buyer), Edit and Delete first **warn** the seller with the list of these offers. If the seller
+  confirms, the offers are declined and each buyer is notified; if not, nothing changes. An offer that
+  arrives after the warning is shown in a new warning instead of being declined silently.
+- Edits and deletes are **atomic** with buyer offers and with offer acceptance (US-S05): when a seller
+  accepts an offer and deletes the listing at the same time, exactly one of the two succeeds.
+
+Seeded listings have no photos, so editing one requires adding at least one photo first.
+
+Every action requires a Seller session (`SessionManager.requireSeller()`) and only works on the
+seller's own listings. Business logic lives in `services/MyListingsService.java` (no JavaFX), tested by
+`MyListingsServiceTest` (all flows, integration with the admin review and take-down, buyer offers and
+offer handling, concurrency) and `MyListingModelsTest`.
+
 ## Manage Offers And Requests (US-S05)
 
 Seller sidebar → **Offers & Requests** (the button shows how many requests are pending).

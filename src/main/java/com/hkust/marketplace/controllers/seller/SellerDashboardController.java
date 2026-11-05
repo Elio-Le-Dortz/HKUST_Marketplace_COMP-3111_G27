@@ -5,16 +5,19 @@ import com.hkust.marketplace.services.CreateListingService;
 import com.hkust.marketplace.services.MyListingsService;
 import com.hkust.marketplace.services.OfferManagementService;
 import com.hkust.marketplace.services.ReviewHandlingService;
+import com.hkust.marketplace.services.SellerNotificationService;
 import com.hkust.marketplace.utils.DummyDataService;
 import com.hkust.marketplace.utils.SceneManager;
 import com.hkust.marketplace.utils.SessionManager;
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.event.ActionEvent;
+import javafx.event.EventTarget;
 import javafx.fxml.FXML;
 import javafx.geometry.Bounds;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.scene.Cursor;
 import javafx.scene.Node;
 import javafx.scene.chart.BarChart;
 import javafx.scene.chart.CategoryAxis;
@@ -75,6 +78,9 @@ public class SellerDashboardController {
     /** Business logic of the Reviews &amp; Feedback screen (use case 2.9, US-S09). */
     private final ReviewHandlingService reviewService = new ReviewHandlingService();
 
+    /** Business logic of the Notifications screen (use case 2.7, US-S07). */
+    private final SellerNotificationService notificationService = new SellerNotificationService();
+
     /** The listing form currently shown (create or edit), {@code null} before it is first opened. */
     private ListingForm listingForm;
 
@@ -99,6 +105,7 @@ public class SellerDashboardController {
         welcomeLabel.setText("Hello, " + seller.getFullName());
         currentActiveBtn = btnListings;
         updateOffersButton(offerService.getPendingOffers().size());
+        updateNotificationsButton(notificationService.getUnreadCount());
         showMyListings();
     }
 
@@ -128,13 +135,24 @@ public class SellerDashboardController {
             + " -fx-padding: 8 10; -fx-text-fill: #1e3a8a; -fx-font-size: 12px;";
 
     /**
+     * Shows the Seller's listings (the My Listings button of the sidebar). See
+     * {@link #showMyListings(String)}.
+     */
+    @FXML
+    private void showMyListings() {
+        showMyListings(null);
+    }
+
+    /**
      * Shows the Seller's listings, newest first, with their status, views, open offers and
      * the admin's reason for a rejected or taken-down listing (basic flow, step 2), each with
      * its Edit and Delete buttons. Without listings, the screen says so (alternative flow A1).
      * Without an active Seller session, the seller login screen is shown instead.
+     *
+     * @param focusListingId listing to scroll to and highlight, for example the one a
+     *                       notification is about (use case 2.7), {@code null} for none
      */
-    @FXML
-    private void showMyListings() {
+    private void showMyListings(String focusListingId) {
         Map<Listing, List<Offer>> listings = new LinkedHashMap<>();
         Map<Listing, MyListingResult> editChecks = new LinkedHashMap<>();
         int pendingCount;
@@ -175,6 +193,9 @@ public class SellerDashboardController {
         ScrollPane scroll = new ScrollPane(root);
         scroll.setFitToWidth(true);
         contentPane.getChildren().add(scroll);
+        if (focusListingId != null) {
+            highlightNode(scroll, root, "myListing-" + focusListingId);
+        }
     }
 
     /**
@@ -1440,14 +1461,25 @@ public class SellerDashboardController {
             + " -fx-padding: 8 10;";
 
     /**
+     * Shows the Seller's reviews (the Reviews &amp; Feedback button of the sidebar). See
+     * {@link #showReviews(String)}.
+     */
+    @FXML
+    private void showReviews() {
+        showReviews(null);
+    }
+
+    /**
      * Shows the Seller's average rating and their reviews, newest first, each with the buyer,
      * the listing, the stars, the written review, the date, the Seller's reply and whether it
      * is flagged (basic flow, step 2), with its Reply and Flag buttons. Reviews hidden by the
      * admin are neither shown nor counted. Without reviews, the screen says so (alternative
      * flow A1). Without an active Seller session, the seller login screen is shown instead.
+     *
+     * @param focusReviewId review to scroll to and highlight, for example the one a
+     *                      notification is about (use case 2.7), {@code null} for none
      */
-    @FXML
-    private void showReviews() {
+    private void showReviews(String focusReviewId) {
         List<Review> reviews;
         SellerRatingInfo rating;
         try {
@@ -1474,6 +1506,9 @@ public class SellerDashboardController {
         ScrollPane scroll = new ScrollPane(root);
         scroll.setFitToWidth(true);
         contentPane.getChildren().add(scroll);
+        if (focusReviewId != null) {
+            highlightNode(scroll, root, "review-" + focusReviewId);
+        }
     }
 
     /**
@@ -1868,34 +1903,580 @@ public class SellerDashboardController {
                 ? review.getListingTitle().trim() : "Deal";
     }
 
+    // =====================================================================
+    // US-S07: Notifications screen (use case 2.7 "View Seller Notifications")
+    // =====================================================================
+
+    /** Text of the sidebar button of the Notifications screen, without its counter. */
+    private static final String NOTIFICATIONS_BUTTON_TEXT = "  Notifications";
+    /** Label of the category filter entry that shows every category. */
+    private static final String ALL_CATEGORIES = "All categories";
+    /** Style added to the card of the item a notification opened. */
+    private static final String FOCUS_STYLE = " -fx-border-color: #A68137; -fx-border-width: 2;"
+            + " -fx-border-radius: 10; -fx-background-radius: 10;";
+
+    /** Category shown on the notification board, {@code null} for every category (alternative flow A2). */
+    private SellerNotificationCategory notificationCategory;
+    /** Whether the notification board shows only the unread notifications. */
+    private boolean notificationsUnreadOnly;
+    /** Text searched in the title and message of the notifications. */
+    private String notificationSearch = "";
+
+    /**
+     * Shows the Seller's notifications, newest first, each with its category, timestamp,
+     * title and message, unread ones highlighted, and the admin's reason of a rejected or
+     * taken-down listing (basic flow, step 2). The category filter (alternative flow A2), the
+     * unread filter and the search are kept while the Seller moves around the portal. Without
+     * notifications, the screen says so (alternative flow A1). Without an active Seller session,
+     * the seller login screen is shown instead.
+     */
     @FXML
     private void showNotifications() {
+        int unread;
+        Map<SellerNotificationCategory, Integer> totals;
+        Map<SellerNotificationCategory, Integer> unreadByCategory;
+        try {
+            unread = notificationService.getUnreadCount();
+            totals = notificationService.getCategoryCounts();
+            unreadByCategory = notificationService.getUnreadCategoryCounts();
+        } catch (SecurityException e) {
+            endSellerSession();
+            return;
+        }
         setActive(btnNotifications, "Notifications");
+        updateNotificationsButton(unread);
         contentPane.getChildren().clear();
-        VBox root = new VBox(12);
+
+        VBox root = new VBox(14);
         root.setPadding(new Insets(4));
-        User user = SessionManager.getCurrentUser();
-        List<Notification> notifs = DummyDataService.getInstance()
-                .getNotificationsFor(user != null ? user.getUsername() : "");
-        if (notifs.isEmpty()) {
-            root.getChildren().add(new Label("No notifications."));
-        } else {
-            for (Notification n : notifs) {
-                VBox item = new VBox(4);
-                item.getStyleClass().add("notif-item");
-                Label t = new Label(n.getTitle());
-                t.setStyle("-fx-font-weight: bold;");
-                Label m = new Label(n.getMessage());
-                m.setWrapText(true);
-                m.setStyle("-fx-text-fill: #5a5a7a; -fx-font-size: 13px;");
-                Label meta = new Label(n.getCategory() + " · " +
-                        n.getTimestamp().format(DateTimeFormatter.ofPattern("dd MMM HH:mm")));
-                meta.setStyle("-fx-text-fill: #9aa0b0; -fx-font-size: 11px;");
-                item.getChildren().addAll(t, m, meta);
-                root.getChildren().add(item);
+
+        Map<String, SellerNotificationCategory> categoryOptions = new LinkedHashMap<>();
+        int total = totals.values().stream().mapToInt(Integer::intValue).sum();
+        categoryOptions.put(countLabel(ALL_CATEGORIES, total, unread), null);
+        for (SellerNotificationCategory category : SellerNotificationCategory.values()) {
+            categoryOptions.put(countLabel(category.getIcon() + " " + category.getDisplayName(),
+                    totals.get(category), unreadByCategory.get(category)), category);
+        }
+        ComboBox<String> categoryBox = new ComboBox<>(FXCollections.observableArrayList(categoryOptions.keySet()));
+        categoryBox.setId("notificationCategoryFilter");
+        categoryBox.setPrefWidth(250);
+        categoryOptions.forEach((label, category) -> {
+            if (category == notificationCategory) {
+                categoryBox.setValue(label);
+            }
+        });
+
+        TextField searchField = new TextField(notificationSearch);
+        searchField.setId("notificationSearch");
+        searchField.setPromptText("🔍 Search title or message...");
+        searchField.setPrefWidth(220);
+        CheckBox unreadOnly = new CheckBox("Unread only");
+        unreadOnly.setId("notificationUnreadOnly");
+        unreadOnly.setSelected(notificationsUnreadOnly);
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+        Button markAll = smallButton("✓ Mark all as read", "btn-outline", this::handleMarkAllNotificationsRead);
+        markAll.setId("markAllNotificationsRead");
+        markAll.setDisable(unread == 0);
+
+        HBox filterBar = new HBox(10, new Label("Category:"), categoryBox, searchField, unreadOnly, spacer, markAll);
+        filterBar.setAlignment(Pos.CENTER_LEFT);
+        filterBar.getStyleClass().add("card");
+        filterBar.setPadding(new Insets(10, 14, 10, 14));
+
+        Label summary = new Label();
+        summary.setId("notificationSummary");
+        summary.setStyle("-fx-text-fill: #5a5a7a; -fx-font-size: 13px; -fx-font-weight: bold;");
+        VBox list = new VBox(10);
+        list.setId("notificationList");
+        root.getChildren().addAll(filterBar, summary, list);
+
+        Runnable refresh = () -> renderNotificationList(list, summary, unread);
+        categoryBox.setOnAction(e -> {
+            notificationCategory = categoryOptions.get(categoryBox.getValue());
+            refresh.run();
+        });
+        searchField.textProperty().addListener((observable, oldText, newText) -> {
+            notificationSearch = newText == null ? "" : newText;
+            refresh.run();
+        });
+        unreadOnly.setOnAction(e -> {
+            notificationsUnreadOnly = unreadOnly.isSelected();
+            refresh.run();
+        });
+        refresh.run();
+
+        ScrollPane scroll = new ScrollPane(root);
+        scroll.setFitToWidth(true);
+        contentPane.getChildren().add(scroll);
+    }
+
+    /**
+     * Fills the notification list with the notifications that pass the current filter, newest
+     * first, or with an empty-state card (alternative flow A1, or no match for the filter).
+     *
+     * @param list    the container of the notification cards
+     * @param summary the label above the list
+     * @param unread  the number of unread notifications of the Seller
+     */
+    private void renderNotificationList(VBox list, Label summary, int unread) {
+        SellerNotificationFilter filter =
+                new SellerNotificationFilter(notificationCategory, notificationsUnreadOnly, notificationSearch);
+        List<Notification> notifications;
+        try {
+            notifications = notificationService.getMyNotifications(filter);
+        } catch (SecurityException e) {
+            endSellerSession();
+            return;
+        }
+        list.getChildren().clear();
+        summary.setText("Showing " + notifications.size() + (notifications.size() == 1 ? " notification" : " notifications")
+                + "  ·  " + unread + " unread in total");
+
+        if (notifications.isEmpty()) {
+            if (filter.isEmpty()) {
+                list.getChildren().add(emptyStateCard("🔔", "No notifications",
+                        "You have no notifications yet. Listing reviews, offers, reviews and deals will appear here."));
+            } else {
+                VBox empty = emptyStateCard("🔍", "No matching notifications",
+                        "No notification matches the chosen category, search or unread filter.");
+                Button showAll = smallButton("Show all notifications", "btn-primary", () -> {
+                    notificationCategory = null;
+                    notificationsUnreadOnly = false;
+                    notificationSearch = "";
+                    showNotifications();
+                });
+                empty.getChildren().add(showAll);
+                list.getChildren().add(empty);
+            }
+            return;
+        }
+        for (Notification notification : notifications) {
+            list.getChildren().add(createNotificationCard(notification));
+        }
+    }
+
+    /**
+     * Builds the card of a notification: its category, a NEW badge if it is unread, its
+     * timestamp, title and message, the admin's reason for a rejected or taken-down listing, and
+     * the buttons that open its related item and mark it read or unread. Clicking the card
+     * opens the related item too (basic flow, step 3).
+     *
+     * @param notification the notification
+     * @return the card
+     */
+    private VBox createNotificationCard(Notification notification) {
+        SellerNotificationCategory category = SellerNotificationCategory.of(notification);
+        Label categoryBadge = new Label(category.getIcon() + " " + category.getDisplayName());
+        categoryBadge.getStyleClass().addAll("badge", notificationBadgeClass(category));
+        HBox header = new HBox(8, categoryBadge);
+        header.setAlignment(Pos.CENTER_LEFT);
+        if (notification.isUnread()) {
+            Label newBadge = new Label("NEW");
+            newBadge.getStyleClass().add("badge-unread");
+            header.getChildren().add(newBadge);
+        }
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+        Label time = new Label(notification.getFormattedTimestamp());
+        time.setStyle("-fx-text-fill: #9aa0b0; -fx-font-size: 11px;");
+        header.getChildren().addAll(spacer, time);
+
+        Label title = new Label(notification.getTitle() != null ? notification.getTitle() : category.getDisplayName());
+        title.setStyle("-fx-font-weight: bold; -fx-font-size: 14px; -fx-text-fill: #003974;");
+        title.setWrapText(true);
+        Label message = new Label(notification.getMessage() != null ? notification.getMessage() : "");
+        message.setStyle("-fx-text-fill: #334155; -fx-font-size: 13px;");
+        message.setWrapText(true);
+
+        VBox card = new VBox(8, header, title, message);
+        card.setId("notification-" + notification.getId());
+        card.getStyleClass().addAll("notif-item", notification.isUnread() ? "notif-item-unread" : "notif-item-read");
+
+        String reason = SellerNotificationService.adminReasonOf(notification);
+        if (reason != null) {
+            Label reasonNote = new Label("Admin's reason: " + reason);
+            reasonNote.setId("notificationReason-" + notification.getId());
+            reasonNote.setStyle(NOTE_ERROR_STYLE);
+            reasonNote.setWrapText(true);
+            reasonNote.setMaxWidth(Double.MAX_VALUE);
+            card.getChildren().add(reasonNote);
+        }
+
+        Button toggleRead = smallButton(notification.isUnread() ? "Mark as read" : "Mark as unread", "btn-outline",
+                () -> handleToggleNotificationRead(notification));
+        toggleRead.setId("notificationToggleRead-" + notification.getId());
+        Button open = smallButton(openButtonText(notification), "btn-primary", () -> handleOpenNotification(notification));
+        open.setId("notificationOpen-" + notification.getId());
+        HBox actions = new HBox(8, toggleRead, open);
+        actions.setAlignment(Pos.CENTER_RIGHT);
+        card.getChildren().add(actions);
+
+        card.setCursor(Cursor.HAND);
+        card.setOnMouseClicked(event -> {
+            if (!isInsideButton(event.getTarget(), card)) {
+                handleOpenNotification(notification);
+            }
+        });
+        return card;
+    }
+
+    /**
+     * Basic flow, steps 3 and 4: marks the notification read and shows its related listing,
+     * offer, deal, review or chat. A notification without related item shows its message; if
+     * the item no longer exists, the Seller is told so (alternative flow A3).
+     *
+     * @param notification the selected notification
+     */
+    private void handleOpenNotification(Notification notification) {
+        SellerNotificationResult result;
+        try {
+            result = notificationService.openNotification(notification.getId());
+            updateNotificationsButton(notificationService.getUnreadCount());
+        } catch (SecurityException e) {
+            endSellerSession();
+            return;
+        }
+        switch (result.getStatus()) {
+            case SUCCESS -> showRelatedItem(result);
+            case NO_RELATED_ITEM -> showNotificationMessage(result);
+            case ITEM_UNAVAILABLE -> {
+                showNotifications();
+                showNotificationAlert(Alert.AlertType.WARNING, result.getNotification(),
+                        "This item is no longer available", result.getMessage());
+            }
+            case NOTIFICATION_NOT_FOUND -> {
+                showNotifications();
+                showNotificationAlert(Alert.AlertType.WARNING, null, "Notification not found", result.getMessage());
             }
         }
-        contentPane.getChildren().add(new ScrollPane(root));
+    }
+
+    /**
+     * Basic flow, step 4: shows the item a notification is about. A listing, a pending or
+     * countered offer, and a review are shown highlighted on their own screen; an offer that
+     * was already handled and a deal are shown in a dialog over the notification board.
+     *
+     * @param result the opened notification and its related item
+     */
+    private void showRelatedItem(SellerNotificationResult result) {
+        switch (result.getTargetType()) {
+            case LISTING -> showMyListings(result.getListing().getId());
+            case OFFER -> {
+                Offer offer = result.getOffer();
+                if (offer.isPending() || offer.isCountered()) {
+                    showOffers(offer.getId());
+                } else {
+                    showNotifications();
+                    showOfferDetails(offer);
+                }
+            }
+            case DEAL -> {
+                showNotifications();
+                showDealDetails(result.getDeal());
+            }
+            case REVIEW -> showReviews(result.getReview().getId());
+            case CHAT_THREAD -> showChat(result.getChatThread(), null, "← Back to Notifications", this::showNotifications);
+            case ANNOUNCEMENT, NONE -> showNotificationMessage(result);
+        }
+    }
+
+    /**
+     * Shows the message of a notification that is not linked to an item. When the notification
+     * is about offers, listings or reviews in general, the dialog also offers to open that
+     * screen.
+     *
+     * @param result the opened notification
+     */
+    private void showNotificationMessage(SellerNotificationResult result) {
+        Notification notification = result.getNotification();
+        showNotifications();
+        String screen = null;
+        Runnable open = null;
+        switch (result.getCategory()) {
+            case OFFERS_AND_REQUESTS -> {
+                screen = "Open Offers & Requests";
+                open = this::showOffers;
+            }
+            case LISTING_REVIEW -> {
+                screen = "Open My Listings";
+                open = this::showMyListings;
+            }
+            case REVIEWS -> {
+                screen = "Open Reviews & Feedback";
+                open = this::showReviews;
+            }
+            case DEALS, ANNOUNCEMENTS -> {
+                // Nothing more to open: the message says it all.
+            }
+        }
+        Alert alert = notificationAlert(Alert.AlertType.INFORMATION, notification,
+                notification.getTitle(), notification.getMessage());
+        ButtonType openType = null;
+        if (screen != null) {
+            openType = new ButtonType(screen, ButtonBar.ButtonData.OK_DONE);
+            alert.getButtonTypes().setAll(openType, ButtonType.CLOSE);
+        }
+        Optional<ButtonType> answer = alert.showAndWait();
+        if (openType != null && answer.isPresent() && answer.get() == openType) {
+            open.run();
+        }
+    }
+
+    /**
+     * Shows the details of an offer, borrow request or claim that was already handled
+     * (accepted, declined or withdrawn), so it is no longer on the Offers &amp; Requests screen.
+     *
+     * @param offer the offer
+     */
+    private void showOfferDetails(Offer offer) {
+        Listing listing = DummyDataService.getInstance().findListing(offer.getListingId());
+        StringBuilder details = new StringBuilder()
+                .append("Buyer: ").append(buyerName(offer)).append('\n')
+                .append("Listing: ").append(titleOf(offer, listing)).append('\n')
+                .append("Terms: ").append(OfferManagementService.describeTerms(offer)).append('\n')
+                .append("Received: ").append(OfferManagementService.formatDateTime(offer.getCreatedDate())).append('\n')
+                .append("Status: ").append(displayName(offer.getStatus()));
+        if (offer.getDeclineReason() != null && !offer.getDeclineReason().isBlank()) {
+            details.append("\nDecline reason: ").append(offer.getDeclineReason().trim());
+        }
+        if (offer.getCounterOffer() != null) {
+            details.append("\nYour counter offer: ").append(OfferManagementService.describeTerms(offer.getCounterOffer()));
+        }
+        String kind = OfferManagementService.kindOf(offer);
+        showNotificationAlert(Alert.AlertType.INFORMATION, null,
+                Character.toUpperCase(kind.charAt(0)) + kind.substring(1) + " from @" + offer.getBuyerUsername(),
+                details.toString());
+    }
+
+    /**
+     * Shows the details of a deal with the attributes of the class diagram: its type, buyer,
+     * start, due and closing dates, and status.
+     *
+     * @param deal the deal
+     */
+    private void showDealDetails(Deal deal) {
+        StringBuilder details = new StringBuilder()
+                .append("Item: ").append(deal.getListingTitle() != null ? deal.getListingTitle() : "Listing").append('\n')
+                .append("Buyer: ").append(buyerName(deal.getBuyerUsername())).append('\n')
+                .append("Type: ").append(displayName(deal.getType())).append('\n')
+                .append("Status: ").append(displayName(deal.getStatus())).append('\n')
+                .append("Started: ").append(OfferManagementService.formatDateTime(deal.getStartDate()));
+        if (deal.getDueDate() != null) {
+            details.append("\nDue: ").append(OfferManagementService.formatDateTime(deal.getDueDate()));
+        }
+        if (deal.getClosedDate() != null) {
+            details.append("\nClosed: ").append(OfferManagementService.formatDateTime(deal.getClosedDate()));
+        }
+        if (deal.getType() == DealType.SALE && deal.getOfferPrice() != null) {
+            details.append("\nPrice: ").append(OfferManagementService.formatPrice(deal.getOfferPrice()));
+        }
+        showNotificationAlert(Alert.AlertType.INFORMATION, null, "Deal with @" + deal.getBuyerUsername(),
+                details.toString());
+    }
+
+    /**
+     * Marks a notification read or unread without opening it, then refreshes the board.
+     *
+     * @param notification the notification
+     */
+    private void handleToggleNotificationRead(Notification notification) {
+        try {
+            if (notification.isUnread()) {
+                notificationService.markAsRead(notification.getId());
+            } else {
+                notificationService.markAsUnread(notification.getId());
+            }
+        } catch (SecurityException e) {
+            endSellerSession();
+            return;
+        }
+        showNotifications();
+    }
+
+    /**
+     * Marks every notification of the Seller read, then refreshes the board.
+     */
+    private void handleMarkAllNotificationsRead() {
+        try {
+            notificationService.markAllAsRead();
+        } catch (SecurityException e) {
+            endSellerSession();
+            return;
+        }
+        showNotifications();
+    }
+
+    /**
+     * Shows a dialog about a notification and waits until the Seller closes it.
+     *
+     * @param type         kind of dialog
+     * @param notification the notification, whose category and timestamp are shown, may be {@code null}
+     * @param header       header of the dialog
+     * @param content      text of the dialog
+     */
+    private static void showNotificationAlert(Alert.AlertType type, Notification notification,
+                                              String header, String content) {
+        notificationAlert(type, notification, header, content).showAndWait();
+    }
+
+    /**
+     * Creates a dialog about a notification. For a notification that is no longer available
+     * (alternative flow A3), the header says so and the notification's message comes first.
+     *
+     * @param type         kind of dialog
+     * @param notification the notification, whose category and timestamp are shown, may be {@code null}
+     * @param header       header of the dialog
+     * @param content      text of the dialog
+     * @return the dialog, not shown yet
+     */
+    private static Alert notificationAlert(Alert.AlertType type, Notification notification,
+                                           String header, String content) {
+        String text = content == null ? "" : content;
+        if (notification != null && type == Alert.AlertType.WARNING && notification.getMessage() != null) {
+            text = notification.getMessage() + "\n\n" + text;
+        }
+        Alert alert = new Alert(type, text, ButtonType.OK);
+        alert.initOwner(SceneManager.getPrimaryStage());
+        alert.setTitle(notification == null ? "Notifications"
+                : "Notifications · " + SellerNotificationCategory.of(notification).getDisplayName()
+                + " · " + notification.getFormattedTimestamp());
+        alert.setHeaderText(header);
+        alert.getDialogPane().setMinWidth(460);
+        return alert;
+    }
+
+    /**
+     * Returns the text of the button that opens a notification's related item.
+     *
+     * @param notification the notification
+     * @return for example {@code Open listing →}, or {@code View details →} without related item
+     */
+    private static String openButtonText(Notification notification) {
+        boolean linked = notification.getRelatedItemId() != null && !notification.getRelatedItemId().isBlank();
+        if (!linked) {
+            return "View details →";
+        }
+        return switch (NotificationTargetType.fromString(notification.getRelatedItemType())) {
+            case LISTING -> "Open listing →";
+            case OFFER -> "Open offer →";
+            case DEAL -> "Open deal →";
+            case REVIEW -> "Open review →";
+            case CHAT_THREAD -> "Open chat →";
+            case ANNOUNCEMENT, NONE -> "View details →";
+        };
+    }
+
+    /**
+     * Returns the style class of the badge of a category, shared with the Buyer Portal's board.
+     *
+     * @param category the category
+     * @return the style class
+     */
+    private static String notificationBadgeClass(SellerNotificationCategory category) {
+        return switch (category) {
+            case LISTING_REVIEW -> "badge-listings";
+            case OFFERS_AND_REQUESTS -> "badge-offers";
+            case REVIEWS -> "badge-reviews";
+            case DEALS -> "badge-completed";
+            case ANNOUNCEMENTS -> "badge-announcements";
+        };
+    }
+
+    /**
+     * Builds the label of an entry of the category filter, for example
+     * {@code 🏷️ Offers And Requests (3 · 1 unread)}.
+     *
+     * @param name   name of the entry
+     * @param total  number of notifications
+     * @param unread number of unread notifications
+     * @return the label
+     */
+    private static String countLabel(String name, int total, int unread) {
+        return name + " (" + total + (unread > 0 ? " · " + unread + " unread" : "") + ")";
+    }
+
+    /**
+     * Tells whether a mouse event happened on a button inside a container, so that a click on a
+     * card's button does not also open the card.
+     *
+     * @param target    target of the event
+     * @param container the card
+     * @return {@code true} if the target is a button of the card or inside one
+     */
+    private static boolean isInsideButton(EventTarget target, Node container) {
+        Node node = target instanceof Node targetNode ? targetNode : null;
+        while (node != null && node != container) {
+            if (node instanceof ButtonBase) {
+                return true;
+            }
+            node = node.getParent();
+        }
+        return false;
+    }
+
+    /**
+     * Returns the name of an enumeration constant as shown to the Seller, for example
+     * {@code Completed} for {@code COMPLETED}.
+     *
+     * @param value the constant, may be {@code null}
+     * @return the name, or {@code Unknown}
+     */
+    private static String displayName(Enum<?> value) {
+        if (value == null) {
+            return "Unknown";
+        }
+        String words = value.name().replace('_', ' ').toLowerCase(Locale.ENGLISH);
+        return Character.toUpperCase(words.charAt(0)) + words.substring(1);
+    }
+
+    /**
+     * Shows the number of unread notifications on the sidebar button.
+     *
+     * @param unreadCount number of unread notifications
+     */
+    private void updateNotificationsButton(int unreadCount) {
+        btnNotifications.setText(unreadCount > 0
+                ? NOTIFICATIONS_BUTTON_TEXT + " (" + unreadCount + ")" : NOTIFICATIONS_BUTTON_TEXT);
+    }
+
+    /**
+     * Highlights the first node found among some identifiers and scrolls the screen to it, for
+     * example the listing, offer or review a notification is about.
+     *
+     * @param scroll  the scroll pane of the screen
+     * @param page    the content of the scroll pane
+     * @param nodeIds identifiers of the node, tried in order
+     */
+    private static void highlightNode(ScrollPane scroll, Region page, String... nodeIds) {
+        for (String nodeId : nodeIds) {
+            Node node = page.lookup("#" + nodeId);
+            if (node != null) {
+                node.setStyle((node.getStyle() == null ? "" : node.getStyle()) + FOCUS_STYLE);
+                Platform.runLater(() -> scrollIntoView(scroll, page, node));
+                return;
+            }
+        }
+    }
+
+    /**
+     * Scrolls a screen so that a node is visible near the top.
+     *
+     * @param scroll the scroll pane of the screen
+     * @param page   the content of the scroll pane
+     * @param node   the node
+     */
+    private static void scrollIntoView(ScrollPane scroll, Region page, Node node) {
+        scroll.applyCss();
+        scroll.layout();
+        double contentHeight = page.getBoundsInLocal().getHeight();
+        double viewportHeight = scroll.getViewportBounds().getHeight();
+        if (contentHeight <= viewportHeight) {
+            return;
+        }
+        Bounds nodeBounds = page.sceneToLocal(node.localToScene(node.getBoundsInLocal()));
+        double target = (nodeBounds.getMinY() - 20) / (contentHeight - viewportHeight);
+        scroll.setVvalue(Math.max(0, Math.min(1, target)));
     }
 
     @FXML
@@ -1945,13 +2526,24 @@ public class SellerDashboardController {
     private static final String MUTED_STYLE = "-fx-text-fill: #5a5a7a; -fx-font-size: 12px;";
 
     /**
+     * Shows the offers to handle (the Offers &amp; Requests button of the sidebar). See
+     * {@link #showOffers(String)}.
+     */
+    @FXML
+    private void showOffers() {
+        showOffers(null);
+    }
+
+    /**
      * Shows the pending offers, borrow requests and claims received on the Seller's
      * listings, grouped by listing and oldest first (basic flow, step 2), followed by the
      * offers the Seller countered that wait for the buyer's answer. When nothing is pending,
      * the screen says so (alternative flow A1).
+     *
+     * @param focusOfferId pending or countered offer to scroll to and highlight, for example
+     *                     the one a notification is about (use case 2.7), {@code null} for none
      */
-    @FXML
-    private void showOffers() {
+    private void showOffers(String focusOfferId) {
         setActive(btnOffers, "Offers & Requests");
         contentPane.getChildren().clear();
 
@@ -1998,6 +2590,9 @@ public class SellerDashboardController {
         ScrollPane scroll = new ScrollPane(root);
         scroll.setFitToWidth(true);
         contentPane.getChildren().add(scroll);
+        if (focusOfferId != null) {
+            highlightNode(scroll, root, "pendingOffer-" + focusOfferId, "counteredOffer-" + focusOfferId);
+        }
     }
 
     /**
@@ -2051,6 +2646,7 @@ public class SellerDashboardController {
      */
     private HBox createPendingOfferRow(Offer offer, Listing listing, int others) {
         HBox row = new HBox(10);
+        row.setId("pendingOffer-" + offer.getId());
         row.setAlignment(Pos.CENTER_LEFT);
 
         VBox info = new VBox(3);
@@ -2083,6 +2679,7 @@ public class SellerDashboardController {
      */
     private HBox createCounteredRow(Offer offer) {
         HBox row = new HBox(12);
+        row.setId("counteredOffer-" + offer.getId());
         row.getStyleClass().add("card");
         row.setAlignment(Pos.CENTER_LEFT);
         row.setPadding(new Insets(12));
@@ -2332,13 +2929,27 @@ public class SellerDashboardController {
     }
 
     /**
-     * Shows a chat thread between the Seller and a buyer, with the same bubbles as the
-     * Buyer Portal, and lets the Seller send a message.
+     * Shows the chat thread an offer was opened from, with a button back to the Offers &amp;
+     * Requests screen.
      *
      * @param thread the chat thread
      * @param offer  the offer the chat was opened from
      */
     private void showOfferChat(ChatThread thread, Offer offer) {
+        showChat(thread, offer, "← Back to Offers & Requests", this::showOffers);
+    }
+
+    /**
+     * Shows a chat thread between the Seller and a buyer, with the same bubbles as the
+     * Buyer Portal, and lets the Seller send a message.
+     *
+     * @param thread   the chat thread
+     * @param offer    the offer the chat was opened from, {@code null} if it was opened from
+     *                 elsewhere, for example a notification (use case 2.7)
+     * @param backText text of the button that leaves the chat
+     * @param back     the screen shown by that button
+     */
+    private void showChat(ChatThread thread, Offer offer, String backText, Runnable back) {
         Seller seller;
         try {
             seller = SessionManager.requireSeller();
@@ -2352,19 +2963,21 @@ public class SellerDashboardController {
         VBox root = new VBox(12);
         root.setPadding(new Insets(4));
 
-        Button back = smallButton("← Back to Offers & Requests", "btn-outline", this::showOffers);
-        Label heading = new Label("Chat with " + buyerName(offer));
+        String buyer = buyerName(thread.getBuyerUsername());
+        Button backButton = smallButton(backText, "btn-outline", back);
+        Label heading = new Label("Chat with " + buyer);
         heading.setStyle("-fx-font-size: 15px; -fx-font-weight: bold; -fx-text-fill: #003974;");
-        Label about = new Label("Listing: " + thread.getListingTitle() + "  ·  " + termsLine(offer));
+        Label about = new Label("Listing: " + thread.getListingTitle()
+                + (offer != null ? "  ·  " + termsLine(offer) : ""));
         about.setStyle(MUTED_STYLE);
-        HBox topBar = new HBox(12, back, new VBox(2, heading, about));
+        HBox topBar = new HBox(12, backButton, new VBox(2, heading, about));
         topBar.setAlignment(Pos.CENTER_LEFT);
 
         VBox messages = new VBox(10);
         messages.setPadding(new Insets(14));
         if (!thread.hasMessages()) {
             messages.getChildren().add(emptyStateCard("💬", "No messages yet",
-                    "Start the conversation with " + buyerName(offer) + "."));
+                    "Start the conversation with " + buyer + "."));
         } else {
             DateTimeFormatter timeFormat = DateTimeFormatter.ofPattern("MMM d, HH:mm", Locale.ENGLISH);
             for (Message message : thread.getMessages()) {
@@ -2380,14 +2993,14 @@ public class SellerDashboardController {
 
         Label error = dialogErrorLabel();
         TextField input = new TextField();
-        input.setPromptText("Type your message to @" + offer.getBuyerUsername() + "...");
+        input.setPromptText("Type your message to @" + thread.getBuyerUsername() + "...");
         HBox.setHgrow(input, Priority.ALWAYS);
         input.textProperty().addListener((observable, oldText, newText) -> hideError(error));
         Runnable send = () -> {
             SendMessageResult sent = DummyDataService.getInstance().getChatService()
                     .sendMessage(thread.getId(), seller.getUsername(), input.getText());
             if (sent.isSuccess()) {
-                showOfferChat(thread, offer);
+                showChat(thread, offer, backText, back);
             } else {
                 showError(error, sent.getStatus() == ChatOperationStatus.EMPTY_MESSAGE
                         ? "Message cannot be empty." : sent.getErrorMessage());
@@ -2765,8 +3378,18 @@ public class SellerDashboardController {
      * @return the buyer's name and username
      */
     private static String buyerName(Offer offer) {
-        User buyer = DummyDataService.getInstance().findUser(offer.getBuyerUsername());
-        return (buyer != null ? buyer.getDisplayName() + " " : "") + "(@" + offer.getBuyerUsername() + ")";
+        return buyerName(offer.getBuyerUsername());
+    }
+
+    /**
+     * Returns a buyer as shown to the Seller, for example {@code Alice Chan (@alice)}.
+     *
+     * @param username the buyer's username
+     * @return the buyer's name and username
+     */
+    private static String buyerName(String username) {
+        User buyer = DummyDataService.getInstance().findUser(username);
+        return (buyer != null ? buyer.getDisplayName() + " " : "") + "(@" + username + ")";
     }
 
     /**

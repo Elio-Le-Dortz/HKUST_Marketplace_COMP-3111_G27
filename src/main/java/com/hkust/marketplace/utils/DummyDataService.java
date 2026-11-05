@@ -2,6 +2,7 @@ package com.hkust.marketplace.utils;
 
 import com.hkust.marketplace.models.*;
 import com.hkust.marketplace.services.ActOnListingService;
+import com.hkust.marketplace.services.AdminDealsService;
 import com.hkust.marketplace.services.AdminProfileService;
 import com.hkust.marketplace.services.BuyerProfileService;
 import com.hkust.marketplace.services.ChatService;
@@ -48,6 +49,7 @@ public class DummyDataService {
     private final ListingReviewService listingReviewService = new ListingReviewService(this);
     private final UserManagementService userManagementService = new UserManagementService(this);
     private final AdminProfileService adminProfileService = new AdminProfileService(this);
+    private final AdminDealsService adminDealsService = new AdminDealsService(this);
 
     private final AtomicInteger listingIdCounter = new AtomicInteger(100);
     private final AtomicInteger dealIdCounter = new AtomicInteger(500);
@@ -301,6 +303,32 @@ public class DummyDataService {
         counterO2.setCreatedDate(LocalDateTime.now().minusHours(2));
         o2.setCounterOffer(counterO2);
         offers.add(o2);
+
+        Offer oAcceptedL1 = new Offer();
+        oAcceptedL1.setId("O" + offerIdCounter.getAndIncrement());
+        oAcceptedL1.setType(OfferType.PRICE_OFFER);
+        oAcceptedL1.setListingId(l1.getId());
+        oAcceptedL1.setListingTitle(l1.getTitle());
+        oAcceptedL1.setBuyerUsername("alice");
+        oAcceptedL1.setSellerUsername("charlie");
+        oAcceptedL1.setPrice(160.0);
+        oAcceptedL1.setStatus(OfferStatus.ACCEPTED);
+        oAcceptedL1.setCreatedDate(LocalDateTime.now().minusHours(4));
+        offers.add(oAcceptedL1);
+        d1.setOfferId(oAcceptedL1.getId());
+
+        Offer oAcceptedL2 = new Offer();
+        oAcceptedL2.setId("O" + offerIdCounter.getAndIncrement());
+        oAcceptedL2.setType(OfferType.PRICE_OFFER);
+        oAcceptedL2.setListingId(l2.getId());
+        oAcceptedL2.setListingTitle(l2.getTitle());
+        oAcceptedL2.setBuyerUsername("alice");
+        oAcceptedL2.setSellerUsername("charlie");
+        oAcceptedL2.setPrice(200.0);
+        oAcceptedL2.setStatus(OfferStatus.ACCEPTED);
+        oAcceptedL2.setCreatedDate(d3.getStartDate());
+        offers.add(oAcceptedL2);
+        d3.setOfferId(oAcceptedL2.getId());
 
         // Sample chat thread (US-B06)
         ChatThread seedThread = new ChatThread("T" + threadIdCounter.getAndIncrement(),
@@ -735,6 +763,10 @@ public class DummyDataService {
         return buyerProfileService.getProfile(username);
     }
 
+    public AdminDealsService getAdminDealsService() {
+        return adminDealsService;
+    }
+
     public AdminProfileService getAdminProfileService() {
         return adminProfileService;
     }
@@ -871,6 +903,15 @@ public class DummyDataService {
             deal.setId("D" + dealIdCounter.getAndIncrement());
         }
         deals.add(deal);
+    }
+
+    public synchronized boolean removeDeal(String id) {
+        if (id == null) return false;
+        return deals.removeIf(d -> id.equalsIgnoreCase(d.getId()));
+    }
+
+    public synchronized void clearDeals() {
+        deals.clear();
     }
 
     public synchronized int processAutoReturns() {

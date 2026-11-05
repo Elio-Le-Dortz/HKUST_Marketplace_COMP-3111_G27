@@ -94,6 +94,24 @@ public abstract class User {
         this.accountStatus = active ? AccountStatus.ACTIVE : AccountStatus.DEACTIVATED;
     }
 
+    public boolean isDeleted() {
+        return accountStatus == AccountStatus.DELETED;
+    }
+
+    /**
+     * Returns the user-facing display name. For soft-deleted accounts, this returns
+     * {@code "Deleted user"} to preserve historical deals, chats, and reviews without
+     * revealing the deleted profile (Sprint 2 US-A03, UC 3.3 Subflow S3 Step 7).
+     *
+     * @return {@code "Deleted user"} if account is deleted, otherwise the user's full name
+     */
+    public String getDisplayName() {
+        if (accountStatus == AccountStatus.DELETED) {
+            return "Deleted user";
+        }
+        return fullName != null && !fullName.trim().isEmpty() ? fullName : username;
+    }
+
     // Default implementations for subclass-specific properties
     // to provide backward compatibility with existing code
     public String getResidenceHall() {

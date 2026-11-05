@@ -22,6 +22,7 @@ public class Listing {
     private LocalDateTime postedDate;
     private int viewCount;
     private String adminReason;           // Rejection / Takedown reason
+    private LocalDateTime reviewedAt;     // Timestamp when admin reviewed (approved/rejected)
     private String sellerUsername;
     private String sellerFullName;
     private List<Photo> photos = new ArrayList<>();
@@ -164,11 +165,23 @@ public class Listing {
     }
 
     public LocalDateTime getReviewedAt() {
-        return postedDate;
+        return reviewedAt != null ? reviewedAt : postedDate;
     }
 
     public void setReviewedAt(LocalDateTime reviewedAt) {
-        // no-op or store if needed
+        this.reviewedAt = reviewedAt;
+    }
+
+    public boolean isPendingReview() {
+        return this.status == ListingStatus.PENDING_REVIEW;
+    }
+
+    public boolean isLive() {
+        return this.status == ListingStatus.LIVE;
+    }
+
+    public boolean isRejected() {
+        return this.status == ListingStatus.REJECTED;
     }
 
     public synchronized int getViewCount() {

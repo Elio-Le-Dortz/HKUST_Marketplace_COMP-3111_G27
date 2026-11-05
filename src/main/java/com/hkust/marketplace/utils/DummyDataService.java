@@ -8,6 +8,7 @@ import com.hkust.marketplace.services.DealHistoryService;
 import com.hkust.marketplace.services.DealService;
 import com.hkust.marketplace.services.ListingDetailService;
 import com.hkust.marketplace.services.ListingFilterService;
+import com.hkust.marketplace.services.ListingReviewService;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -42,6 +43,7 @@ public class DummyDataService {
     private final BuyerProfileService buyerProfileService = new BuyerProfileService(this);
     private final com.hkust.marketplace.services.BuyerNotificationService buyerNotificationService = new com.hkust.marketplace.services.BuyerNotificationService(this);
     private final com.hkust.marketplace.services.BuyerReviewService buyerReviewService = new com.hkust.marketplace.services.BuyerReviewService(this);
+    private final ListingReviewService listingReviewService = new ListingReviewService(this);
 
     private final AtomicInteger listingIdCounter = new AtomicInteger(100);
     private final AtomicInteger dealIdCounter = new AtomicInteger(500);
@@ -717,9 +719,19 @@ public class DummyDataService {
     }
 
     public synchronized List<Listing> getPendingListings() {
-        return listings.values().stream()
-                .filter(l -> l.getStatus() == ListingStatus.PENDING_REVIEW)
-                .collect(Collectors.toList());
+        return listingReviewService.getPendingListingsOldestFirst();
+    }
+
+    public ListingReviewService getListingReviewService() {
+        return listingReviewService;
+    }
+
+    public synchronized ListingReviewResult approveListing(String listingId, String adminUsername) {
+        return listingReviewService.approveListing(listingId, adminUsername);
+    }
+
+    public synchronized ListingReviewResult rejectListing(String listingId, String adminUsername, String reason) {
+        return listingReviewService.rejectListing(listingId, adminUsername, reason);
     }
 
     public synchronized List<Listing> getListingsBySeller(String username) {

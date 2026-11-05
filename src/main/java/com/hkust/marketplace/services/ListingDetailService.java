@@ -140,10 +140,10 @@ public class ListingDetailService {
         String notifTitle = "Report Filed: " + listing.getTitle();
 
         if (admins == null || admins.isEmpty()) {
-            dataService.addNotification(new Notification("admin", notifTitle, notifMsg, "Reports"));
+            dataService.addNotification(new Notification("admin", notifTitle, notifMsg, "Reports", report.getId(), "REPORT"));
         } else {
             for (User admin : admins) {
-                dataService.addNotification(new Notification(admin.getUsername(), notifTitle, notifMsg, "Reports"));
+                dataService.addNotification(new Notification(admin.getUsername(), notifTitle, notifMsg, "Reports", report.getId(), "REPORT"));
             }
         }
 

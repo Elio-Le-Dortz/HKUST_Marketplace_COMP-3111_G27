@@ -11,6 +11,7 @@ import com.hkust.marketplace.services.DealService;
 import com.hkust.marketplace.services.ListingDetailService;
 import com.hkust.marketplace.services.ListingFilterService;
 import com.hkust.marketplace.services.ListingReviewService;
+import com.hkust.marketplace.services.AdminNotificationService;
 import com.hkust.marketplace.services.UserManagementService;
 
 import java.time.LocalDate;
@@ -50,6 +51,7 @@ public class DummyDataService {
     private final UserManagementService userManagementService = new UserManagementService(this);
     private final AdminProfileService adminProfileService = new AdminProfileService(this);
     private final AdminDealsService adminDealsService = new AdminDealsService(this);
+    private final AdminNotificationService adminNotificationService = new AdminNotificationService(this);
 
     private final AtomicInteger listingIdCounter = new AtomicInteger(100);
     private final AtomicInteger dealIdCounter = new AtomicInteger(500);
@@ -369,6 +371,25 @@ public class DummyDataService {
         r2.setReply("Thanks Alice, enjoy the book!");
         reviews.add(r2);
 
+        Review r3 = new Review();
+        r3.setId("R" + reviewIdCounter.getAndIncrement());
+        r3.setSellerUsername("charlie");
+        r3.setBuyerUsername("bob");
+        r3.setListingId(l1.getId());
+        r3.setListingTitle(l1.getTitle());
+        r3.setRating(1);
+        r3.setComment("Showed up 30 minutes late and was uncooperative.");
+        r3.setFlagged(true);
+        r3.setFlagReason("Inappropriate review: buyer missed two previous meetups and left false feedback.");
+        r3.setDate(LocalDateTime.now().minusHours(8));
+        reviews.add(r3);
+
+        Report rep1 = new Report("REP" + reportIdCounter.getAndIncrement(), l2.getId(), l2.getTitle(), "alice",
+                "Item description says genuine Apple charger, but serial number is missing.");
+        rep1.setDate(LocalDateTime.now().minusHours(4));
+        rep1.setStatus(ReportStatus.OPEN);
+        reports.add(rep1);
+
         // Sample notifications covering all categories in specs_buyer.tex (US-B09)
         Notification n1 = new Notification("alice", "Offer Accepted",
                 "Charlie accepted your offer of HK$160 for Calculus Textbook.", "Offers", o1.getId(), "OFFER");
@@ -432,10 +453,42 @@ public class DummyDataService {
         notifications.add(nDiana);
 
         Notification nAdmin = new Notification("admin", "New Listing Submitted",
-                "Diana submitted 'Mini Fridge' for review.", "Announcements");
+                "Diana submitted 'Mini Fridge' for review.", "Listing Submissions", l5.getId(), "LISTING");
         nAdmin.setId("N" + notifIdCounter.getAndIncrement());
         nAdmin.setTimestamp(LocalDateTime.now().minusHours(1));
         notifications.add(nAdmin);
+
+        Notification nAdminReport = new Notification("admin", "Report Filed: " + l2.getTitle(),
+                "Buyer @alice reported listing '" + l2.getTitle() + "': Suspected counterfeit goods.",
+                "Reports", rep1.getId(), "REPORT");
+        nAdminReport.setId("N" + notifIdCounter.getAndIncrement());
+        nAdminReport.setTimestamp(LocalDateTime.now().minusHours(4));
+        nAdminReport.setRead(false);
+        notifications.add(nAdminReport);
+
+        Notification nAdminFlag = new Notification("admin", "Flagged Review for @charlie",
+                "Seller @charlie flagged review " + r3.getId() + " by @bob: 'Inappropriate review: buyer missed two previous meetups.'",
+                "Flagged Reviews", r3.getId(), "REVIEW");
+        nAdminFlag.setId("N" + notifIdCounter.getAndIncrement());
+        nAdminFlag.setTimestamp(LocalDateTime.now().minusHours(8));
+        nAdminFlag.setRead(false);
+        notifications.add(nAdminFlag);
+
+        Notification nAdminAudit = new Notification("admin", "User Account Modified",
+                "Admin @admin updated profile details for buyer @alice.",
+                "User Accounts", "alice", "USER");
+        nAdminAudit.setId("N" + notifIdCounter.getAndIncrement());
+        nAdminAudit.setTimestamp(LocalDateTime.now().minusDays(1));
+        nAdminAudit.setRead(true);
+        notifications.add(nAdminAudit);
+
+        Notification nAdminAnn = new Notification("admin", "Platform Update v2.0",
+                "Marketplace system upgrade completed. Audit logging and review queues are active.",
+                "Announcements", null, "ANNOUNCEMENT");
+        nAdminAnn.setId("N" + notifIdCounter.getAndIncrement());
+        nAdminAnn.setTimestamp(LocalDateTime.now().minusDays(2));
+        nAdminAnn.setRead(true);
+        notifications.add(nAdminAnn);
     }
 
     /**
@@ -1040,6 +1093,19 @@ public class DummyDataService {
         reports.add(report);
     }
 
+    public synchronized Report findReport(String reportId) {
+        if (reportId == null || reportId.trim().isEmpty()) {
+            return null;
+        }
+        String clean = reportId.trim();
+        for (Report r : reports) {
+            if (r != null && clean.equalsIgnoreCase(r.getId())) {
+                return r;
+            }
+        }
+        return null;
+    }
+
     // ========== Chat methods ==========
     public synchronized List<ChatThread> getAllChatThreads() {
         return new ArrayList<>(chatThreads);
@@ -1213,6 +1279,23 @@ public class DummyDataService {
             seller.setRatingCount(0);
         }
         return SellerRatingInfo.noRatings(username, fullName);
+    }
+
+    public synchronized Review findReview(String reviewId) {
+        if (reviewId == null || reviewId.trim().isEmpty()) {
+            return null;
+        }
+        String clean = reviewId.trim();
+        for (Review r : reviews) {
+            if (r != null && clean.equalsIgnoreCase(r.getId())) {
+                return r;
+            }
+        }
+        return null;
+    }
+
+    public AdminNotificationService getAdminNotificationService() {
+        return adminNotificationService;
     }
 
     // Password strength helper (demo)

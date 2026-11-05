@@ -13,6 +13,7 @@ import com.hkust.marketplace.services.ListingFilterService;
 import com.hkust.marketplace.services.ListingReviewService;
 import com.hkust.marketplace.services.AdminNotificationService;
 import com.hkust.marketplace.services.AdminListingService;
+import com.hkust.marketplace.services.AdminRatingService;
 import com.hkust.marketplace.services.UserManagementService;
 
 import java.time.LocalDate;
@@ -54,6 +55,7 @@ public class DummyDataService {
     private final AdminDealsService adminDealsService = new AdminDealsService(this);
     private final AdminNotificationService adminNotificationService = new AdminNotificationService(this);
     private final AdminListingService adminListingService = new AdminListingService(this);
+    private final AdminRatingService adminRatingService = new AdminRatingService(this);
 
     private final AtomicInteger listingIdCounter = new AtomicInteger(100);
     private final AtomicInteger dealIdCounter = new AtomicInteger(500);
@@ -1311,6 +1313,22 @@ public class DummyDataService {
 
     public synchronized AdminListingOperationResult takeDownListing(String listingId, String reason, String adminUsername) {
         return adminListingService.takeDownListing(listingId, reason, adminUsername);
+    }
+
+    public AdminRatingService getAdminRatingService() {
+        return adminRatingService;
+    }
+
+    public synchronized AdminRatingOperationResult hideReviewByAdmin(String reviewId, String adminUsername) {
+        return adminRatingService.hideReview(reviewId, adminUsername);
+    }
+
+    public synchronized AdminRatingOperationResult unhideReviewByAdmin(String reviewId, String adminUsername) {
+        return adminRatingService.unhideReview(reviewId, adminUsername);
+    }
+
+    public synchronized AdminRatingOperationResult dismissReviewFlagByAdmin(String reviewId, String adminUsername) {
+        return adminRatingService.dismissFlag(reviewId, adminUsername);
     }
 
     // Password strength helper (demo)

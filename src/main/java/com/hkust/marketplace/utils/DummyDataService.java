@@ -9,6 +9,7 @@ import com.hkust.marketplace.services.DealService;
 import com.hkust.marketplace.services.ListingDetailService;
 import com.hkust.marketplace.services.ListingFilterService;
 import com.hkust.marketplace.services.ListingReviewService;
+import com.hkust.marketplace.services.UserManagementService;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -44,6 +45,7 @@ public class DummyDataService {
     private final com.hkust.marketplace.services.BuyerNotificationService buyerNotificationService = new com.hkust.marketplace.services.BuyerNotificationService(this);
     private final com.hkust.marketplace.services.BuyerReviewService buyerReviewService = new com.hkust.marketplace.services.BuyerReviewService(this);
     private final ListingReviewService listingReviewService = new ListingReviewService(this);
+    private final UserManagementService userManagementService = new UserManagementService(this);
 
     private final AtomicInteger listingIdCounter = new AtomicInteger(100);
     private final AtomicInteger dealIdCounter = new AtomicInteger(500);
@@ -774,6 +776,10 @@ public class DummyDataService {
 
     public ListingReviewService getListingReviewService() {
         return listingReviewService;
+    }
+
+    public UserManagementService getUserManagementService() {
+        return userManagementService;
     }
 
     public synchronized ListingReviewResult approveListing(String listingId, String adminUsername) {

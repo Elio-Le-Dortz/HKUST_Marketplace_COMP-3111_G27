@@ -38,6 +38,18 @@ public class SessionManager {
     }
 
     /**
+     * Ends the active session for a specific user if that user is currently logged in.
+     * Used when an administrator deactivates or deletes an account (Sprint 2 US-A03, UC 3.3).
+     *
+     * @param username the username of the user whose session should end
+     */
+    public static void endSessionForUser(String username) {
+        if (currentUser != null && username != null && username.trim().equalsIgnoreCase(currentUser.getUsername())) {
+            currentUser = null;
+        }
+    }
+
+    /**
      * Returns the currently authenticated user cast to Buyer if logged in as a Buyer.
      *
      * @return Buyer instance or null if not logged in or not a Buyer

@@ -4,6 +4,7 @@ import com.hkust.marketplace.models.*;
 import com.hkust.marketplace.utils.DummyDataService;
 import com.hkust.marketplace.utils.SceneManager;
 import com.hkust.marketplace.utils.SessionManager;
+import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.fxml.FXML;
 import javafx.geometry.Insets;
@@ -28,10 +29,22 @@ public class SellerDashboardController {
 
     private Button currentActiveBtn;
 
+    /**
+     * Opens the dashboard on the My Listings screen. Without an active Seller session
+     * (use case 2.2 special requirement, US-S02) nothing is loaded and the seller login
+     * screen is shown instead. The switch is deferred because this method runs while the
+     * dashboard itself is still being loaded.
+     */
     @FXML
     public void initialize() {
-        User user = SessionManager.getCurrentUser();
-        if (user != null) welcomeLabel.setText("Hello, " + user.getFullName());
+        Seller seller;
+        try {
+            seller = SessionManager.requireSeller();
+        } catch (SecurityException e) {
+            Platform.runLater(SceneManager::showSellerLogin);
+            return;
+        }
+        welcomeLabel.setText("Hello, " + seller.getFullName());
         currentActiveBtn = btnListings;
         showMyListings();
     }

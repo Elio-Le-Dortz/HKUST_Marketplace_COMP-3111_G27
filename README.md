@@ -78,6 +78,25 @@ Passwords are never stored in plaintext: `utils/PasswordHasher.java` stores a sa
 - Business logic lives in `services/SellerRegistrationService.java` (no JavaFX), tested by
   `SellerRegistrationServiceTest`, including concurrent registrations of the same username.
 
+## Seller Login (US-S02)
+
+Checks run in this order, so each answer reveals no more than needed:
+
+1. **Empty field** – "Both username and password are required."; only the empty fields are highlighted.
+2. **Invalid credentials** – unknown username and wrong password get the *same* message
+   ("The username or password you entered is incorrect."), so the user cannot tell which was wrong.
+   Usernames ignore case and surrounding spaces; passwords are used exactly as typed.
+3. **Wrong account type** – only once the password is correct: buyer and admin accounts are told
+   to use their own portal (e.g. `alice / password1` or `admin / admin123` cannot log in here).
+4. **Account deactivated / deleted** by the admin – the seller is told and no session starts.
+
+On success a Seller session starts and the Seller dashboard opens (Enter submits the form).
+`SessionManager.requireSeller()` is the service-side check every Seller-only function uses: it
+refuses no session, a buyer or admin session, and a seller deactivated by the admin after logging in.
+The Seller dashboard does not open without it.
+Business logic lives in `services/SellerLoginService.java` (no JavaFX), tested by
+`SellerLoginServiceTest` (all flows, concurrent logins) and `SessionManagerTest`.
+
 ### Run from VS Code
 
 1. Install **Extension Pack for Java**

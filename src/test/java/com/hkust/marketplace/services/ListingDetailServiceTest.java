@@ -394,7 +394,7 @@ class ListingDetailServiceTest {
         @DisplayName("Report with multiple admins delivers notification to each admin")
         void testReportNotifiesMultipleAdmins() {
             Admin admin2 = new Admin("admin2", "Second Admin", "Pass1234!");
-            dataService.registerUser(admin2);
+            dataService.registerUserIfAbsent(admin2);
 
             Listing listing = dataService.getLiveListings().get(0);
             ReportResult result = detailService.submitReport(listing.getId(), "bob", "Inappropriate images");

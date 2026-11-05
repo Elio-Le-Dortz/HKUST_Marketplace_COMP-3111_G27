@@ -106,4 +106,30 @@ class SessionManagerTest {
         SecurityException ex = assertThrows(SecurityException.class, SessionManager::requireBuyer);
         assertTrue(ex.getMessage().contains("Buyer account is not active"));
     }
+
+    @Test
+    @DisplayName("endSessionForUser ends matching user session and leaves others intact")
+    void testEndSessionForUser() {
+        Buyer buyer = new Buyer("alice", "Alice Chan", "hash");
+        SessionManager.login(buyer);
+        assertTrue(SessionManager.isLoggedIn());
+
+        // Different user does not end session
+        SessionManager.endSessionForUser("bob");
+        assertTrue(SessionManager.isLoggedIn());
+        assertSame(buyer, SessionManager.getCurrentUser());
+
+        // Null / whitespace does not end session
+        SessionManager.endSessionForUser(null);
+        SessionManager.endSessionForUser("   ");
+        assertTrue(SessionManager.isLoggedIn());
+
+        // Matching username (case-insensitive) ends session
+        SessionManager.endSessionForUser("ALICE");
+        assertFalse(SessionManager.isLoggedIn());
+        assertNull(SessionManager.getCurrentUser());
+
+        // When not logged in, calling endSessionForUser is safe
+        assertDoesNotThrow(() -> SessionManager.endSessionForUser("alice"));
+    }
 }

@@ -81,7 +81,7 @@
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>${surefire.version}</version>
                 <configuration>
-                    <argLine>@{argLine} -Duser.language=en -Duser.country=US</argLine>
+                    <argLine>@{argLine} -Duser.language=en -Duser.country=US -Dnet.bytebuddy.experimental=true</argLine>
                 </configuration>
             </plugin>
             <!-- JaCoCo Code Coverage: Enabled for CI and Maven verification -->

@@ -99,10 +99,12 @@ public class ChatService {
                 .sorted((t1, t2) -> {
                     LocalDateTime d1 = t1.getLastMessage() != null ? t1.getLastMessage().getSentDate() : t1.getCreatedDate();
                     LocalDateTime d2 = t2.getLastMessage() != null ? t2.getLastMessage().getSentDate() : t2.getCreatedDate();
-                    if (d1 == null && d2 == null) return 0;
+                    if (d1 == null && d2 == null) return t2.getId() != null && t1.getId() != null ? t2.getId().compareTo(t1.getId()) : 0;
                     if (d1 == null) return 1;
                     if (d2 == null) return -1;
-                    return d2.compareTo(d1);
+                    int cmp = d2.compareTo(d1);
+                    if (cmp != 0) return cmp;
+                    return t2.getId() != null && t1.getId() != null ? t2.getId().compareTo(t1.getId()) : 0;
                 })
                 .collect(Collectors.toList());
     }

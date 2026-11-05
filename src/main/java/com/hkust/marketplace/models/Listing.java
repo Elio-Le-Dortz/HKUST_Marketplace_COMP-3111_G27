@@ -168,7 +168,19 @@ public class Listing {
     }
 
     public void setReviewedAt(LocalDateTime reviewedAt) {
-        // no-op or store if needed
+        // no-op for backward compatibility
+    }
+
+    public boolean isPendingReview() {
+        return this.status == ListingStatus.PENDING_REVIEW;
+    }
+
+    public boolean isLive() {
+        return this.status == ListingStatus.LIVE;
+    }
+
+    public boolean isRejected() {
+        return this.status == ListingStatus.REJECTED;
     }
 
     public synchronized int getViewCount() {

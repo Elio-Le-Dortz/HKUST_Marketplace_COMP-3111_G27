@@ -8,6 +8,7 @@ import com.hkust.marketplace.services.DealHistoryService;
 import com.hkust.marketplace.services.DealService;
 import com.hkust.marketplace.services.ListingDetailService;
 import com.hkust.marketplace.services.ListingFilterService;
+import com.hkust.marketplace.services.ListingReviewService;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -42,6 +43,7 @@ public class DummyDataService {
     private final BuyerProfileService buyerProfileService = new BuyerProfileService(this);
     private final com.hkust.marketplace.services.BuyerNotificationService buyerNotificationService = new com.hkust.marketplace.services.BuyerNotificationService(this);
     private final com.hkust.marketplace.services.BuyerReviewService buyerReviewService = new com.hkust.marketplace.services.BuyerReviewService(this);
+    private final ListingReviewService listingReviewService = new ListingReviewService(this);
 
     private final AtomicInteger listingIdCounter = new AtomicInteger(100);
     private final AtomicInteger dealIdCounter = new AtomicInteger(500);
@@ -385,12 +387,23 @@ public class DummyDataService {
         n7.setTimestamp(LocalDateTime.now().minusDays(1));
         notifications.add(n7);
 
-        notifications.add(new Notification("charlie", "New Offer Received",
-                "Alice offered HK$160 for your Calculus Textbook.", "Offers"));
-        notifications.add(new Notification("diana", "Listing Pending",
-                "Your Mini Fridge listing is awaiting admin review.", "Announcements"));
-        notifications.add(new Notification("admin", "New Listing Submitted",
-                "Diana submitted 'Mini Fridge' for review.", "Announcements"));
+        Notification nCharlie = new Notification("charlie", "New Offer Received",
+                "Alice offered HK$160 for your Calculus Textbook.", "Offers");
+        nCharlie.setId("N" + notifIdCounter.getAndIncrement());
+        nCharlie.setTimestamp(LocalDateTime.now().minusHours(3));
+        notifications.add(nCharlie);
+
+        Notification nDiana = new Notification("diana", "Listing Pending",
+                "Your Mini Fridge listing is awaiting admin review.", "Announcements");
+        nDiana.setId("N" + notifIdCounter.getAndIncrement());
+        nDiana.setTimestamp(LocalDateTime.now().minusHours(2));
+        notifications.add(nDiana);
+
+        Notification nAdmin = new Notification("admin", "New Listing Submitted",
+                "Diana submitted 'Mini Fridge' for review.", "Announcements");
+        nAdmin.setId("N" + notifIdCounter.getAndIncrement());
+        nAdmin.setTimestamp(LocalDateTime.now().minusHours(1));
+        notifications.add(nAdmin);
     }
 
     /**
@@ -756,9 +769,19 @@ public class DummyDataService {
     }
 
     public synchronized List<Listing> getPendingListings() {
-        return listings.values().stream()
-                .filter(l -> l.getStatus() == ListingStatus.PENDING_REVIEW)
-                .collect(Collectors.toList());
+        return listingReviewService.getPendingListingsOldestFirst();
+    }
+
+    public ListingReviewService getListingReviewService() {
+        return listingReviewService;
+    }
+
+    public synchronized ListingReviewResult approveListing(String listingId, String adminUsername) {
+        return listingReviewService.approveListing(listingId, adminUsername);
+    }
+
+    public synchronized ListingReviewResult rejectListing(String listingId, String adminUsername, String reason) {
+        return listingReviewService.rejectListing(listingId, adminUsername, reason);
     }
 
     public synchronized List<Listing> getListingsBySeller(String username) {
@@ -999,7 +1022,14 @@ public class DummyDataService {
     public synchronized List<Notification> getNotificationsFor(String username) {
         return notifications.stream()
                 .filter(n -> n.getUsername().equalsIgnoreCase(username))
-                .sorted(Comparator.comparing(Notification::getTimestamp).reversed())
+                .sorted((n1, n2) -> {
+                    if (n1.getTimestamp() == null && n2.getTimestamp() == null) return 0;
+                    if (n1.getTimestamp() == null) return 1;
+                    if (n2.getTimestamp() == null) return -1;
+                    int c = n2.getTimestamp().compareTo(n1.getTimestamp());
+                    if (c != 0) return c;
+                    return (n2.getId() != null && n1.getId() != null) ? n2.getId().compareTo(n1.getId()) : 0;
+                })
                 .collect(Collectors.toList());
     }
 

@@ -132,4 +132,74 @@ class SessionManagerTest {
         // When not logged in, calling endSessionForUser is safe
         assertDoesNotThrow(() -> SessionManager.endSessionForUser("alice"));
     }
+
+    // ===== US-S02: Seller session check (use case 2.2 special requirement) =====
+
+    @Test
+    @DisplayName("getCurrentSeller returns the Seller only for a Seller session")
+    void testGetCurrentSeller() {
+        assertNull(SessionManager.getCurrentSeller());
+
+        Seller seller = new Seller("charlie", "Charlie Lee", "hash");
+        SessionManager.login(seller);
+        assertSame(seller, SessionManager.getCurrentSeller());
+
+        SessionManager.login(new Buyer("alice", "Alice Chan", "hash"));
+        assertNull(SessionManager.getCurrentSeller());
+
+        SessionManager.login(new Admin("admin", "Admin", "hash"));
+        assertNull(SessionManager.getCurrentSeller());
+    }
+
+    @Test
+    @DisplayName("requireSeller returns the active Seller of the session")
+    void testRequireSellerSuccess() {
+        Seller seller = new Seller("charlie", "Charlie Lee", "hash");
+        SessionManager.login(seller);
+
+        assertSame(seller, SessionManager.requireSeller());
+    }
+
+    @Test
+    @DisplayName("requireSeller throws SecurityException when unauthenticated")
+    void testRequireSellerUnauthenticated() {
+        SecurityException ex = assertThrows(SecurityException.class, SessionManager::requireSeller);
+        assertTrue(ex.getMessage().contains("No user is currently logged in"));
+    }
+
+    @Test
+    @DisplayName("requireSeller throws SecurityException for a Buyer or Admin session")
+    void testRequireSellerNonSeller() {
+        SessionManager.login(new Buyer("alice", "Alice Chan", "hash"));
+        SecurityException buyerEx = assertThrows(SecurityException.class, SessionManager::requireSeller);
+        assertTrue(buyerEx.getMessage().contains("Access requires a Seller account"));
+
+        SessionManager.login(new Admin("admin", "Admin", "hash"));
+        SecurityException adminEx = assertThrows(SecurityException.class, SessionManager::requireSeller);
+        assertTrue(adminEx.getMessage().contains("Access requires a Seller account"));
+    }
+
+    @Test
+    @DisplayName("requireSeller rejects a non-Seller object that only claims the SELLER role")
+    void testRequireSellerRoleWithoutSellerObject() {
+        Buyer impostor = new Buyer("mallory", "Mallory", "hash");
+        impostor.setRole(com.hkust.marketplace.models.UserRole.SELLER);
+        SessionManager.login(impostor);
+
+        assertTrue(SessionManager.isSeller());
+        assertThrows(SecurityException.class, SessionManager::requireSeller);
+    }
+
+    @Test
+    @DisplayName("requireSeller throws SecurityException when the Seller is deactivated or deleted")
+    void testRequireSellerInactive() {
+        for (AccountStatus status : new AccountStatus[]{AccountStatus.DEACTIVATED, AccountStatus.DELETED}) {
+            Seller seller = new Seller("charlie", "Charlie Lee", "hash");
+            seller.setAccountStatus(status);
+            SessionManager.login(seller);
+
+            SecurityException ex = assertThrows(SecurityException.class, SessionManager::requireSeller);
+            assertTrue(ex.getMessage().contains("Seller account is not active"), status::name);
+        }
+    }
 }

@@ -3,6 +3,7 @@ package com.hkust.marketplace.controllers.admin;
 import com.hkust.marketplace.models.User;
 import com.hkust.marketplace.models.UserRole;
 import com.hkust.marketplace.utils.DummyDataService;
+import com.hkust.marketplace.utils.PasswordUtil;
 import com.hkust.marketplace.utils.SceneManager;
 import com.hkust.marketplace.utils.SessionManager;
 import javafx.fxml.FXML;
@@ -50,7 +51,7 @@ public class AdminLoginController {
             return "Admin account is deactivated.";
         }
 
-        if (!user.getPasswordHash().equals(password)) {
+        if (!PasswordUtil.verifyPassword(password, user.getPasswordHash())) {
             return "Incorrect password.";
         }
 

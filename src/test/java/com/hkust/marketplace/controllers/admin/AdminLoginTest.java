@@ -2,6 +2,7 @@ package com.hkust.marketplace.controllers.admin;
 
 import com.hkust.marketplace.controllers.admin.AdminLoginController;
 import com.hkust.marketplace.models.Admin;
+import com.hkust.marketplace.models.AdminProfileUpdateRequest;
 import com.hkust.marketplace.models.User;
 import com.hkust.marketplace.models.UserRole;
 import com.hkust.marketplace.utils.DummyDataService;
@@ -111,5 +112,23 @@ public class AdminLoginTest {
         Admin rogueAdmin = new Admin("admin2", "Rogue Admin", "Pass1234!");
         assertThrows(IllegalArgumentException.class, () -> dataService.registerUser(rogueAdmin));
         assertNull(dataService.findUser("admin2"));
+    }
+
+    @Test
+    void testAdminCanLoginWithNewHashedPasswordAfterProfileUpdate() {
+        AdminProfileUpdateRequest req = new AdminProfileUpdateRequest(
+                "admin", "Updated Admin",
+                "admin123", "BrandNewPass2026", "BrandNewPass2026");
+        dataService.getAdminProfileService().updateProfile("admin", req);
+
+        // Old password now fails
+        String oldResult = controller.authenticateAdmin("admin", "admin123");
+        assertEquals("Incorrect password.", oldResult);
+
+        // New password succeeds
+        String newResult = controller.authenticateAdmin("admin", "BrandNewPass2026");
+        assertEquals("OK", newResult);
+        assertNotNull(SessionManager.getCurrentUser());
+        assertEquals("Updated Admin", SessionManager.getCurrentUser().getFullName());
     }
 }

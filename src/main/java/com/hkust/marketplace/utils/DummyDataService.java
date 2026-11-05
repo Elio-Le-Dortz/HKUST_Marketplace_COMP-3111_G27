@@ -12,6 +12,7 @@ import com.hkust.marketplace.services.ListingDetailService;
 import com.hkust.marketplace.services.ListingFilterService;
 import com.hkust.marketplace.services.ListingReviewService;
 import com.hkust.marketplace.services.AdminNotificationService;
+import com.hkust.marketplace.services.AdminListingService;
 import com.hkust.marketplace.services.UserManagementService;
 
 import java.time.LocalDate;
@@ -52,6 +53,7 @@ public class DummyDataService {
     private final AdminProfileService adminProfileService = new AdminProfileService(this);
     private final AdminDealsService adminDealsService = new AdminDealsService(this);
     private final AdminNotificationService adminNotificationService = new AdminNotificationService(this);
+    private final AdminListingService adminListingService = new AdminListingService(this);
 
     private final AtomicInteger listingIdCounter = new AtomicInteger(100);
     private final AtomicInteger dealIdCounter = new AtomicInteger(500);
@@ -200,6 +202,13 @@ public class DummyDataService {
                 "Clothing", ListingType.GIVEAWAY, "Like New", null, null, "UG Hall 1", "diana", "Diana Ng");
         l8.setStatus(ListingStatus.LIVE);
         listings.put(l8.getId(), l8);
+
+        Listing l9 = createListing("Vintage Mechanical Keyboard", "Cherry MX Blue switches, custom keycaps.",
+                "Electronics", ListingType.SELL, "Used", 350.0, null, "Library", "charlie", "Charlie Lee");
+        l9.setId("L999");
+        l9.setStatus(ListingStatus.REMOVED);
+        l9.setAdminReason("Reported for inappropriate accessories");
+        listings.put(l9.getId(), l9);
 
         // Sample deals
         Deal d1 = new Deal();
@@ -1286,6 +1295,22 @@ public class DummyDataService {
 
     public AdminNotificationService getAdminNotificationService() {
         return adminNotificationService;
+    }
+
+    public AdminListingService getAdminListingService() {
+        return adminListingService;
+    }
+
+    public synchronized AdminListingOperationResult createListingOnBehalfOfSeller(AdminListingCreateRequest request, String adminUsername) {
+        return adminListingService.createListingOnBehalfOfSeller(request, adminUsername);
+    }
+
+    public synchronized AdminListingOperationResult editListingByAdmin(AdminListingEditRequest request, String adminUsername) {
+        return adminListingService.editListing(request, adminUsername);
+    }
+
+    public synchronized AdminListingOperationResult takeDownListing(String listingId, String reason, String adminUsername) {
+        return adminListingService.takeDownListing(listingId, reason, adminUsername);
     }
 
     // Password strength helper (demo)

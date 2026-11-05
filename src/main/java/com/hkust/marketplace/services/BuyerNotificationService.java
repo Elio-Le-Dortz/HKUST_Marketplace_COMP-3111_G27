@@ -313,7 +313,7 @@ public class BuyerNotificationService {
             case LISTING:
                 if (itemId != null) {
                     Listing listing = dataService.getListing(itemId);
-                    if (listing != null && listing.getStatus() != ListingStatus.REJECTED) {
+                    if (listing != null && listing.getStatus() != ListingStatus.REJECTED && listing.getStatus() != ListingStatus.REMOVED) {
                         return NotificationTargetResult.success(notif, NotificationTargetType.LISTING, listing);
                     }
                 }

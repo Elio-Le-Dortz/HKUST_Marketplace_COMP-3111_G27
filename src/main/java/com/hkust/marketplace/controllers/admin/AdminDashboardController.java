@@ -5,6 +5,9 @@ import com.hkust.marketplace.utils.DummyDataService;
 import com.hkust.marketplace.utils.SceneManager;
 import com.hkust.marketplace.utils.SessionManager;
 import com.hkust.marketplace.services.AdminNotificationService;
+import com.hkust.marketplace.services.AdminListingService;
+import java.util.Map;
+import java.util.ArrayList;
 import javafx.collections.FXCollections;
 import javafx.fxml.FXML;
 import javafx.geometry.Insets;
@@ -316,59 +319,735 @@ public class AdminDashboardController {
         dialog.showAndWait();
     }
 
+    private AdminListingFilterCriteria adminListingFilter = new AdminListingFilterCriteria();
+
     @FXML
     private void showAllListings() {
         setActive(btnAllListings, "Manage All Listings");
         contentPane.getChildren().clear();
 
-        VBox root = new VBox(12);
+        AdminListingService listingService = DummyDataService.getInstance().getAdminListingService();
+        Map<ListingStatus, Long> statusCounts = listingService.getListingCountsByStatus();
+        List<Listing> listings = listingService.filterListings(adminListingFilter);
+
+        VBox root = new VBox(14);
         root.setPadding(new Insets(4));
 
-        Button addBtn = new Button("+ Add Listing (on behalf of seller)");
-        addBtn.getStyleClass().add("btn-primary");
-        addBtn.setOnAction(e -> new Alert(Alert.AlertType.INFORMATION,
-                "Admin can create a listing on behalf of a seller here.\nSame form fields as Seller Create Listing.\n(UI placeholder)").showAndWait());
-        root.getChildren().add(addBtn);
+        // 1. Metric cards
+        root.getChildren().add(createListingSummaryCards(statusCounts));
 
-        for (Listing l : DummyDataService.getInstance().getAllListings()) {
-            HBox row = new HBox(12);
-            row.getStyleClass().add("card");
-            row.setAlignment(Pos.CENTER_LEFT);
-            row.setPadding(new Insets(12));
+        // 2. Action & Filter Toolbar
+        root.getChildren().add(createListingFilterToolbar(() -> showAllListings()));
 
-            VBox info = new VBox(3);
-            HBox.setHgrow(info, Priority.ALWAYS);
-            Label t = new Label(l.getTitle());
-            t.setStyle("-fx-font-weight: bold;");
-            Label m = new Label(l.getSellerFullName() + " · " + l.getTypeDisplay() + " · " + l.getStatus());
-            m.setStyle("-fx-text-fill: #5a5a7a; -fx-font-size: 12px;");
-            info.getChildren().addAll(t, m);
-
-            Button edit = new Button("Edit");
-            edit.getStyleClass().addAll("btn-outline", "btn-sm");
-            edit.setOnAction(e -> new Alert(Alert.AlertType.INFORMATION, "Edit listing dialog (demo).").showAndWait());
-
-            Button remove = new Button("Remove");
-            remove.getStyleClass().addAll("btn-danger", "btn-sm");
-            remove.setOnAction(e -> {
-                Alert conf = new Alert(Alert.AlertType.CONFIRMATION, "Permanently remove this listing?");
-                conf.showAndWait().ifPresent(r -> {
-                    if (r == ButtonType.OK) {
-                        DummyDataService.getInstance().getBuyerNotificationService()
-                                .notifyBuyersOfListingRemoval(l, "Removed by Administrator");
-                        DummyDataService.getInstance().removeListing(l.getId());
-                        showAllListings();
-                    }
-                });
+        // 3. Listings List
+        if (listings.isEmpty()) {
+            VBox emptyBox = new VBox(10);
+            emptyBox.setAlignment(Pos.CENTER);
+            emptyBox.setPadding(new Insets(40, 20, 40, 20));
+            emptyBox.getStyleClass().add("card");
+            Label emptyTitle = new Label("No Listings Found");
+            emptyTitle.setStyle("-fx-font-weight: bold; -fx-font-size: 16px; -fx-text-fill: #5a5a7a;");
+            Label emptySub = new Label("No listings match your search keyword or selected filter criteria.");
+            emptySub.setStyle("-fx-text-fill: #5a5a7a; -fx-font-size: 13px;");
+            Button resetBtn = new Button("Clear Filters");
+            resetBtn.getStyleClass().addAll("btn-outline", "btn-sm");
+            resetBtn.setOnAction(e -> {
+                adminListingFilter = new AdminListingFilterCriteria();
+                showAllListings();
             });
+            emptyBox.getChildren().addAll(emptyTitle, emptySub, resetBtn);
+            root.getChildren().add(emptyBox);
+        } else {
+            Label resultsLabel = new Label("Showing " + listings.size() + " listing(s)");
+            resultsLabel.setStyle("-fx-font-size: 13px; -fx-text-fill: #5a5a7a; -fx-font-weight: bold;");
+            root.getChildren().add(resultsLabel);
 
-            row.getChildren().addAll(info, edit, remove);
-            root.getChildren().add(row);
+            for (Listing l : listings) {
+                root.getChildren().add(createListingManagementCard(l));
+            }
         }
+
         ScrollPane scroll = new ScrollPane(root);
         scroll.setFitToWidth(true);
         contentPane.getChildren().add(scroll);
     }
+
+    private HBox createListingSummaryCards(Map<ListingStatus, Long> counts) {
+        HBox hbox = new HBox(12);
+        long total = counts.values().stream().mapToLong(Long::longValue).sum();
+        long live = counts.getOrDefault(ListingStatus.LIVE, 0L);
+        long pending = counts.getOrDefault(ListingStatus.PENDING_REVIEW, 0L);
+        long deals = counts.getOrDefault(ListingStatus.RESERVED, 0L)
+                + counts.getOrDefault(ListingStatus.SOLD, 0L)
+                + counts.getOrDefault(ListingStatus.LENT, 0L)
+                + counts.getOrDefault(ListingStatus.GIVEN, 0L);
+        long removed = counts.getOrDefault(ListingStatus.REMOVED, 0L);
+
+        hbox.getChildren().addAll(
+                createListingMetricCard("Total Listings", total, "#003974"),
+                createListingMetricCard("Live Listings", live, "#2e7d32"),
+                createListingMetricCard("Pending Review", pending, "#ed6c02"),
+                createListingMetricCard("Active Deals", deals, "#1976d2"),
+                createListingMetricCard("Taken Down", removed, "#c62828")
+        );
+        return hbox;
+    }
+
+    private VBox createListingMetricCard(String label, long count, String color) {
+        VBox card = new VBox(4);
+        card.getStyleClass().add("metric-card");
+        card.setPadding(new Insets(12, 16, 12, 16));
+        card.setAlignment(Pos.CENTER_LEFT);
+        HBox.setHgrow(card, Priority.ALWAYS);
+
+        Label num = new Label(String.valueOf(count));
+        num.setStyle("-fx-font-size: 20px; -fx-font-weight: bold; -fx-text-fill: " + color + ";");
+        Label lbl = new Label(label);
+        lbl.setStyle("-fx-text-fill: #5a5a7a; -fx-font-size: 12px;");
+
+        card.getChildren().addAll(num, lbl);
+        return card;
+    }
+
+    private VBox createListingFilterToolbar(Runnable refreshCallback) {
+        VBox container = new VBox(8);
+        container.getStyleClass().add("card");
+        container.setPadding(new Insets(12, 14, 12, 14));
+
+        HBox topRow = new HBox(10);
+        topRow.setAlignment(Pos.CENTER_LEFT);
+
+        Button addBtn = new Button("+ Add Listing on Behalf of Seller");
+        addBtn.getStyleClass().addAll("btn-primary", "btn-sm");
+        addBtn.setOnAction(e -> openAddListingDialog());
+
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+
+        TextField searchField = new TextField();
+        searchField.setPromptText("Search by title or seller...");
+        searchField.setPrefWidth(240);
+        if (adminListingFilter.getKeyword() != null) {
+            searchField.setText(adminListingFilter.getKeyword());
+        }
+        searchField.textProperty().addListener((obs, oldVal, newVal) -> {
+            adminListingFilter.setKeyword(newVal);
+            refreshCallback.run();
+        });
+
+        topRow.getChildren().addAll(addBtn, spacer, searchField);
+
+        HBox filterRow = new HBox(10);
+        filterRow.setAlignment(Pos.CENTER_LEFT);
+
+        // Status Combo
+        ComboBox<String> statusCombo = new ComboBox<>();
+        statusCombo.getItems().add("All Statuses");
+        for (ListingStatus s : ListingStatus.values()) {
+            statusCombo.getItems().add(s.name());
+        }
+        statusCombo.setValue(adminListingFilter.getStatus() != null ? adminListingFilter.getStatus().name() : "All Statuses");
+        statusCombo.setOnAction(e -> {
+            String val = statusCombo.getValue();
+            if (val == null || "All Statuses".equals(val)) {
+                adminListingFilter.setStatus(null);
+            } else {
+                adminListingFilter.setStatus(ListingStatus.valueOf(val));
+            }
+            refreshCallback.run();
+        });
+
+        // Category Combo
+        ComboBox<String> catCombo = new ComboBox<>();
+        catCombo.getItems().add("All Categories");
+        for (Category c : Category.values()) {
+            catCombo.getItems().add(c.getDisplayName());
+        }
+        catCombo.setValue(adminListingFilter.getCategory() != null ? adminListingFilter.getCategory().getDisplayName() : "All Categories");
+        catCombo.setOnAction(e -> {
+            String val = catCombo.getValue();
+            if (val == null || "All Categories".equals(val)) {
+                adminListingFilter.setCategory(null);
+            } else {
+                adminListingFilter.setCategory(Category.fromString(val));
+            }
+            refreshCallback.run();
+        });
+
+        // Type Combo
+        ComboBox<String> typeCombo = new ComboBox<>();
+        typeCombo.getItems().addAll("All Types", "Sell", "Lend", "Give Away");
+        if (adminListingFilter.getType() == null) {
+            typeCombo.setValue("All Types");
+        } else {
+            typeCombo.setValue(adminListingFilter.getType().getDisplayName());
+        }
+        typeCombo.setOnAction(e -> {
+            String val = typeCombo.getValue();
+            if (val == null || "All Types".equals(val)) {
+                adminListingFilter.setType(null);
+            } else if ("Sell".equalsIgnoreCase(val)) {
+                adminListingFilter.setType(ListingType.SELL);
+            } else if ("Lend".equalsIgnoreCase(val)) {
+                adminListingFilter.setType(ListingType.LEND);
+            } else {
+                adminListingFilter.setType(ListingType.GIVEAWAY);
+            }
+            refreshCallback.run();
+        });
+
+        Button resetBtn = new Button("Reset");
+        resetBtn.getStyleClass().addAll("btn-outline", "btn-sm");
+        resetBtn.setOnAction(e -> {
+            adminListingFilter = new AdminListingFilterCriteria();
+            searchField.clear();
+            statusCombo.setValue("All Statuses");
+            catCombo.setValue("All Categories");
+            typeCombo.setValue("All Types");
+            refreshCallback.run();
+        });
+
+        filterRow.getChildren().addAll(new Label("Filters:"), statusCombo, catCombo, typeCombo, resetBtn);
+        container.getChildren().addAll(topRow, filterRow);
+        return container;
+    }
+
+    private VBox createListingManagementCard(Listing l) {
+        VBox card = new VBox(8);
+        card.getStyleClass().addAll("card", "card-hover");
+        card.setPadding(new Insets(12, 16, 12, 16));
+
+        HBox topRow = new HBox(8);
+        topRow.setAlignment(Pos.CENTER_LEFT);
+
+        Label title = new Label(l.getTitle());
+        title.setStyle("-fx-font-weight: bold; -fx-font-size: 15px;");
+        HBox.setHgrow(title, Priority.ALWAYS);
+
+        // Category Badge
+        Label catBadge = new Label(l.getCategory() != null ? l.getCategory().getDisplayName() : "Other");
+        catBadge.getStyleClass().addAll("badge", "badge-info");
+
+        // Type Badge
+        String typeStyle = switch (l.getType()) {
+            case SELL -> "badge-sell";
+            case LEND -> "badge-lend";
+            case GIVEAWAY -> "badge-giveaway";
+        };
+        Label typeBadge = new Label(l.getTypeDisplay());
+        typeBadge.getStyleClass().addAll("badge", typeStyle);
+
+        // Status Badge
+        Label statusBadge = new Label(l.getStatus() != null ? l.getStatus().name() : "LIVE");
+        String statusStyle = switch (l.getStatus()) {
+            case LIVE -> "badge-success";
+            case PENDING_REVIEW -> "badge-warning";
+            case REMOVED, REJECTED -> "badge-danger";
+            case RESERVED, SOLD, LENT, GIVEN -> "badge-info";
+        };
+        statusBadge.getStyleClass().addAll("badge", statusStyle);
+
+        topRow.getChildren().addAll(title, catBadge, typeBadge, statusBadge);
+
+        // Middle Row: Seller info & pricing
+        HBox midRow = new HBox(16);
+        midRow.setAlignment(Pos.CENTER_LEFT);
+
+        Label sellerLbl = new Label("Seller: " + l.getSellerFullName() + " (@" + l.getSellerUsername() + ")");
+        sellerLbl.setStyle("-fx-text-fill: #5a5a7a; -fx-font-size: 12px;");
+
+        Label priceLbl = new Label("Terms: " + l.getPriceDisplay());
+        priceLbl.setStyle("-fx-text-fill: #003974; -fx-font-weight: bold; -fx-font-size: 12px;");
+
+        Label locationLbl = new Label("Meetup: " + (l.getMeetupLocation() != null ? l.getMeetupLocation().getDisplayName() : "-"));
+        locationLbl.setStyle("-fx-text-fill: #5a5a7a; -fx-font-size: 12px;");
+
+        String postedStr = l.getPostedAt() != null ? l.getPostedAt().format(DateTimeFormatter.ofPattern("dd MMM yyyy")) : "-";
+        Label postedLbl = new Label("Posted: " + postedStr);
+        postedLbl.setStyle("-fx-text-fill: #9aa0b0; -fx-font-size: 12px;");
+
+        int activeOffers = DummyDataService.getInstance().getAdminListingService().getActiveOffersCount(l.getId());
+        Region midSpacer = new Region();
+        HBox.setHgrow(midSpacer, Priority.ALWAYS);
+
+        midRow.getChildren().addAll(sellerLbl, priceLbl, locationLbl, postedLbl, midSpacer);
+        if (activeOffers > 0) {
+            Label offersBadge = new Label(activeOffers + " active offer(s)");
+            offersBadge.getStyleClass().addAll("badge", "badge-warning");
+            midRow.getChildren().add(offersBadge);
+        }
+
+        // Bottom row: Reason callout (if Removed or Rejected) + Action Buttons
+        HBox botRow = new HBox(10);
+        botRow.setAlignment(Pos.CENTER_RIGHT);
+
+        if (l.getAdminReason() != null && !l.getAdminReason().trim().isEmpty()) {
+            Label reasonLbl = new Label("Admin Reason: " + l.getAdminReason());
+            reasonLbl.setStyle("-fx-text-fill: #c62828; -fx-font-size: 12px; -fx-font-style: italic;");
+            botRow.getChildren().add(reasonLbl);
+        }
+
+        Region botSpacer = new Region();
+        HBox.setHgrow(botSpacer, Priority.ALWAYS);
+        botRow.getChildren().add(botSpacer);
+
+        Button viewBtn = new Button("View Details");
+        viewBtn.getStyleClass().addAll("btn-outline", "btn-sm");
+        viewBtn.setOnAction(e -> openListingDetailsDialog(l));
+
+        Button editBtn = new Button("Edit");
+        editBtn.getStyleClass().addAll("btn-outline", "btn-sm");
+        editBtn.setOnAction(e -> {
+            // Alternative Flow A4 check
+            if (isDealInProgressOrCompleted(l.getStatus())) {
+                new Alert(Alert.AlertType.WARNING,
+                        "The listing cannot be changed because a deal is in progress or completed.").showAndWait();
+            } else {
+                openEditListingDialog(l);
+            }
+        });
+
+        Button takeDownBtn = new Button("Take Down");
+        takeDownBtn.getStyleClass().addAll("btn-danger", "btn-sm");
+        takeDownBtn.setOnAction(e -> {
+            // Alternative Flow A4 check
+            if (isDealInProgressOrCompleted(l.getStatus())) {
+                new Alert(Alert.AlertType.WARNING,
+                        "The listing cannot be changed because a deal is in progress or completed.").showAndWait();
+            } else if (l.getStatus() != ListingStatus.LIVE) {
+                // Alternative Flow A5 check
+                new Alert(Alert.AlertType.WARNING,
+                        "Only a Live listing can be taken down (a pending listing is rejected in Review Pending Listings).").showAndWait();
+            } else {
+                openTakeDownDialog(l);
+            }
+        });
+
+        botRow.getChildren().addAll(viewBtn, editBtn, takeDownBtn);
+        card.getChildren().addAll(topRow, midRow, botRow);
+        return card;
+    }
+
+    private void openAddListingDialog() {
+        AdminListingService service = DummyDataService.getInstance().getAdminListingService();
+        List<Seller> activeSellers = service.getActiveSellers();
+
+        if (activeSellers.isEmpty()) {
+            new Alert(Alert.AlertType.WARNING, "No active sellers found in the system to add a listing on behalf of.").showAndWait();
+            return;
+        }
+
+        Dialog<ButtonType> dialog = new Dialog<>();
+        dialog.setTitle("Add Listing on Behalf of Seller");
+        dialog.setHeaderText("Create a new Live listing for an active seller");
+        dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
+
+        VBox content = new VBox(10);
+        content.setPrefWidth(480);
+        content.setPadding(new Insets(10));
+
+        Label errLabel = new Label();
+        errLabel.setStyle("-fx-text-fill: #c62828; -fx-font-weight: bold;");
+        errLabel.setVisible(false);
+
+        // Seller Selection
+        ComboBox<Seller> sellerCombo = new ComboBox<>();
+        sellerCombo.setMaxWidth(Double.MAX_VALUE);
+        sellerCombo.getItems().addAll(activeSellers);
+        sellerCombo.setConverter(new javafx.util.StringConverter<Seller>() {
+            @Override public String toString(Seller s) { return s != null ? s.getFullName() + " (@" + s.getUsername() + ")" : ""; }
+            @Override public Seller fromString(String string) { return null; }
+        });
+        sellerCombo.getSelectionModel().selectFirst();
+
+        // Listing Type
+        ComboBox<String> typeCombo = new ComboBox<>(FXCollections.observableArrayList("Sell", "Lend", "Give Away"));
+        typeCombo.setMaxWidth(Double.MAX_VALUE);
+        typeCombo.setValue("Sell");
+
+        TextField titleField = new TextField();
+        titleField.setPromptText("Item Name *");
+
+        ComboBox<Category> catCombo = new ComboBox<>(FXCollections.observableArrayList(Category.values()));
+        catCombo.setMaxWidth(Double.MAX_VALUE);
+        catCombo.setValue(Category.BOOKS);
+
+        ComboBox<Condition> condCombo = new ComboBox<>(FXCollections.observableArrayList(Condition.values()));
+        condCombo.setMaxWidth(Double.MAX_VALUE);
+        condCombo.setValue(Condition.LIKE_NEW);
+
+        ComboBox<MeetupLocation> meetupCombo = new ComboBox<>(FXCollections.observableArrayList(MeetupLocation.values()));
+        meetupCombo.setMaxWidth(Double.MAX_VALUE);
+        meetupCombo.setValue(MeetupLocation.LIBRARY);
+
+        TextField priceField = new TextField();
+        priceField.setPromptText("Price in HKD (e.g. 150.0) *");
+
+        TextField daysField = new TextField();
+        daysField.setPromptText("Lending Duration in days (e.g. 14) *");
+        daysField.setDisable(true);
+
+        typeCombo.setOnAction(e -> {
+            String val = typeCombo.getValue();
+            if ("Sell".equals(val)) {
+                priceField.setDisable(false);
+                daysField.setDisable(true);
+            } else if ("Lend".equals(val)) {
+                priceField.setDisable(true);
+                daysField.setDisable(false);
+            } else {
+                priceField.setDisable(true);
+                daysField.setDisable(true);
+            }
+        });
+
+        TextArea descArea = new TextArea();
+        descArea.setPromptText("Description");
+        descArea.setPrefRowCount(3);
+
+        Label photoNote = new Label("📷 Photos: 1 sample photo attached by default (up to 6 photos allowed)");
+        photoNote.setStyle("-fx-text-fill: #5a5a7a; -fx-font-size: 12px;");
+
+        content.getChildren().addAll(
+                errLabel,
+                new Label("Select Seller *:"), sellerCombo,
+                new Label("Listing Type *:"), typeCombo,
+                new Label("Item Name *:"), titleField,
+                new Label("Category *:"), catCombo,
+                new Label("Condition *:"), condCombo,
+                new Label("Meetup Point *:"), meetupCombo,
+                new Label("Price (for Sell):"), priceField,
+                new Label("Lending Days (for Lend):"), daysField,
+                new Label("Description:"), descArea,
+                photoNote
+        );
+
+        dialog.getDialogPane().setContent(content);
+
+        Button okBtn = (Button) dialog.getDialogPane().lookupButton(ButtonType.OK);
+        okBtn.addEventFilter(javafx.event.ActionEvent.ACTION, event -> {
+            Seller selectedSeller = sellerCombo.getValue();
+            String typeStr = typeCombo.getValue();
+            ListingType type = "Sell".equals(typeStr) ? ListingType.SELL : ("Lend".equals(typeStr) ? ListingType.LEND : ListingType.GIVEAWAY);
+
+            Double price = null;
+            if (type == ListingType.SELL) {
+                try {
+                    price = Double.parseDouble(priceField.getText().trim());
+                } catch (Exception ex) {
+                    errLabel.setText("Please enter a valid numeric price.");
+                    errLabel.setVisible(true);
+                    event.consume();
+                    return;
+                }
+            }
+
+            Integer days = null;
+            if (type == ListingType.LEND) {
+                try {
+                    days = Integer.parseInt(daysField.getText().trim());
+                } catch (Exception ex) {
+                    errLabel.setText("Please enter a valid numeric lending duration in days.");
+                    errLabel.setVisible(true);
+                    event.consume();
+                    return;
+                }
+            }
+
+            List<Photo> photos = new ArrayList<>();
+            photos.add(new Photo("/images/sample.png"));
+
+            AdminListingCreateRequest req = new AdminListingCreateRequest(
+                    selectedSeller != null ? selectedSeller.getUsername() : null,
+                    titleField.getText(),
+                    descArea.getText(),
+                    type,
+                    catCombo.getValue(),
+                    condCombo.getValue(),
+                    meetupCombo.getValue(),
+                    price,
+                    days,
+                    photos
+            );
+
+            AdminListingOperationResult res = service.createListingOnBehalfOfSeller(req, getEffectiveAdminUsername());
+            if (!res.isSuccess()) {
+                errLabel.setText(res.getMessage());
+                errLabel.setVisible(true);
+                event.consume();
+            } else {
+                new Alert(Alert.AlertType.INFORMATION, res.getMessage()).showAndWait();
+                showAllListings();
+            }
+        });
+
+        dialog.showAndWait();
+    }
+
+    private void openEditListingDialog(Listing l) {
+        AdminListingService service = DummyDataService.getInstance().getAdminListingService();
+
+        Dialog<ButtonType> dialog = new Dialog<>();
+        dialog.setTitle("Edit Listing: " + l.getTitle());
+        dialog.setHeaderText("Modify listing details (Status remains " + l.getStatus() + ")");
+        dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
+
+        VBox content = new VBox(10);
+        content.setPrefWidth(480);
+        content.setPadding(new Insets(10));
+
+        Label errLabel = new Label();
+        errLabel.setStyle("-fx-text-fill: #c62828; -fx-font-weight: bold;");
+        errLabel.setVisible(false);
+
+        Label sellerInfo = new Label("Seller: " + l.getSellerFullName() + " (@" + l.getSellerUsername() + ")");
+        sellerInfo.setStyle("-fx-font-weight: bold; -fx-text-fill: #003974;");
+
+        ComboBox<String> typeCombo = new ComboBox<>(FXCollections.observableArrayList("Sell", "Lend", "Give Away"));
+        typeCombo.setMaxWidth(Double.MAX_VALUE);
+        typeCombo.setValue(l.getType() == ListingType.SELL ? "Sell" : (l.getType() == ListingType.LEND ? "Lend" : "Give Away"));
+
+        TextField titleField = new TextField(l.getTitle());
+        ComboBox<Category> catCombo = new ComboBox<>(FXCollections.observableArrayList(Category.values()));
+        catCombo.setMaxWidth(Double.MAX_VALUE);
+        catCombo.setValue(l.getCategory() != null ? l.getCategory() : Category.OTHER);
+
+        ComboBox<Condition> condCombo = new ComboBox<>(FXCollections.observableArrayList(Condition.values()));
+        condCombo.setMaxWidth(Double.MAX_VALUE);
+        condCombo.setValue(l.getCondition() != null ? l.getCondition() : Condition.USED);
+
+        ComboBox<MeetupLocation> meetupCombo = new ComboBox<>(FXCollections.observableArrayList(MeetupLocation.values()));
+        meetupCombo.setMaxWidth(Double.MAX_VALUE);
+        meetupCombo.setValue(l.getMeetupLocation() != null ? l.getMeetupLocation() : MeetupLocation.LIBRARY);
+
+        TextField priceField = new TextField(l.getPrice() != null ? String.valueOf(l.getPrice()) : "");
+        priceField.setPromptText("Price in HKD *");
+        priceField.setDisable(l.getType() != ListingType.SELL);
+
+        TextField daysField = new TextField(l.getLendingDays() != null ? String.valueOf(l.getLendingDays()) : "");
+        daysField.setPromptText("Lending Duration in days *");
+        daysField.setDisable(l.getType() != ListingType.LEND);
+
+        typeCombo.setOnAction(e -> {
+            String val = typeCombo.getValue();
+            if ("Sell".equals(val)) {
+                priceField.setDisable(false);
+                daysField.setDisable(true);
+            } else if ("Lend".equals(val)) {
+                priceField.setDisable(true);
+                daysField.setDisable(false);
+            } else {
+                priceField.setDisable(true);
+                daysField.setDisable(true);
+            }
+        });
+
+        TextArea descArea = new TextArea(l.getDescription() != null ? l.getDescription() : "");
+        descArea.setPrefRowCount(3);
+
+        content.getChildren().addAll(
+                errLabel,
+                sellerInfo,
+                new Label("Listing Type *:"), typeCombo,
+                new Label("Item Name *:"), titleField,
+                new Label("Category *:"), catCombo,
+                new Label("Condition *:"), condCombo,
+                new Label("Meetup Point *:"), meetupCombo,
+                new Label("Price (for Sell):"), priceField,
+                new Label("Lending Days (for Lend):"), daysField,
+                new Label("Description:"), descArea
+        );
+
+        dialog.getDialogPane().setContent(content);
+
+        Button okBtn = (Button) dialog.getDialogPane().lookupButton(ButtonType.OK);
+        okBtn.addEventFilter(javafx.event.ActionEvent.ACTION, event -> {
+            String typeStr = typeCombo.getValue();
+            ListingType type = "Sell".equals(typeStr) ? ListingType.SELL : ("Lend".equals(typeStr) ? ListingType.LEND : ListingType.GIVEAWAY);
+
+            Double price = null;
+            if (type == ListingType.SELL) {
+                try {
+                    price = Double.parseDouble(priceField.getText().trim());
+                } catch (Exception ex) {
+                    errLabel.setText("Please enter a valid numeric price.");
+                    errLabel.setVisible(true);
+                    event.consume();
+                    return;
+                }
+            }
+
+            Integer days = null;
+            if (type == ListingType.LEND) {
+                try {
+                    days = Integer.parseInt(daysField.getText().trim());
+                } catch (Exception ex) {
+                    errLabel.setText("Please enter a valid numeric lending duration in days.");
+                    errLabel.setVisible(true);
+                    event.consume();
+                    return;
+                }
+            }
+
+            List<Photo> photos = l.getPhotos();
+            if (photos == null || photos.isEmpty()) {
+                photos = List.of(new Photo("/images/sample.png"));
+            }
+
+            AdminListingEditRequest req = new AdminListingEditRequest(
+                    l.getId(),
+                    titleField.getText(),
+                    descArea.getText(),
+                    type,
+                    catCombo.getValue(),
+                    condCombo.getValue(),
+                    meetupCombo.getValue(),
+                    price,
+                    days,
+                    photos
+            );
+
+            AdminListingOperationResult res = service.editListing(req, getEffectiveAdminUsername());
+            if (!res.isSuccess()) {
+                errLabel.setText(res.getMessage());
+                errLabel.setVisible(true);
+                event.consume();
+            } else {
+                new Alert(Alert.AlertType.INFORMATION, res.getMessage()).showAndWait();
+                showAllListings();
+            }
+        });
+
+        dialog.showAndWait();
+    }
+
+    private void openTakeDownDialog(Listing l) {
+        AdminListingService service = DummyDataService.getInstance().getAdminListingService();
+
+        Dialog<ButtonType> dialog = new Dialog<>();
+        dialog.setTitle("Take Down Listing");
+        dialog.setHeaderText("Remove Live listing '" + l.getTitle() + "'");
+        dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
+
+        VBox content = new VBox(10);
+        content.setPrefWidth(460);
+        content.setPadding(new Insets(10));
+
+        Label warnLabel = new Label("⚠️ Warning: Taking down this listing will set its status to REMOVED,\n" +
+                "atomically decline all active offers and borrow requests, and notify affected buyers and seller.");
+        warnLabel.setStyle("-fx-text-fill: #c62828; -fx-font-weight: bold; -fx-font-size: 12px;");
+
+        Label errLabel = new Label();
+        errLabel.setStyle("-fx-text-fill: #c62828; -fx-font-weight: bold;");
+        errLabel.setVisible(false);
+
+        Label reasonPrompt = new Label("Mandatory Administrative Reason *:");
+        reasonPrompt.setStyle("-fx-font-weight: bold;");
+
+        TextArea reasonArea = new TextArea();
+        reasonArea.setPromptText("Enter reason for taking down this listing (e.g., prohibited item, counterfeit, seller request)...");
+        reasonArea.setPrefRowCount(3);
+
+        content.getChildren().addAll(warnLabel, errLabel, reasonPrompt, reasonArea);
+        dialog.getDialogPane().setContent(content);
+
+        Button okBtn = (Button) dialog.getDialogPane().lookupButton(ButtonType.OK);
+        okBtn.setText("Confirm Take Down");
+        okBtn.addEventFilter(javafx.event.ActionEvent.ACTION, event -> {
+            String reason = reasonArea.getText();
+            if (reason == null || reason.trim().isEmpty()) {
+                errLabel.setText("A reason is required to take down a listing.");
+                errLabel.setVisible(true);
+                event.consume();
+                return;
+            }
+
+            AdminListingOperationResult res = service.takeDownListing(l.getId(), reason, getEffectiveAdminUsername());
+            if (!res.isSuccess()) {
+                errLabel.setText(res.getMessage());
+                errLabel.setVisible(true);
+                event.consume();
+            } else {
+                new Alert(Alert.AlertType.INFORMATION,
+                        res.getMessage() + "\n" + res.getAffectedOffersCount() + " active offer(s) declined and buyer(s) notified.").showAndWait();
+                showAllListings();
+            }
+        });
+
+        dialog.showAndWait();
+    }
+
+    private void openListingDetailsDialog(Listing l) {
+        Dialog<ButtonType> dialog = new Dialog<>();
+        dialog.setTitle("Listing Details: " + l.getTitle());
+        dialog.setHeaderText("Listing ID: " + l.getId() + " · Status: " + (l.getStatus() != null ? l.getStatus().name() : "LIVE"));
+        dialog.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
+
+        VBox content = new VBox(12);
+        content.setPrefWidth(500);
+        content.setPadding(new Insets(10));
+
+        GridPane grid = new GridPane();
+        grid.setHgap(12);
+        grid.setVgap(8);
+
+        grid.add(new Label("Title:"), 0, 0);
+        Label titleLbl = new Label(l.getTitle());
+        titleLbl.setStyle("-fx-font-weight: bold;");
+        grid.add(titleLbl, 1, 0);
+
+        grid.add(new Label("Seller:"), 0, 1);
+        grid.add(new Label(l.getSellerFullName() + " (@" + l.getSellerUsername() + ")"), 1, 1);
+
+        grid.add(new Label("Category:"), 0, 2);
+        grid.add(new Label(l.getCategory() != null ? l.getCategory().getDisplayName() : "-"), 1, 2);
+
+        grid.add(new Label("Type & Terms:"), 0, 3);
+        grid.add(new Label(l.getPriceDisplay()), 1, 3);
+
+        grid.add(new Label("Condition:"), 0, 4);
+        grid.add(new Label(l.getCondition() != null ? l.getCondition().getDisplayName() : "-"), 1, 4);
+
+        grid.add(new Label("Meetup Point:"), 0, 5);
+        grid.add(new Label(l.getMeetupLocation() != null ? l.getMeetupLocation().getDisplayName() : "-"), 1, 5);
+
+        grid.add(new Label("Posted Date:"), 0, 6);
+        grid.add(new Label(l.getPostedAt() != null ? l.getPostedAt().format(DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm")) : "-"), 1, 6);
+
+        grid.add(new Label("View Count:"), 0, 7);
+        grid.add(new Label(l.getViewCount() + " views"), 1, 7);
+
+        int activeOffers = DummyDataService.getInstance().getAdminListingService().getActiveOffersCount(l.getId());
+        grid.add(new Label("Active Offers:"), 0, 8);
+        grid.add(new Label(activeOffers + " pending/countered offer(s)"), 1, 8);
+
+        if (l.getAdminReason() != null && !l.getAdminReason().trim().isEmpty()) {
+            grid.add(new Label("Admin Reason:"), 0, 9);
+            Label rLbl = new Label(l.getAdminReason());
+            rLbl.setStyle("-fx-text-fill: #c62828; -fx-font-weight: bold;");
+            grid.add(rLbl, 1, 9);
+        }
+
+        Label descHeader = new Label("Description:");
+        descHeader.setStyle("-fx-font-weight: bold;");
+        TextArea descArea = new TextArea(l.getDescription() != null ? l.getDescription() : "No description provided.");
+        descArea.setEditable(false);
+        descArea.setWrapText(true);
+        descArea.setPrefRowCount(3);
+
+        content.getChildren().addAll(grid, descHeader, descArea);
+        dialog.getDialogPane().setContent(content);
+        dialog.showAndWait();
+    }
+
+    private boolean isDealInProgressOrCompleted(ListingStatus status) {
+        if (status == null) return false;
+        return status == ListingStatus.RESERVED ||
+                status == ListingStatus.SOLD ||
+                status == ListingStatus.LENT ||
+                status == ListingStatus.GIVEN;
+    }
+
 
     @FXML
     private void showUsers() {

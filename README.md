@@ -97,6 +97,32 @@ The Seller dashboard does not open without it.
 Business logic lives in `services/SellerLoginService.java` (no JavaFX), tested by
 `SellerLoginServiceTest` (all flows, concurrent logins) and `SessionManagerTest`.
 
+## Manage Offers And Requests (US-S05)
+
+Seller sidebar → **Offers & Requests** (the button shows how many requests are pending).
+Pending offers, borrow requests and claims are grouped by listing, oldest first; the offers
+the seller countered are listed below, waiting for the buyer's answer.
+
+- **Accept** (after a confirmation summary) records an active deal that appears on the buyer's
+  My Deals screen, sets the listing to **Reserved** (Sell, Give Away) or **Lent** (Lend), and
+  **declines every other pending or countered offer** on that listing, notifying those buyers.
+  Acceptance is **atomic**: if two acceptances on one listing happen at the same time, only the
+  first succeeds. A borrow request whose period has already ended cannot be accepted (counter it instead).
+- **Decline** with an optional reason (at most 300 characters), sent to the buyer. The listing stays Live.
+- **Counter** (Sell and Lend only; claims cannot be countered):
+  - price: positive, at most HK$ 1,000,000, rounded to the cent, different from the buyer's offer;
+  - borrow dates: start not in the past (30 s tolerance), end after start, at least **5 seconds**
+    (demo preset "10 s"), not longer than the listing's lending duration, different from the request.
+  The buyer then accepts or declines the counter offer from My Deals.
+- **Chat** opens the private thread with the buyer about that listing.
+- An offer the buyer withdrew or that was already handled cannot be handled again; if the listing
+  is no longer Live, or the buyer's account is no longer active, the offer is declined and the buyer notified.
+
+Every action requires a Seller session (`SessionManager.requireSeller()`) and only works on the
+seller's own listings. Business logic lives in `services/OfferManagementService.java` (no JavaFX),
+tested by `OfferManagementServiceTest` (all flows, integration with the buyer side, concurrency)
+and `OfferManagementModelsTest`.
+
 ### Run from VS Code
 
 1. Install **Extension Pack for Java**

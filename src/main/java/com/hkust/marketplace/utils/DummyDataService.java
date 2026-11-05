@@ -1209,6 +1209,10 @@ public class DummyDataService {
         return new ArrayList<>(reviews);
     }
 
+    public synchronized void clearReviews() {
+        reviews.clear();
+    }
+
     public synchronized List<Review> getReviewsByBuyer(String buyerUsername) {
         if (buyerUsername == null || buyerUsername.trim().isEmpty()) {
             return new ArrayList<>();

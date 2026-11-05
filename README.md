@@ -181,6 +181,45 @@ seller's own listings. Business logic lives in `services/OfferManagementService.
 tested by `OfferManagementServiceTest` (all flows, integration with the buyer side, concurrency)
 and `OfferManagementModelsTest`.
 
+## View Seller Notifications (US-S07)
+
+Seller sidebar → **Notifications** (the button shows how many are unread). The board lists the seller's
+notifications **newest first**, each with its category, timestamp, title and message; **unread** ones are
+highlighted with a **NEW** badge. Without notifications, the screen says "No notifications".
+
+The categories are those of use case 2.7. They are computed from the category each portal stores in the
+notification, so the Buyer and Admin portals' notifications are not changed:
+
+| Category | Notifications |
+|----------|---------------|
+| **Listing Review** | listing approved, rejected or taken down by the admin (the **admin's reason** is shown on the card), listing edited or published by the admin |
+| **Offers And Requests** | new offer, borrow request or claim, offer withdrawn, counter offer answered, chat message from a buyer |
+| **Reviews** | new rating or review, review hidden or flag dismissed by the admin |
+| **Deals** | buyer marked a deal complete, borrowed item returned or auto-returned |
+| **Announcements** | anything else, for example an account change made by the admin |
+
+- **Filter** by category (with counts, e.g. `Offers And Requests (3 · 1 unread)`), show **unread only**, or
+  **search** the title and message. The filter is kept while moving around the portal. **Mark all as read**
+  marks every notification read.
+- **Open** (or click the card) marks the notification read and shows what it is about: a listing on
+  **My Listings**, a pending or countered offer on **Offers & Requests**, or a review on **Reviews & Feedback**,
+  each highlighted. An offer already handled, and a deal, are shown in a details dialog, and a chat opens
+  in the chat view. **Mark as read / unread** changes the state without opening.
+- If the item no longer exists or can no longer be seen (a listing the seller deleted, a review hidden by the
+  admin), the notification is still marked read, its message is shown and the seller is told that the item is
+  no longer available. A notification without a linked item shows its message; for offers, listings and
+  reviews in general, the dialog offers to open the matching screen.
+
+Every action requires a Seller session (`SessionManager.requireSeller()`) and only reads or changes the
+logged-in seller's notifications; a notification only opens an item that belongs to them. Business logic
+lives in `services/SellerNotificationService.java` (no JavaFX), tested by `SellerNotificationServiceTest`
+(all flows, notifications sent by the real Buyer and Admin flows, concurrency) and
+`SellerNotificationModelsTest`.
+
+To try it with the demo data, log in as `admin` and reject `Mini Fridge` (Review Pending Listings) with a
+reason, then log in as `diana` / `password1`: the rejection is on the board with the admin's reason, and
+**Open listing** shows the rejected listing on My Listings.
+
 ## Handle Reviews (US-S09)
 
 Seller sidebar → **Reviews & Feedback**. The screen shows the seller's **average rating** and all the

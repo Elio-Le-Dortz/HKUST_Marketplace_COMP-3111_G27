@@ -7,32 +7,66 @@ import com.hkust.marketplace.models.User;
  * TODO: Replace with proper JWT / session token handling when backend is added.
  */
 public class SessionManager {
+    /** The logged-in user, or {@code null} when nobody is logged in. */
     private static User currentUser;
 
+    /**
+     * Starts a session for the given user, replacing any previous session.
+     *
+     * @param user the authenticated user
+     */
     public static void login(User user) {
         currentUser = user;
     }
 
+    /**
+     * Ends the current session, if any.
+     */
     public static void logout() {
         currentUser = null;
     }
 
+    /**
+     * Returns the logged-in user.
+     *
+     * @return the user of the current session, or {@code null} if nobody is logged in
+     */
     public static User getCurrentUser() {
         return currentUser;
     }
 
+    /**
+     * Tells whether a user is logged in.
+     *
+     * @return {@code true} if a session is active
+     */
     public static boolean isLoggedIn() {
         return currentUser != null;
     }
 
+    /**
+     * Tells whether the logged-in user has the Buyer role.
+     *
+     * @return {@code true} if a Buyer is logged in
+     */
     public static boolean isBuyer() {
         return currentUser != null && currentUser.getRole() == com.hkust.marketplace.models.UserRole.BUYER;
     }
 
+    /**
+     * Tells whether the logged-in user has the Seller role.
+     *
+     * @return {@code true} if a Seller is logged in
+     */
     public static boolean isSeller() {
         return currentUser != null && currentUser.getRole() == com.hkust.marketplace.models.UserRole.SELLER;
     }
 
+    /**
+     * Tells whether the logged-in user has the Admin role.
+     *
+     * @return {@code true} if an Admin is logged in
+     */
     public static boolean isAdmin() {
         return currentUser != null && currentUser.getRole() == com.hkust.marketplace.models.UserRole.ADMIN;
     }
@@ -78,5 +112,42 @@ public class SessionManager {
         if (!currentUser.isActive()) {
             throw new SecurityException("Unauthorized: Buyer account is not active.");
         }
+    }
+
+    /**
+     * Returns the currently authenticated user cast to Seller if logged in as a Seller.
+     *
+     * @return Seller instance or null if not logged in or not a Seller
+     */
+    public static com.hkust.marketplace.models.Seller getCurrentSeller() {
+        if (currentUser instanceof com.hkust.marketplace.models.Seller) {
+            return (com.hkust.marketplace.models.Seller) currentUser;
+        }
+        return null;
+    }
+
+    /**
+     * Enforces that an active Seller session is present (US-S02).
+     * Fulfills the special requirement of use case 2.2 that every Seller-only function
+     * checks the Seller session on the service side, so a buyer or admin session cannot
+     * call it even without the user interface. Because the session holds the stored
+     * account object, a seller deactivated or deleted by the admin after logging in is
+     * refused as well.
+     *
+     * @return the active Seller of the current session
+     * @throws SecurityException if not logged in, not a Seller, or the account is not active
+     */
+    public static com.hkust.marketplace.models.Seller requireSeller() {
+        if (!isLoggedIn()) {
+            throw new SecurityException("Unauthorized: No user is currently logged in.");
+        }
+        com.hkust.marketplace.models.Seller seller = getCurrentSeller();
+        if (!isSeller() || seller == null) {
+            throw new SecurityException("Unauthorized: Access requires a Seller account.");
+        }
+        if (!seller.isActive()) {
+            throw new SecurityException("Unauthorized: Seller account is not active.");
+        }
+        return seller;
     }
 }

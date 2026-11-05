@@ -181,6 +181,39 @@ seller's own listings. Business logic lives in `services/OfferManagementService.
 tested by `OfferManagementServiceTest` (all flows, integration with the buyer side, concurrency)
 and `OfferManagementModelsTest`.
 
+## Handle Reviews (US-S09)
+
+Seller sidebar → **Reviews & Feedback**. The screen shows the seller's **average rating** and all the
+reviews buyers wrote about them, **newest first**, each with the buyer, the listing, the stars (1 to 5),
+the written review, the date, the seller's reply and whether it is flagged. Reviews **hidden by the admin**
+are neither shown nor counted in the average (class diagram rule: hidden reviews are excluded from the
+seller's rating). Without reviews, the screen says "No reviews yet" and the rating "No ratings yet".
+
+- **Reply** opens a dialog to write a reply (at most 500 characters, trimmed). An empty reply is refused and
+  the dialog stays open. The reply is saved under the review (`Review.reply`) and the buyer who wrote the
+  review gets a "Seller Replied to Review" notification that opens the review. **Only one reply** is allowed
+  per review and it cannot be changed: once answered, the button reads **Replied** and explains this.
+- **Flag** opens a dialog to choose a reason: *Offensive language*, *Not related to the deal*, *False or
+  misleading information*, *Shares personal information*, *Spam or advertising* or *Other* (details required),
+  with optional details (at most 300 characters). The review is marked flagged (`Review.flagged`,
+  `Review.flagReason`, e.g. `Offensive language: insults in the second sentence`) and the admin gets a
+  **Flagged Reviews** notification linked to the review. The review **stays visible**, and counted, until the
+  admin hides it or dismisses the flag (US-A08). A flagged review cannot be flagged again: the button reads
+  **Flagged** and explains that it awaits the admin's decision. After the admin dismisses a flag, the review
+  can be flagged again.
+- A flagged review can still be answered, and an answered review can still be flagged.
+- Replies and flags are **atomic**: if two replies (or two flags) on the same review are sent at the same
+  time, only the first one is saved and only one notification is sent.
+- **Cancel** in either dialog changes nothing.
+
+Every action requires a Seller session (`SessionManager.requireSeller()`) and only works on reviews written
+about the logged-in seller. Business logic lives in `services/ReviewHandlingService.java` (no JavaFX),
+tested by `ReviewHandlingServiceTest` (all flows, integration with the buyer's rating and notifications and
+with the admin's moderation, concurrency) and `ReviewHandlingModelsTest`.
+
+To try it with the demo data, log in as `charlie` / `password1`: the review by `alice` already has a reply,
+and the review by `bob` is already flagged in the seeded data.
+
 ### Run from VS Code
 
 1. Install **Extension Pack for Java**

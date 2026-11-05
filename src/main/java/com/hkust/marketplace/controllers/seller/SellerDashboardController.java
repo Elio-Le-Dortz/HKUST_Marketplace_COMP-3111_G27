@@ -4,6 +4,7 @@ import com.hkust.marketplace.models.*;
 import com.hkust.marketplace.services.CreateListingService;
 import com.hkust.marketplace.services.MyListingsService;
 import com.hkust.marketplace.services.OfferManagementService;
+import com.hkust.marketplace.services.ReviewHandlingService;
 import com.hkust.marketplace.utils.DummyDataService;
 import com.hkust.marketplace.utils.SceneManager;
 import com.hkust.marketplace.utils.SessionManager;
@@ -70,6 +71,9 @@ public class SellerDashboardController {
 
     /** Business logic of the My Listings screen (use case 2.4, US-S04). */
     private final MyListingsService myListingsService = new MyListingsService();
+
+    /** Business logic of the Reviews &amp; Feedback screen (use case 2.9, US-S09). */
+    private final ReviewHandlingService reviewService = new ReviewHandlingService();
 
     /** The listing form currently shown (create or edit), {@code null} before it is first opened. */
     private ListingForm listingForm;
@@ -1421,43 +1425,447 @@ public class SellerDashboardController {
         return card;
     }
 
+    // =====================================================================
+    // US-S09: Reviews & Feedback screen (use case 2.9 "Handle Reviews")
+    // =====================================================================
+
+    /** Format of the date of a review. */
+    private static final DateTimeFormatter REVIEW_DATE_FORMAT =
+            DateTimeFormatter.ofPattern("dd MMM yyyy, HH:mm", Locale.ENGLISH);
+    /** Colour of the stars of a rating. */
+    private static final String STAR_COLOR = "#A68137";
+    /** Style of the Seller's reply under a review. */
+    private static final String REPLY_STYLE = "-fx-background-color: #f4f7fb; -fx-background-radius: 8;"
+            + " -fx-border-color: transparent transparent transparent #003974; -fx-border-width: 0 0 0 3;"
+            + " -fx-padding: 8 10;";
+
+    /**
+     * Shows the Seller's average rating and their reviews, newest first, each with the buyer,
+     * the listing, the stars, the written review, the date, the Seller's reply and whether it
+     * is flagged (basic flow, step 2), with its Reply and Flag buttons. Reviews hidden by the
+     * admin are neither shown nor counted. Without reviews, the screen says so (alternative
+     * flow A1). Without an active Seller session, the seller login screen is shown instead.
+     */
     @FXML
     private void showReviews() {
+        List<Review> reviews;
+        SellerRatingInfo rating;
+        try {
+            reviews = reviewService.getMyReviews();
+            rating = reviewService.getMyRating();
+        } catch (SecurityException e) {
+            endSellerSession();
+            return;
+        }
         setActive(btnReviews, "Reviews & Feedback");
         contentPane.getChildren().clear();
 
-        VBox root = new VBox(12);
+        VBox root = new VBox(14);
         root.setPadding(new Insets(4));
-
-        User user = SessionManager.getCurrentUser();
-        List<Review> reviews = DummyDataService.getInstance()
-                .getReviewsForSeller(user != null ? user.getUsername() : "");
-
+        root.getChildren().add(createRatingSummary(rating, reviews));
         if (reviews.isEmpty()) {
-            root.getChildren().add(new Label("No reviews yet."));
+            root.getChildren().add(emptyStateCard("⭐", "No reviews yet",
+                    "Buyers can rate you once a deal is completed. Their reviews will appear here."));
         } else {
-            for (Review r : reviews) {
-                VBox item = new VBox(6);
-                item.getStyleClass().add("card");
-                Label stars = new Label("★".repeat(r.getRating()) + "☆".repeat(5 - r.getRating()));
-                stars.setStyle("-fx-text-fill: #A68137; -fx-font-size: 16px;");
-                Label comment = new Label(r.getComment());
-                comment.setWrapText(true);
-                Label meta = new Label("by @" + r.getBuyerUsername() + " · " + r.getListingTitle());
-                meta.setStyle("-fx-text-fill: #9aa0b0; -fx-font-size: 12px;");
-                HBox actions = new HBox(8);
-                Button reply = new Button("Reply");
-                reply.getStyleClass().addAll("btn-outline", "btn-sm");
-                reply.setOnAction(e -> new Alert(Alert.AlertType.INFORMATION, "Reply sent to buyer (demo).").showAndWait());
-                Button flag = new Button("Flag");
-                flag.getStyleClass().addAll("btn-danger", "btn-sm");
-                flag.setOnAction(e -> new Alert(Alert.AlertType.INFORMATION, "Review flagged for admin (demo).").showAndWait());
-                actions.getChildren().addAll(reply, flag);
-                item.getChildren().addAll(stars, comment, meta, actions);
-                root.getChildren().add(item);
+            for (Review review : reviews) {
+                root.getChildren().add(createReviewCard(review));
             }
         }
-        contentPane.getChildren().add(new ScrollPane(root));
+        ScrollPane scroll = new ScrollPane(root);
+        scroll.setFitToWidth(true);
+        contentPane.getChildren().add(scroll);
+    }
+
+    /**
+     * Builds the card showing the Seller's average rating and how many reviews wait for a
+     * reply or for the admin's decision.
+     *
+     * @param rating  the Seller's average rating over the visible reviews
+     * @param reviews the visible reviews
+     * @return the card
+     */
+    private HBox createRatingSummary(SellerRatingInfo rating, List<Review> reviews) {
+        Label score = new Label(rating.hasRatings()
+                ? String.format(Locale.ENGLISH, "%.1f", rating.getAverageRating()) : "–");
+        score.setStyle("-fx-font-size: 34px; -fx-font-weight: bold; -fx-text-fill: " + STAR_COLOR + ";");
+
+        Label stars = new Label(rating.hasRatings() ? starsOf((int) Math.round(rating.getAverageRating())) : "");
+        stars.setStyle("-fx-text-fill: " + STAR_COLOR + "; -fx-font-size: 16px;");
+        Label count = new Label(rating.hasRatings()
+                ? "Average rating from " + rating.getRatingCount() + (rating.getRatingCount() == 1 ? " review" : " reviews")
+                : SellerRatingInfo.NO_RATINGS_TEXT);
+        count.setStyle("-fx-font-weight: bold; -fx-text-fill: #003974;");
+
+        long toReply = reviews.stream().filter(review -> !review.hasReply()).count();
+        long flagged = reviews.stream().filter(Review::isFlagged).count();
+        StringBuilder status = new StringBuilder();
+        if (!reviews.isEmpty()) {
+            status.append(toReply == 0 ? "You replied to every review" : toReply + " awaiting your reply");
+            if (flagged > 0) {
+                status.append(" · ").append(flagged).append(" flagged, awaiting the admin");
+            }
+            status.append(" · ");
+        }
+        status.append("Reviews hidden by the admin are not shown or counted.");
+        Label details = new Label(status.toString());
+        details.setStyle(MUTED_STYLE);
+        details.setWrapText(true);
+
+        VBox text = new VBox(2, stars, count, details);
+        text.setAlignment(Pos.CENTER_LEFT);
+        HBox.setHgrow(text, Priority.ALWAYS);
+        HBox card = new HBox(16, score, text);
+        card.setId("reviewsSummary");
+        card.getStyleClass().add("card");
+        card.setAlignment(Pos.CENTER_LEFT);
+        card.setPadding(new Insets(14));
+        return card;
+    }
+
+    /**
+     * Builds the card of one review: its stars, date, buyer, listing, written review, the
+     * Seller's reply if any, a note if it is flagged, and the Reply and Flag buttons. A
+     * button stays clickable once used, and then explains why the action is no longer
+     * possible (alternative flows A3 and A4).
+     *
+     * @param review the review
+     * @return the card
+     */
+    private VBox createReviewCard(Review review) {
+        Label stars = new Label(starsOf(review.getRating()));
+        stars.setStyle("-fx-text-fill: " + STAR_COLOR + "; -fx-font-size: 16px;");
+        Label score = new Label(review.getRating() + " / 5");
+        score.setStyle("-fx-font-weight: bold;");
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+        Label date = new Label(review.getDate() != null ? review.getDate().format(REVIEW_DATE_FORMAT) : "");
+        date.setStyle(MUTED_STYLE);
+        HBox header = new HBox(8, stars, score, spacer, date);
+        header.setAlignment(Pos.CENTER_LEFT);
+
+        Label meta = new Label("by " + reviewerName(review) + " · " + reviewListingTitle(review));
+        meta.setStyle(MUTED_STYLE);
+        meta.setWrapText(true);
+
+        Label comment = new Label(review.hasComment() ? review.getComment().trim() : "The buyer did not write a comment.");
+        comment.setWrapText(true);
+        comment.setStyle(review.hasComment() ? "-fx-font-size: 13px;" : MUTED_STYLE + " -fx-font-style: italic;");
+
+        VBox card = new VBox(8, header, meta, comment);
+        card.setId("review-" + review.getId());
+        card.getStyleClass().add("card");
+        card.setPadding(new Insets(14));
+
+        if (review.isFlagged()) {
+            Label flagNote = new Label("⚑ Flagged for the admin"
+                    + (review.getFlagReason() != null && !review.getFlagReason().isBlank()
+                    ? ": " + review.getFlagReason().trim() : "")
+                    + ". The review stays visible until the admin decides.");
+            flagNote.setStyle(NOTE_PENDING_STYLE);
+            flagNote.setWrapText(true);
+            flagNote.setMaxWidth(Double.MAX_VALUE);
+            card.getChildren().add(flagNote);
+        }
+        if (review.hasReply()) {
+            Label replyTitle = new Label("Your reply");
+            replyTitle.setStyle("-fx-font-weight: bold; -fx-font-size: 12px; -fx-text-fill: #003974;");
+            Label replyText = new Label(review.getReply().trim());
+            replyText.setWrapText(true);
+            VBox replyBox = new VBox(3, replyTitle, replyText);
+            replyBox.setStyle(REPLY_STYLE);
+            card.getChildren().add(replyBox);
+        }
+
+        Button reply = smallButton(review.hasReply() ? "Replied" : "Reply",
+                review.hasReply() ? "btn-outline" : "btn-primary", () -> handleReplyToReview(review));
+        reply.setId("reviewReply-" + review.getId());
+        Button flag = smallButton(review.isFlagged() ? "Flagged" : "Flag",
+                review.isFlagged() ? "btn-outline" : "btn-danger", () -> handleFlagReview(review));
+        flag.setId("reviewFlag-" + review.getId());
+        HBox actions = new HBox(8, reply, flag);
+        actions.setAlignment(Pos.CENTER_LEFT);
+        card.getChildren().add(actions);
+        return card;
+    }
+
+    /**
+     * Subflow S1, step "Begin Reply": checks that the review can still be answered, then opens
+     * the reply dialog. If the Seller already replied (alternative flow A3), or the review can
+     * no longer be handled, the Seller is told why and the screen is refreshed.
+     *
+     * @param review the review to answer
+     */
+    private void handleReplyToReview(Review review) {
+        ReviewHandlingResult check;
+        try {
+            check = reviewService.checkCanReply(review.getId());
+        } catch (SecurityException e) {
+            endSellerSession();
+            return;
+        }
+        if (!check.isSuccess()) {
+            showReviewResult(check, null);
+            showReviews();
+            return;
+        }
+        showReplyDialog(check.getReview());
+    }
+
+    /**
+     * Asks the Seller for a reply and posts it (subflow S1). An empty or too long reply keeps
+     * the dialog open with the reason (alternative flow A2); cancelling changes nothing
+     * (alternative flow A5).
+     *
+     * @param review the review to answer
+     */
+    private void showReplyDialog(Review review) {
+        Dialog<ButtonType> dialog = newDialog("Reply to review", "Reply to " + reviewerName(review));
+        ButtonType postType = new ButtonType("Post Reply", ButtonBar.ButtonData.OK_DONE);
+        dialog.getDialogPane().getButtonTypes().addAll(postType, ButtonType.CANCEL);
+
+        TextArea replyArea = new TextArea();
+        replyArea.setId("reviewReplyText");
+        replyArea.setPromptText("Your reply to the buyer");
+        replyArea.setPrefRowCount(4);
+        replyArea.setWrapText(true);
+        Label length = lengthCounter(replyArea, ReviewHandlingService.MAX_REPLY_LENGTH);
+        Label error = dialogErrorLabel();
+        replyArea.textProperty().addListener((observable, oldText, newText) -> hideError(error));
+        Label note = new Label("The buyer will be notified. A review can have only one reply,"
+                + " and it cannot be changed afterwards.");
+        note.setStyle(MUTED_STYLE);
+        note.setWrapText(true);
+
+        VBox content = new VBox(8, reviewQuote(review), note, replyArea, length, error);
+        content.setPrefWidth(460);
+        dialog.getDialogPane().setContent(content);
+        Platform.runLater(replyArea::requestFocus);
+
+        runReviewDialog(dialog, postType, error,
+                Set.of(ReviewHandlingStatus.EMPTY_REPLY, ReviewHandlingStatus.REPLY_TOO_LONG),
+                () -> reviewService.replyToReview(review.getId(), replyArea.getText()), "Reply posted");
+    }
+
+    /**
+     * Subflow S2, step "Begin Flag": checks that the review can still be flagged, then opens
+     * the flag dialog. If the review is already flagged (alternative flow A4), or can no
+     * longer be handled, the Seller is told why and the screen is refreshed.
+     *
+     * @param review the review to flag
+     */
+    private void handleFlagReview(Review review) {
+        ReviewHandlingResult check;
+        try {
+            check = reviewService.checkCanFlag(review.getId());
+        } catch (SecurityException e) {
+            endSellerSession();
+            return;
+        }
+        if (!check.isSuccess()) {
+            showReviewResult(check, null);
+            showReviews();
+            return;
+        }
+        showFlagDialog(check.getReview());
+    }
+
+    /**
+     * Asks the Seller why the review is inappropriate and flags it for the admin (subflow S2).
+     * A missing reason, or "Other" without details, keeps the dialog open with the reason;
+     * cancelling changes nothing (alternative flow A5).
+     *
+     * @param review the review to flag
+     */
+    private void showFlagDialog(Review review) {
+        Dialog<ButtonType> dialog = newDialog("Flag review", "Flag the review of " + reviewerName(review) + "?");
+        ButtonType flagType = new ButtonType("Flag Review", ButtonBar.ButtonData.OK_DONE);
+        dialog.getDialogPane().getButtonTypes().addAll(flagType, ButtonType.CANCEL);
+
+        ToggleGroup reasons = new ToggleGroup();
+        VBox reasonBox = new VBox(6);
+        for (ReviewFlagReason reason : ReviewFlagReason.values()) {
+            RadioButton option = new RadioButton(reason.getDisplayName());
+            option.setId("flagReason-" + reason.name());
+            option.setUserData(reason);
+            option.setToggleGroup(reasons);
+            reasonBox.getChildren().add(option);
+        }
+        TextArea details = new TextArea();
+        details.setId("flagDetailsText");
+        details.setPromptText("Details for the admin (optional)");
+        details.setPrefRowCount(3);
+        details.setWrapText(true);
+        Label length = lengthCounter(details, ReviewHandlingService.MAX_FLAG_DETAILS_LENGTH);
+        Label error = dialogErrorLabel();
+        details.textProperty().addListener((observable, oldText, newText) -> hideError(error));
+        reasons.selectedToggleProperty().addListener((observable, oldToggle, newToggle) -> {
+            hideError(error);
+            boolean required = newToggle != null && ((ReviewFlagReason) newToggle.getUserData()).isDetailsRequired();
+            details.setPromptText(required ? "Explain why this review is inappropriate (required)"
+                    : "Details for the admin (optional)");
+        });
+        Label note = new Label("The admin will be notified and will decide whether to hide the review."
+                + " It stays visible until then.");
+        note.setStyle(MUTED_STYLE);
+        note.setWrapText(true);
+        Label reasonTitle = new Label("Reason:");
+        reasonTitle.setStyle("-fx-font-weight: bold;");
+
+        VBox content = new VBox(8, reviewQuote(review), note, reasonTitle, reasonBox, details, length, error);
+        content.setPrefWidth(460);
+        dialog.getDialogPane().setContent(content);
+
+        runReviewDialog(dialog, flagType, error, Set.of(ReviewHandlingStatus.INVALID_FLAG_REASON),
+                () -> reviewService.flagReview(review.getId(), selectedFlagReason(reasons), details.getText()),
+                "Review flagged");
+    }
+
+    /**
+     * Shows a reply or flag dialog and runs its action when the Seller confirms. While the
+     * input is invalid, the dialog stays open and shows why; any other outcome closes it, is
+     * reported to the Seller, and refreshes the screen.
+     *
+     * @param dialog          the dialog
+     * @param confirmType     the button that runs the action
+     * @param errorLabel      the label showing why the input is invalid
+     * @param invalidStatuses the statuses that mean the input must be corrected
+     * @param attempt         runs the action
+     * @param successTitle    title of the report when the action succeeds
+     */
+    private void runReviewDialog(Dialog<ButtonType> dialog, ButtonType confirmType, Label errorLabel,
+                                 Set<ReviewHandlingStatus> invalidStatuses, Supplier<ReviewHandlingResult> attempt,
+                                 String successTitle) {
+        ReviewHandlingResult[] outcome = new ReviewHandlingResult[1];
+        boolean[] sessionEnded = {false};
+        Button confirmButton = (Button) dialog.getDialogPane().lookupButton(confirmType);
+        confirmButton.addEventFilter(ActionEvent.ACTION, event -> {
+            ReviewHandlingResult result;
+            try {
+                result = attempt.get();
+            } catch (SecurityException e) {
+                sessionEnded[0] = true;
+                return;
+            }
+            if (invalidStatuses.contains(result.getStatus())) {
+                showError(errorLabel, result.getMessage());
+                event.consume();
+                return;
+            }
+            outcome[0] = result;
+        });
+        dialog.showAndWait();
+        if (sessionEnded[0]) {
+            endSellerSession();
+        } else if (outcome[0] != null) {
+            showReviewResult(outcome[0], successTitle);
+            showReviews();
+        }
+    }
+
+    /**
+     * Reports the outcome of an action on a review to the Seller. "Already replied" and
+     * "already flagged" (alternative flows A3 and A4) are information, not errors.
+     *
+     * @param result       the outcome
+     * @param successTitle title used when the action succeeded
+     */
+    private void showReviewResult(ReviewHandlingResult result, String successTitle) {
+        ReviewHandlingStatus status = result.getStatus();
+        boolean information = result.isSuccess() || status == ReviewHandlingStatus.ALREADY_REPLIED
+                || status == ReviewHandlingStatus.ALREADY_FLAGGED;
+        Alert alert = new Alert(information ? Alert.AlertType.INFORMATION : Alert.AlertType.WARNING,
+                result.getMessage(), ButtonType.OK);
+        alert.initOwner(SceneManager.getPrimaryStage());
+        alert.setTitle("Reviews & Feedback");
+        alert.setHeaderText(switch (status) {
+            case SUCCESS -> successTitle;
+            case ALREADY_REPLIED -> "Already replied";
+            case ALREADY_FLAGGED -> "Awaiting the admin's decision";
+            default -> "This review could not be handled";
+        });
+        alert.showAndWait();
+    }
+
+    /**
+     * Builds the reminder of a review shown at the top of the reply and flag dialogs.
+     *
+     * @param review the review
+     * @return the reminder
+     */
+    private static VBox reviewQuote(Review review) {
+        Label stars = new Label(starsOf(review.getRating()) + "  " + reviewListingTitle(review));
+        stars.setStyle("-fx-text-fill: " + STAR_COLOR + "; -fx-font-weight: bold;");
+        Label comment = new Label(review.hasComment() ? "“" + review.getComment().trim() + "”"
+                : "The buyer did not write a comment.");
+        comment.setWrapText(true);
+        comment.setStyle(MUTED_STYLE);
+        VBox quote = new VBox(4, stars, comment);
+        quote.setStyle(REPLY_STYLE);
+        return quote;
+    }
+
+    /**
+     * Creates a label counting the characters of a text area against its maximum, which
+     * turns red when the text is too long.
+     *
+     * @param input     the text area
+     * @param maxLength the maximum number of characters
+     * @return the counter label
+     */
+    private static Label lengthCounter(TextInputControl input, int maxLength) {
+        Label counter = new Label("0 / " + maxLength);
+        counter.setStyle(MUTED_STYLE);
+        input.textProperty().addListener((observable, oldText, newText) -> {
+            int count = ReviewHandlingService.lengthOf(newText);
+            counter.setText(count + " / " + maxLength);
+            counter.setStyle(count > maxLength ? ERROR_STYLE : MUTED_STYLE);
+        });
+        return counter;
+    }
+
+    /**
+     * Returns the flag reason chosen in the flag dialog.
+     *
+     * @param reasons the group of reason buttons
+     * @return the chosen reason, or {@code null} if none is chosen
+     */
+    private static ReviewFlagReason selectedFlagReason(ToggleGroup reasons) {
+        Toggle selected = reasons.getSelectedToggle();
+        return selected != null ? (ReviewFlagReason) selected.getUserData() : null;
+    }
+
+    /**
+     * Draws a star rating, for example {@code ★★★★☆} for 4.
+     *
+     * @param rating the rating, from 1 to 5; values outside are clamped
+     * @return five stars, filled up to the rating
+     */
+    private static String starsOf(int rating) {
+        int filled = Math.max(0, Math.min(5, rating));
+        return "★".repeat(filled) + "☆".repeat(5 - filled);
+    }
+
+    /**
+     * Returns the buyer who wrote a review as shown to the Seller, for example
+     * {@code Alice Chan (@alice)}.
+     *
+     * @param review the review
+     * @return the buyer's name and username
+     */
+    private static String reviewerName(Review review) {
+        User buyer = DummyDataService.getInstance().findUser(review.getBuyerUsername());
+        return (buyer != null ? buyer.getDisplayName() + " " : "") + "(@" + review.getBuyerUsername() + ")";
+    }
+
+    /**
+     * Returns the title of the listing a review is about.
+     *
+     * @param review the review
+     * @return the listing title, or {@code Deal} if it is unknown
+     */
+    private static String reviewListingTitle(Review review) {
+        return review.getListingTitle() != null && !review.getListingTitle().isBlank()
+                ? review.getListingTitle().trim() : "Deal";
     }
 
     @FXML

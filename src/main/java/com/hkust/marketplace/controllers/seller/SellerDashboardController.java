@@ -1,6 +1,7 @@
 package com.hkust.marketplace.controllers.seller;
 
 import com.hkust.marketplace.models.*;
+import com.hkust.marketplace.services.CreateListingService;
 import com.hkust.marketplace.services.OfferManagementService;
 import com.hkust.marketplace.utils.DummyDataService;
 import com.hkust.marketplace.utils.SceneManager;
@@ -9,16 +10,23 @@ import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
+import javafx.geometry.Bounds;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.scene.Node;
 import javafx.scene.chart.BarChart;
 import javafx.scene.chart.CategoryAxis;
 import javafx.scene.chart.NumberAxis;
 import javafx.scene.chart.PieChart;
 import javafx.scene.chart.XYChart;
 import javafx.scene.control.*;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
 import javafx.scene.layout.*;
+import javafx.stage.FileChooser;
 
+import java.io.File;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -26,6 +34,7 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.EnumMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -49,6 +58,15 @@ public class SellerDashboardController {
 
     /** Business logic of the Offers &amp; Requests screen (use case 2.5, US-S05). */
     private final OfferManagementService offerService = new OfferManagementService();
+
+    /** Business logic of the Create Listing screen (use case 2.3, US-S03). */
+    private final CreateListingService createListingService = new CreateListingService();
+
+    /** The Create Listing form currently shown, {@code null} before it is first opened. */
+    private CreateListingForm createListingForm;
+
+    /** Folder the photo chooser opens in: the folder of the last photos chosen. */
+    private File lastPhotoFolder;
 
     /**
      * Opens the dashboard on the My Listings screen. Without an active Seller session
@@ -148,110 +166,727 @@ public class SellerDashboardController {
         return row;
     }
 
+    // =====================================================================
+    // US-S03: Create Listing screen (use case 2.3 "Create Listing")
+    // =====================================================================
+
+    /** Style class of a field that failed validation (defined in {@code styles.css}). */
+    private static final String FIELD_ERROR_CLASS = "field-error";
+    /** Style of a listing type button. */
+    private static final String TYPE_BUTTON_STYLE = "-fx-background-color: white; -fx-background-radius: 10;"
+            + " -fx-border-color: #d6dae3; -fx-border-width: 1.5; -fx-border-radius: 10; -fx-padding: 10 14;"
+            + " -fx-font-size: 13px; -fx-text-fill: #1e293b; -fx-text-alignment: center; -fx-cursor: hand;";
+    /** Style of the chosen listing type button. */
+    private static final String TYPE_BUTTON_SELECTED_STYLE = "-fx-background-color: #fdf6e7; -fx-background-radius: 10;"
+            + " -fx-border-color: #A68137; -fx-border-width: 2; -fx-border-radius: 10; -fx-padding: 10 14;"
+            + " -fx-font-size: 13px; -fx-font-weight: bold; -fx-text-fill: #003974; -fx-text-alignment: center;";
+    /** Style of the photo area. */
+    private static final String PHOTO_BOX_STYLE = "-fx-background-color: #f8fafc; -fx-background-radius: 8;"
+            + " -fx-border-color: #cbd5e1; -fx-border-style: dashed; -fx-border-radius: 8; -fx-padding: 12;";
+    /** Style of the photo area when the photos are invalid. */
+    private static final String PHOTO_BOX_ERROR_STYLE = "-fx-background-color: #fff5f5; -fx-background-radius: 8;"
+            + " -fx-border-color: #c62828; -fx-border-style: dashed; -fx-border-radius: 8; -fx-padding: 12;";
+    /** Style of the label of a form field. */
+    private static final String FIELD_LABEL_STYLE = "-fx-font-weight: bold; -fx-text-fill: #1e293b;";
+    /** Size, in pixels, of a photo thumbnail. */
+    private static final double THUMBNAIL_SIZE = 104;
+
+    /**
+     * Shows the Create Listing form (use case 2.3, US-S03). The Seller first chooses the
+     * listing type (step 2); the form of that type then appears (step 3). Without an active
+     * Seller session, the seller login screen is shown instead.
+     */
     @FXML
     private void showCreateListing() {
+        Seller seller;
+        try {
+            seller = SessionManager.requireSeller();
+        } catch (SecurityException e) {
+            endSellerSession();
+            return;
+        }
         setActive(btnCreate, "Create New Listing");
         contentPane.getChildren().clear();
+        createListingForm = new CreateListingForm(seller);
+        contentPane.getChildren().add(createListingForm.getView());
+    }
 
-        VBox form = new VBox(12);
-        form.setMaxWidth(520);
-        form.getStyleClass().add("card");
-        form.setPadding(new Insets(20));
+    /**
+     * The Create Listing form: its fields, the photos chosen so far, and the display of the
+     * errors of each field. The rules are checked by {@link CreateListingService}; this class
+     * only reads the form, shows the errors and lets the Seller choose the photos.
+     */
+    private final class CreateListingForm {
 
-        Label title = new Label("Post a new item");
-        title.getStyleClass().add("section-title");
+        /** The Seller who posts the listing. */
+        private final Seller seller;
+        /** The three listing type buttons (basic flow, step 2). */
+        private final ToggleGroup typeGroup = new ToggleGroup();
+        /** Item name input. */
+        private final TextField titleField = new TextField();
+        /** Description input. */
+        private final TextArea descriptionArea = new TextArea();
+        /** Category choice. */
+        private final ComboBox<Category> categoryBox = new ComboBox<>(FXCollections.observableArrayList(Category.values()));
+        /** Condition choice. */
+        private final ComboBox<Condition> conditionBox = new ComboBox<>(FXCollections.observableArrayList(Condition.values()));
+        /** Price input (Sell listings). */
+        private final TextField priceField = new TextField();
+        /** Number of lending units (Lend listings). */
+        private final TextField lendingAmountField = new TextField();
+        /** Unit of the lending duration (Lend listings). */
+        private final ComboBox<LendingDurationUnit> lendingUnitBox =
+                new ComboBox<>(FXCollections.observableArrayList(LendingDurationUnit.values()));
+        /** Meet-up location choice. */
+        private final ComboBox<MeetupLocation> meetupBox =
+                new ComboBox<>(FXCollections.observableArrayList(MeetupLocation.values()));
+        /** The photos chosen so far, as absolute paths, the cover first. */
+        private final List<Path> photos = new ArrayList<>();
+        /** Thumbnails of the chosen photos. */
+        private final FlowPane photoPane = new FlowPane(10, 10);
+        /** Number of photos chosen, out of 6. */
+        private final Label photoCount = new Label();
+        /** Button that opens the photo chooser. */
+        private final Button addPhotosButton = new Button("📷  Add photos…");
+        /** Area holding the photo button and the thumbnails. */
+        private final VBox photoBox = new VBox(10);
+        /** Error label of each field. */
+        private final Map<ListingField, Label> errorLabels = new EnumMap<>(ListingField.class);
+        /** Inputs of each field, highlighted when the field is invalid. */
+        private final Map<ListingField, List<Control>> inputs = new EnumMap<>(ListingField.class);
+        /** Summary of the errors, next to the submit button. */
+        private final Label formError = dialogErrorLabel();
+        /** Button that submits the listing (step 7). */
+        private final Button submitButton = new Button("Submit for Review");
+        /** Fields of the chosen type, hidden until a type is chosen. */
+        private final VBox detailsCard = new VBox(16);
+        /** Price field, shown for a Sell listing. */
+        private final VBox priceSection;
+        /** Lending duration field, shown for a Lend listing. */
+        private final VBox lendingSection;
+        /** Explanation shown for a Give Away listing. */
+        private final Label giveawayNote = new Label();
+        /** Content of the screen. */
+        private final VBox page = new VBox(16);
+        /** Scroll pane holding the screen. */
+        private final ScrollPane scroll = new ScrollPane();
 
-        ComboBox<String> typeCombo = new ComboBox<>(FXCollections.observableArrayList("Sell", "Lend", "Give Away"));
-        typeCombo.setPromptText("Listing type *");
-        typeCombo.setMaxWidth(Double.MAX_VALUE);
+        /**
+         * Builds the form for a Seller.
+         *
+         * @param seller the logged-in Seller
+         */
+        CreateListingForm(Seller seller) {
+            this.seller = seller;
+            page.setPadding(new Insets(4));
+            page.setMaxWidth(720);
 
-        TextField nameField = new TextField();
-        nameField.setPromptText("Item name *");
-        ComboBox<String> catCombo = new ComboBox<>(FXCollections.observableArrayList(DummyDataService.CATEGORIES));
-        catCombo.setPromptText("Category *");
-        catCombo.setMaxWidth(Double.MAX_VALUE);
-        ComboBox<String> condCombo = new ComboBox<>(FXCollections.observableArrayList(DummyDataService.CONDITIONS));
-        condCombo.setPromptText("Condition *");
-        condCombo.setMaxWidth(Double.MAX_VALUE);
-        TextArea descArea = new TextArea();
-        descArea.setPromptText("Description");
-        descArea.setPrefRowCount(3);
+            titleField.setPromptText("For example: IKEA desk lamp");
+            descriptionArea.setPromptText("Describe the item: brand, size, what is included, any defects…");
+            descriptionArea.setPrefRowCount(4);
+            descriptionArea.setWrapText(true);
+            categoryBox.setPromptText("Choose a category");
+            conditionBox.setPromptText("Choose the condition");
+            meetupBox.setPromptText("Choose a meet-up location");
+            priceField.setPromptText("For example 180 or 1,200.50");
+            lendingAmountField.setPromptText("For example 7");
+            lendingUnitBox.setValue(LendingDurationUnit.DAYS);
+            for (ComboBox<?> box : List.of(categoryBox, conditionBox, meetupBox)) {
+                box.setMaxWidth(Double.MAX_VALUE);
+            }
+            setIds();
 
-        TextField priceField = new TextField();
-        priceField.setPromptText("Price (HK$) – required for Sell");
-        TextField daysField = new TextField();
-        daysField.setPromptText("Lending duration (days) – required for Lend");
+            priceSection = buildPriceSection();
+            lendingSection = buildLendingSection();
+            giveawayNote.setText("🎁  Give-away items are free. The first buyer to claim the item sends you a"
+                    + " request, which you accept from Offers & Requests.");
+            giveawayNote.setWrapText(true);
+            giveawayNote.setStyle("-fx-background-color: #ecfdf5; -fx-background-radius: 8; -fx-padding: 10 12;"
+                    + " -fx-text-fill: #065f46; -fx-font-size: 13px;");
 
-        ComboBox<String> meetupCombo = new ComboBox<>(FXCollections.observableArrayList(DummyDataService.HKUST_LOCATIONS));
-        meetupCombo.setPromptText("Meet-up location *");
-        meetupCombo.setMaxWidth(Double.MAX_VALUE);
+            page.getChildren().addAll(buildTypeCard(), buildDetailsCard());
+            setShown(detailsCard, false);
+            preselectMeetup();
+            clearErrorsOnEdit();
+            refreshPhotos();
 
-        Label photoNote = new Label("📷 Photos: up to 6 (UI placeholder – file chooser not wired in demo)");
-        photoNote.setStyle("-fx-text-fill: #9aa0b0; -fx-font-size: 12px;");
+            scroll.setContent(page);
+            scroll.setFitToWidth(true);
+        }
 
-        Button submitBtn = new Button("Submit for Review");
-        submitBtn.getStyleClass().add("btn-gold");
-        submitBtn.setOnAction(e -> {
-            if (typeCombo.getValue() == null || nameField.getText().isBlank() ||
-                    catCombo.getValue() == null || condCombo.getValue() == null ||
-                    meetupCombo.getValue() == null) {
-                new Alert(Alert.AlertType.WARNING, "Please fill all required fields.").showAndWait();
+        /**
+         * Returns the node showing the form.
+         *
+         * @return the scroll pane holding the form
+         */
+        Node getView() {
+            return scroll;
+        }
+
+        /**
+         * Builds the card where the Seller chooses the listing type (basic flow, step 2).
+         *
+         * @return the card
+         */
+        private VBox buildTypeCard() {
+            Label heading = new Label("What do you want to do with your item?");
+            heading.getStyleClass().add("section-title");
+            HBox buttons = new HBox(12,
+                    typeButton(ListingType.SELL, "🏷️", "Sell", "Set a price"),
+                    typeButton(ListingType.LEND, "🤝", "Lend", "Lend it for a while"),
+                    typeButton(ListingType.GIVEAWAY, "🎁", "Give Away", "Free for another student"));
+            Label error = errorLabelFor(ListingField.TYPE);
+            typeGroup.selectedToggleProperty().addListener((observable, oldToggle, newToggle) -> {
+                if (newToggle != null) {
+                    applyType((ListingType) newToggle.getUserData());
+                }
+            });
+            VBox card = new VBox(12, heading, buttons, error);
+            card.getStyleClass().add("card");
+            card.setPadding(new Insets(20));
+            return card;
+        }
+
+        /**
+         * Builds a listing type button. Clicking the chosen type again keeps it chosen.
+         *
+         * @param type the listing type
+         * @param icon emoji shown before the name
+         * @param name name of the type
+         * @param hint short explanation shown under the name
+         * @return the button
+         */
+        private ToggleButton typeButton(ListingType type, String icon, String name, String hint) {
+            ToggleButton button = new ToggleButton(icon + "  " + name + "\n" + hint) {
+                @Override
+                public void fire() {
+                    if (!isSelected()) {
+                        super.fire();
+                    }
+                }
+            };
+            button.setId("listingType" + type.name());
+            button.setUserData(type);
+            button.setToggleGroup(typeGroup);
+            button.setMaxWidth(Double.MAX_VALUE);
+            button.setPrefHeight(64);
+            HBox.setHgrow(button, Priority.ALWAYS);
+            button.setStyle(TYPE_BUTTON_STYLE);
+            button.selectedProperty().addListener((observable, wasSelected, selected) ->
+                    button.setStyle(selected ? TYPE_BUTTON_SELECTED_STYLE : TYPE_BUTTON_STYLE));
+            return button;
+        }
+
+        /**
+         * Builds the card with the fields of the chosen type and the submit and cancel buttons.
+         *
+         * @return the card
+         */
+        private VBox buildDetailsCard() {
+            Label heading = new Label("Item details");
+            heading.getStyleClass().add("section-title");
+            Label required = new Label("Fields marked * are required.");
+            required.setStyle(MUTED_STYLE);
+
+            VBox category = field("Category *", ListingField.CATEGORY, categoryBox, null, categoryBox);
+            VBox condition = field("Condition *", ListingField.CONDITION, conditionBox, null, conditionBox);
+            HBox.setHgrow(category, Priority.ALWAYS);
+            HBox.setHgrow(condition, Priority.ALWAYS);
+            category.setMaxWidth(Double.MAX_VALUE);
+            condition.setMaxWidth(Double.MAX_VALUE);
+
+            submitButton.getStyleClass().add("btn-gold");
+            submitButton.setOnAction(e -> submit());
+            Button cancelButton = new Button("Cancel");
+            cancelButton.setId("listingCancelButton");
+            cancelButton.getStyleClass().add("btn-outline");
+            cancelButton.setOnAction(e -> cancel());
+            HBox actions = new HBox(10, submitButton, cancelButton);
+            actions.setAlignment(Pos.CENTER_LEFT);
+
+            detailsCard.getChildren().addAll(new VBox(4, heading, required),
+                    field("Item name *", ListingField.TITLE, titleField,
+                            counter(titleField, CreateListingService.MAX_TITLE_LENGTH), titleField),
+                    field("Description *", ListingField.DESCRIPTION, descriptionArea,
+                            counter(descriptionArea, CreateListingService.MAX_DESCRIPTION_LENGTH), descriptionArea),
+                    new HBox(12, category, condition),
+                    priceSection, lendingSection, giveawayNote,
+                    field("Meet-up location *", ListingField.MEETUP_LOCATION, meetupBox,
+                            meetupHint(), meetupBox),
+                    buildPhotoSection(),
+                    formError, actions);
+            detailsCard.getStyleClass().add("card");
+            detailsCard.setPadding(new Insets(20));
+            return detailsCard;
+        }
+
+        /**
+         * Builds the price field of a Sell listing (step 5.1).
+         *
+         * @return the price field
+         */
+        private VBox buildPriceSection() {
+            Label currency = new Label("HK$");
+            currency.setStyle(FIELD_LABEL_STYLE);
+            priceField.setPrefWidth(200);
+            HBox row = new HBox(8, currency, priceField);
+            row.setAlignment(Pos.CENTER_LEFT);
+            return field("Price *", ListingField.PRICE, row,
+                    "More than HK$ 0 and at most HK$ 1,000,000. Buyers can offer a different price.", priceField);
+        }
+
+        /**
+         * Builds the lending duration field of a Lend listing (step 6.1), with presets; the
+         * 10 second preset makes a loan and its auto-return easy to demonstrate.
+         *
+         * @return the lending duration field
+         */
+        private VBox buildLendingSection() {
+            lendingAmountField.setPrefWidth(120);
+            HBox row = new HBox(8, lendingAmountField, lendingUnitBox,
+                    lendingPreset("10 s (Demo)", 10, LendingDurationUnit.SECONDS),
+                    lendingPreset("1 Day", 1, LendingDurationUnit.DAYS),
+                    lendingPreset("1 Week", 1, LendingDurationUnit.WEEKS),
+                    lendingPreset("30 Days", 30, LendingDurationUnit.DAYS));
+            row.setAlignment(Pos.CENTER_LEFT);
+            return field("Lending duration *", ListingField.LENDING_DURATION, row,
+                    "From 5 seconds to 365 days: buyers can ask to borrow the item for up to this long.",
+                    lendingAmountField, lendingUnitBox);
+        }
+
+        /**
+         * Builds a button that fills in a lending duration.
+         *
+         * @param text   text of the button
+         * @param amount number of units
+         * @param unit   unit
+         * @return the button
+         */
+        private Button lendingPreset(String text, int amount, LendingDurationUnit unit) {
+            return smallButton(text, "btn-outline", () -> {
+                lendingAmountField.setText(String.valueOf(amount));
+                lendingUnitBox.setValue(unit);
+            });
+        }
+
+        /**
+         * Builds the photo area (step 4): the button that opens the photo chooser, the count
+         * and the thumbnails, each of which can be removed.
+         *
+         * @return the photo field
+         */
+        private VBox buildPhotoSection() {
+            addPhotosButton.getStyleClass().add("btn-outline");
+            addPhotosButton.setOnAction(e -> choosePhotos());
+            photoCount.setStyle(MUTED_STYLE);
+            HBox top = new HBox(12, addPhotosButton, photoCount);
+            top.setAlignment(Pos.CENTER_LEFT);
+            photoBox.getChildren().setAll(top, photoPane);
+            photoBox.setStyle(PHOTO_BOX_STYLE);
+            Label label = new Label("Photos * (1 to " + CreateListingService.MAX_PHOTOS + ")");
+            label.setStyle(FIELD_LABEL_STYLE);
+            Label hint = new Label("PNG, JPEG, GIF or BMP, up to 10 MB each. The first photo is the cover.");
+            hint.setStyle(MUTED_STYLE);
+            return new VBox(6, label, photoBox, hint, errorLabelFor(ListingField.PHOTOS));
+        }
+
+        /**
+         * Builds a form field: its label, its content, an optional hint and its error label.
+         *
+         * @param labelText   text of the label
+         * @param field       the validated field
+         * @param content     the node holding the inputs
+         * @param hint        hint shown under the inputs, as a text or a node; {@code null} for none
+         * @param fieldInputs the inputs highlighted when the field is invalid
+         * @return the field
+         */
+        private VBox field(String labelText, ListingField field, Node content, Object hint, Control... fieldInputs) {
+            Label label = new Label(labelText);
+            label.setStyle(FIELD_LABEL_STYLE);
+            VBox box = new VBox(6, label, content);
+            if (hint instanceof Node node) {
+                box.getChildren().add(node);
+            } else if (hint instanceof String text) {
+                Label hintLabel = new Label(text);
+                hintLabel.setStyle(MUTED_STYLE);
+                hintLabel.setWrapText(true);
+                box.getChildren().add(hintLabel);
+            }
+            box.getChildren().add(errorLabelFor(field));
+            inputs.put(field, List.of(fieldInputs));
+            return box;
+        }
+
+        /**
+         * Creates the hidden error label of a field.
+         *
+         * @param field the field
+         * @return the label
+         */
+        private Label errorLabelFor(ListingField field) {
+            Label label = dialogErrorLabel();
+            label.setId("listingError" + field.name());
+            errorLabels.put(field, label);
+            return label;
+        }
+
+        /**
+         * Creates a character counter for a text input, red when the text is too long.
+         *
+         * @param input     the text input
+         * @param maxLength the longest text allowed, in characters
+         * @return the counter
+         */
+        private Label counter(TextInputControl input, int maxLength) {
+            Label label = new Label("0 / " + maxLength);
+            label.setStyle(MUTED_STYLE);
+            input.textProperty().addListener((observable, oldText, newText) -> {
+                String trimmed = newText == null ? "" : newText.trim();
+                int count = trimmed.codePointCount(0, trimmed.length());
+                label.setText(count + " / " + maxLength);
+                label.setStyle(count > maxLength ? ERROR_STYLE : MUTED_STYLE);
+            });
+            return label;
+        }
+
+        /**
+         * Returns the hint of the meet-up field, which says when it was preselected.
+         *
+         * @return the hint, {@code null} if the Seller has no preferred meet-up location
+         */
+        private String meetupHint() {
+            return seller.getPreferredMeetups().isEmpty() ? null : "Preselected from your preferred meet-up locations.";
+        }
+
+        /**
+         * Preselects the Seller's first preferred meet-up location, chosen at registration.
+         */
+        private void preselectMeetup() {
+            List<MeetupLocation> preferred = seller.getPreferredMeetups();
+            if (!preferred.isEmpty()) {
+                meetupBox.setValue(preferred.get(0));
+            }
+        }
+
+        /**
+         * Gives the inputs identifiers, so that they can be found in the scene.
+         */
+        private void setIds() {
+            titleField.setId("listingTitleField");
+            descriptionArea.setId("listingDescriptionArea");
+            categoryBox.setId("listingCategoryBox");
+            conditionBox.setId("listingConditionBox");
+            priceField.setId("listingPriceField");
+            lendingAmountField.setId("listingLendingAmountField");
+            lendingUnitBox.setId("listingLendingUnitBox");
+            meetupBox.setId("listingMeetupBox");
+            addPhotosButton.setId("listingAddPhotosButton");
+            submitButton.setId("listingSubmitButton");
+            formError.setId("listingFormError");
+        }
+
+        /**
+         * Removes the highlight of a field as soon as the Seller changes it.
+         */
+        private void clearErrorsOnEdit() {
+            titleField.textProperty().addListener((o, a, b) -> clearError(ListingField.TITLE));
+            descriptionArea.textProperty().addListener((o, a, b) -> clearError(ListingField.DESCRIPTION));
+            categoryBox.valueProperty().addListener((o, a, b) -> clearError(ListingField.CATEGORY));
+            conditionBox.valueProperty().addListener((o, a, b) -> clearError(ListingField.CONDITION));
+            priceField.textProperty().addListener((o, a, b) -> clearError(ListingField.PRICE));
+            lendingAmountField.textProperty().addListener((o, a, b) -> clearError(ListingField.LENDING_DURATION));
+            lendingUnitBox.valueProperty().addListener((o, a, b) -> clearError(ListingField.LENDING_DURATION));
+            meetupBox.valueProperty().addListener((o, a, b) -> clearError(ListingField.MEETUP_LOCATION));
+        }
+
+        /**
+         * Shows the form of the chosen type (step 3). Changing the type discards the price or
+         * the lending duration that no longer applies (alternative flow A4).
+         *
+         * @param type the chosen listing type
+         */
+        private void applyType(ListingType type) {
+            boolean firstChoice = !detailsCard.isVisible();
+            setShown(detailsCard, true);
+            setShown(priceSection, type == ListingType.SELL);
+            setShown(lendingSection, type == ListingType.LEND);
+            setShown(giveawayNote, type == ListingType.GIVEAWAY);
+            if (type != ListingType.SELL) {
+                priceField.clear();
+                clearError(ListingField.PRICE);
+            }
+            if (type != ListingType.LEND) {
+                lendingAmountField.clear();
+                lendingUnitBox.setValue(LendingDurationUnit.DAYS);
+                clearError(ListingField.LENDING_DURATION);
+            }
+            clearError(ListingField.TYPE);
+            if (firstChoice) {
+                titleField.requestFocus();
+            }
+        }
+
+        /**
+         * Opens the photo chooser (step 4) and adds the chosen files.
+         */
+        private void choosePhotos() {
+            FileChooser chooser = new FileChooser();
+            chooser.setTitle("Choose photos of the item");
+            List<String> patterns = new ArrayList<>();
+            for (String extension : CreateListingService.PHOTO_EXTENSIONS) {
+                patterns.add("*." + extension);
+                patterns.add("*." + extension.toUpperCase(Locale.ROOT));
+            }
+            chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Images (PNG, JPEG, GIF, BMP)", patterns));
+            if (lastPhotoFolder != null && lastPhotoFolder.isDirectory()) {
+                chooser.setInitialDirectory(lastPhotoFolder);
+            }
+            List<File> files = chooser.showOpenMultipleDialog(SceneManager.getPrimaryStage());
+            if (files == null || files.isEmpty()) {
                 return;
             }
-            User user = SessionManager.getCurrentUser();
-            Listing listing = new Listing();
-            listing.setTitle(nameField.getText().trim());
-            listing.setDescription(descArea.getText());
-            listing.setCategory(catCombo.getValue());
-            listing.setCondition(condCombo.getValue());
-            listing.setMeetupLocation(meetupCombo.getValue());
-            listing.setSellerUsername(user.getUsername());
-            listing.setSellerFullName(user.getFullName());
-            listing.setStatus(ListingStatus.PENDING_REVIEW);
+            lastPhotoFolder = files.get(0).getParentFile();
+            addPhotoFiles(files.stream().map(File::toPath).toList());
+        }
 
-            switch (typeCombo.getValue()) {
-                case "Sell" -> {
-                    listing.setType(ListingType.SELL);
-                    try { listing.setPrice(Double.parseDouble(priceField.getText())); }
-                    catch (Exception ex) {
-                        new Alert(Alert.AlertType.WARNING, "Valid price required for Sell listings.").showAndWait();
-                        return;
-                    }
-                }
-                case "Lend" -> {
-                    listing.setType(ListingType.LEND);
-                    try { listing.setLendingDays(Integer.parseInt(daysField.getText())); }
-                    catch (Exception ex) {
-                        new Alert(Alert.AlertType.WARNING, "Valid lending days required.").showAndWait();
-                        return;
-                    }
-                }
-                default -> listing.setType(ListingType.GIVEAWAY);
+        /**
+         * Adds image files to the photos of the form. The files that are not valid images or
+         * that exceed the 6 photo limit are not added, and the Seller is told why
+         * (alternative flow A3).
+         *
+         * @param files the chosen files
+         */
+        void addPhotoFiles(List<Path> files) {
+            PhotoSelectionResult result = CreateListingService.addPhotos(photos, files);
+            photos.clear();
+            photos.addAll(result.getPhotos());
+            refreshPhotos();
+            if (result.hasRejections()) {
+                markInvalid(ListingField.PHOTOS, result.getRejections());
+            } else {
+                clearError(ListingField.PHOTOS);
             }
-            DummyDataService.getInstance().addListing(listing);
-            // Notify admin
-            DummyDataService.getInstance().addNotification(new Notification(
-                    "admin", "New Listing Submitted",
-                    user.getFullName() + " submitted '" + listing.getTitle() + "' for review.", "System"));
-            new Alert(Alert.AlertType.INFORMATION,
-                    "Listing submitted! Status: Pending Review.\nAdmin will review shortly.\n(Demo – in-memory only)").showAndWait();
+        }
+
+        /**
+         * Shows the thumbnails of the chosen photos and their count.
+         */
+        private void refreshPhotos() {
+            photoPane.getChildren().clear();
+            for (int i = 0; i < photos.size(); i++) {
+                photoPane.getChildren().add(photoTile(photos.get(i), i == 0));
+            }
+            if (photos.isEmpty()) {
+                Label none = new Label("No photo yet. Add at least one photo of the item.");
+                none.setStyle("-fx-text-fill: #9aa0b0; -fx-font-size: 12px;");
+                photoPane.getChildren().add(none);
+            }
+            photoCount.setText(photos.size() + " / " + CreateListingService.MAX_PHOTOS + " photos");
+            addPhotosButton.setDisable(photos.size() >= CreateListingService.MAX_PHOTOS);
+        }
+
+        /**
+         * Builds the thumbnail of a photo, with a button that removes it.
+         *
+         * @param photo the image file
+         * @param cover {@code true} for the first photo, shown as the cover of the listing
+         * @return the thumbnail
+         */
+        private StackPane photoTile(Path photo, boolean cover) {
+            ImageView view = new ImageView(new Image(photo.toUri().toString(),
+                    THUMBNAIL_SIZE, THUMBNAIL_SIZE, true, true, true));
+            view.setFitWidth(THUMBNAIL_SIZE);
+            view.setFitHeight(THUMBNAIL_SIZE);
+            view.setPreserveRatio(true);
+            StackPane tile = new StackPane(view);
+            tile.setPrefSize(THUMBNAIL_SIZE + 8, THUMBNAIL_SIZE + 8);
+            tile.setMaxSize(THUMBNAIL_SIZE + 8, THUMBNAIL_SIZE + 8);
+            tile.setStyle("-fx-background-color: white; -fx-background-radius: 8; -fx-border-color: "
+                    + (cover ? "#A68137" : "#e2e8f0") + "; -fx-border-radius: 8; -fx-border-width: " + (cover ? 2 : 1) + ";");
+            Tooltip.install(tile, new Tooltip(String.valueOf(photo.getFileName())));
+
+            Button remove = new Button("✕");
+            remove.setStyle("-fx-background-color: rgba(15,23,42,0.75); -fx-text-fill: white; -fx-font-size: 10px;"
+                    + " -fx-background-radius: 10; -fx-padding: 2 6; -fx-cursor: hand;");
+            remove.setOnAction(e -> {
+                photos.remove(photo);
+                refreshPhotos();
+                clearError(ListingField.PHOTOS);
+            });
+            StackPane.setAlignment(remove, Pos.TOP_RIGHT);
+            StackPane.setMargin(remove, new Insets(4));
+            tile.getChildren().add(remove);
+            if (cover) {
+                Label badge = new Label("Cover");
+                badge.setStyle("-fx-background-color: #A68137; -fx-text-fill: white; -fx-font-size: 10px;"
+                        + " -fx-font-weight: bold; -fx-background-radius: 6; -fx-padding: 1 6;");
+                StackPane.setAlignment(badge, Pos.BOTTOM_LEFT);
+                StackPane.setMargin(badge, new Insets(4));
+                tile.getChildren().add(badge);
+            }
+            return tile;
+        }
+
+        /**
+         * Submits the listing (step 7). On success the Seller is told that it was sent for
+         * review (step 10) and sees the My Listings screen; otherwise every invalid field is
+         * highlighted with its reason and the first one gets the focus.
+         */
+        private void submit() {
+            clearAllErrors();
+            submitButton.setDisable(true);
+            CreateListingResult result;
+            try {
+                result = createListingService.createListing(toRequest());
+            } catch (SecurityException e) {
+                endSellerSession();
+                return;
+            }
+            if (!result.isSuccess()) {
+                submitButton.setDisable(false);
+                result.getErrors().forEach(this::markInvalid);
+                showError(formError, result.getMessage());
+                focus(result.getFirstInvalidField());
+                return;
+            }
+            Alert alert = new Alert(Alert.AlertType.INFORMATION,
+                    result.getMessage() + "\n\nStatus: Pending Review", ButtonType.OK);
+            alert.initOwner(SceneManager.getPrimaryStage());
+            alert.setTitle("Create Listing");
+            alert.setHeaderText("Listing submitted for review");
+            alert.showAndWait();
             showMyListings();
-        });
+        }
 
-        form.getChildren().addAll(title,
-                new Label("Listing Type *"), typeCombo,
-                new Label("Item Name *"), nameField,
-                new Label("Category *"), catCombo,
-                new Label("Condition *"), condCombo,
-                new Label("Description"), descArea,
-                new Label("Price (Sell only)"), priceField,
-                new Label("Lending Days (Lend only)"), daysField,
-                new Label("Meet-up Location *"), meetupCombo,
-                photoNote, submitBtn);
+        /**
+         * Cancels the listing (alternative flow A5): after a confirmation if something was
+         * entered, the My Listings screen is shown and nothing is stored.
+         */
+        private void cancel() {
+            if (hasInput() && !confirm("Cancel listing", "Discard this listing?", "Nothing will be saved.")) {
+                return;
+            }
+            showMyListings();
+        }
 
-        ScrollPane scroll = new ScrollPane(form);
-        scroll.setFitToWidth(true);
-        contentPane.getChildren().add(scroll);
+        /**
+         * Tells whether the Seller has entered something that cancelling would lose.
+         *
+         * @return {@code true} if a text, a choice or a photo was entered
+         */
+        private boolean hasInput() {
+            return !titleField.getText().isBlank() || !descriptionArea.getText().isBlank()
+                    || categoryBox.getValue() != null || conditionBox.getValue() != null
+                    || !priceField.getText().isBlank() || !lendingAmountField.getText().isBlank()
+                    || !photos.isEmpty();
+        }
+
+        /**
+         * Reads the form.
+         *
+         * @return the values entered by the Seller
+         */
+        private CreateListingRequest toRequest() {
+            Toggle chosen = typeGroup.getSelectedToggle();
+            return new CreateListingRequest(chosen == null ? null : (ListingType) chosen.getUserData(),
+                    titleField.getText(), descriptionArea.getText(), categoryBox.getValue(), conditionBox.getValue(),
+                    priceField.getText(), lendingAmountField.getText(), lendingUnitBox.getValue(),
+                    meetupBox.getValue(), photos);
+        }
+
+        /**
+         * Highlights a field and shows its error messages.
+         *
+         * @param field    the invalid field
+         * @param messages its error messages
+         */
+        private void markInvalid(ListingField field, List<String> messages) {
+            for (Control input : inputs.getOrDefault(field, List.of())) {
+                if (!input.getStyleClass().contains(FIELD_ERROR_CLASS)) {
+                    input.getStyleClass().add(FIELD_ERROR_CLASS);
+                }
+            }
+            if (field == ListingField.PHOTOS) {
+                photoBox.setStyle(PHOTO_BOX_ERROR_STYLE);
+            }
+            showError(errorLabels.get(field), String.join("\n", messages));
+        }
+
+        /**
+         * Removes the highlight and the error messages of a field, and the error summary once
+         * no field is invalid any more.
+         *
+         * @param field the field
+         */
+        private void clearError(ListingField field) {
+            for (Control input : inputs.getOrDefault(field, List.of())) {
+                input.getStyleClass().removeAll(FIELD_ERROR_CLASS);
+            }
+            if (field == ListingField.PHOTOS) {
+                photoBox.setStyle(PHOTO_BOX_STYLE);
+            }
+            hideError(errorLabels.get(field));
+            if (errorLabels.values().stream().noneMatch(Node::isVisible)) {
+                hideError(formError);
+            }
+        }
+
+        /**
+         * Removes every highlight and error message.
+         */
+        private void clearAllErrors() {
+            for (ListingField field : ListingField.values()) {
+                clearError(field);
+            }
+        }
+
+        /**
+         * Gives the focus to the first input of a field and scrolls to it.
+         *
+         * @param field the field, {@code null} to do nothing
+         */
+        private void focus(ListingField field) {
+            if (field == null) {
+                return;
+            }
+            List<Control> fieldInputs = inputs.getOrDefault(field, List.of());
+            Control target = field == ListingField.PHOTOS ? addPhotosButton
+                    : fieldInputs.isEmpty() ? null : fieldInputs.get(0);
+            Node anchor = target != null ? target : errorLabels.get(field);
+            if (target != null) {
+                target.requestFocus();
+            }
+            scrollTo(anchor);
+        }
+
+        /**
+         * Scrolls the form so that a node is visible, with its label above it.
+         *
+         * @param node the node
+         */
+        private void scrollTo(Node node) {
+            page.applyCss();
+            page.layout();
+            double contentHeight = page.getBoundsInLocal().getHeight();
+            double viewportHeight = scroll.getViewportBounds().getHeight();
+            if (node == null || contentHeight <= viewportHeight) {
+                return;
+            }
+            Bounds nodeBounds = page.sceneToLocal(node.localToScene(node.getBoundsInLocal()));
+            double target = (nodeBounds.getMinY() - 60) / (contentHeight - viewportHeight);
+            scroll.setVvalue(Math.max(0, Math.min(1, target)));
+        }
+    }
+
+    /**
+     * Shows or hides a node, and frees its space when it is hidden.
+     *
+     * @param node  the node
+     * @param shown {@code true} to show it
+     */
+    private static void setShown(Node node, boolean shown) {
+        node.setVisible(shown);
+        node.setManaged(shown);
     }
 
     @FXML

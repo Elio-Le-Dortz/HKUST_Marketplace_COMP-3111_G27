@@ -14,6 +14,7 @@ import javafx.scene.layout.*;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.stream.Collectors;
 import java.util.Optional;
 
 public class AdminDashboardController {
@@ -375,53 +376,310 @@ public class AdminDashboardController {
         VBox root = new VBox(12);
         root.setPadding(new Insets(4));
 
-        for (User u : DummyDataService.getInstance().getAllUsers()) {
-            if (u.getRole() == UserRole.ADMIN) continue;
+        HBox filterBar = new HBox(10);
+        filterBar.setAlignment(Pos.CENTER_LEFT);
 
-            HBox row = new HBox(12);
-            row.getStyleClass().add("card");
-            row.setAlignment(Pos.CENTER_LEFT);
-            row.setPadding(new Insets(12));
+        TextField searchField = new TextField();
+        searchField.setPromptText("Search username or full name...");
+        searchField.setPrefWidth(240);
 
-            VBox info = new VBox(3);
-            HBox.setHgrow(info, Priority.ALWAYS);
-            Label name = new Label(u.getFullName() + " (@" + u.getUsername() + ")");
-            name.setStyle("-fx-font-weight: bold;");
-            Label role = new Label(u.getRole().name() + (u.isActive() ? " · Active" : " · Deactivated"));
-            role.setStyle("-fx-text-fill: #5a5a7a; -fx-font-size: 12px;");
-            info.getChildren().addAll(name, role);
+        ComboBox<String> roleFilter = new ComboBox<>(FXCollections.observableArrayList("All Roles", "Buyer", "Seller"));
+        roleFilter.getSelectionModel().selectFirst();
 
-            Button edit = new Button("Edit");
-            edit.getStyleClass().addAll("btn-outline", "btn-sm");
-            edit.setOnAction(e -> new Alert(Alert.AlertType.INFORMATION, "Edit user dialog (demo).").showAndWait());
+        ComboBox<String> statusFilter = new ComboBox<>(FXCollections.observableArrayList("All Statuses", "Active", "Deactivated", "Deleted"));
+        statusFilter.getSelectionModel().selectFirst();
 
-            Button toggle = new Button(u.isActive() ? "Deactivate" : "Activate");
-            toggle.getStyleClass().addAll(u.isActive() ? "btn-danger" : "btn-success", "btn-sm");
-            toggle.setOnAction(e -> {
-                u.setActive(!u.isActive());
-                showUsers();
+        Button refreshBtn = new Button("Refresh");
+        refreshBtn.getStyleClass().addAll("btn-outline", "btn-sm");
+
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+
+        Label countLabel = new Label();
+        countLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: #003974; -fx-font-size: 14px;");
+
+        filterBar.getChildren().addAll(searchField, roleFilter, statusFilter, refreshBtn, spacer, countLabel);
+        root.getChildren().add(filterBar);
+
+        VBox userListContainer = new VBox(10);
+        root.getChildren().add(userListContainer);
+
+        Runnable refreshAction = () -> {
+            UserRole selectedRole = null;
+            String roleVal = roleFilter.getValue();
+            if ("Buyer".equalsIgnoreCase(roleVal)) selectedRole = UserRole.BUYER;
+            else if ("Seller".equalsIgnoreCase(roleVal)) selectedRole = UserRole.SELLER;
+
+            AccountStatus selectedStatus = null;
+            String statusVal = statusFilter.getValue();
+            if ("Active".equalsIgnoreCase(statusVal)) selectedStatus = AccountStatus.ACTIVE;
+            else if ("Deactivated".equalsIgnoreCase(statusVal)) selectedStatus = AccountStatus.DEACTIVATED;
+            else if ("Deleted".equalsIgnoreCase(statusVal)) selectedStatus = AccountStatus.DELETED;
+
+            UserManagementFilterCriteria criteria = new UserManagementFilterCriteria(
+                    searchField.getText(), selectedRole, selectedStatus
+            );
+
+            List<User> users = DummyDataService.getInstance().getUserManagementService().getUsers(criteria);
+            countLabel.setText("Users (" + users.size() + ")");
+            renderUsers(userListContainer, users, () -> {
+                List<User> refreshed = DummyDataService.getInstance().getUserManagementService().getUsers(criteria);
+                countLabel.setText("Users (" + refreshed.size() + ")");
+                renderUsers(userListContainer, refreshed, null);
             });
+        };
 
-            Button delete = new Button("Delete");
-            delete.getStyleClass().addAll("btn-danger", "btn-sm");
-            delete.setOnAction(e -> {
-                Alert conf = new Alert(Alert.AlertType.CONFIRMATION,
-                        "Permanently delete user @" + u.getUsername() + "?");
-                conf.showAndWait().ifPresent(r -> {
-                    if (r == ButtonType.OK) {
-                        u.setActive(false);
-                        new Alert(Alert.AlertType.INFORMATION, "User deactivated (demo safety).").showAndWait();
-                        showUsers();
-                    }
-                });
-            });
+        searchField.textProperty().addListener((obs, oldV, newV) -> refreshAction.run());
+        roleFilter.valueProperty().addListener((obs, oldV, newV) -> refreshAction.run());
+        statusFilter.valueProperty().addListener((obs, oldV, newV) -> refreshAction.run());
+        refreshBtn.setOnAction(e -> refreshAction.run());
 
-            row.getChildren().addAll(info, edit, toggle, delete);
-            root.getChildren().add(row);
-        }
+        refreshAction.run();
+
         ScrollPane scroll = new ScrollPane(root);
         scroll.setFitToWidth(true);
         contentPane.getChildren().add(scroll);
+    }
+
+    private void renderUsers(VBox container, List<User> users, Runnable refreshCallback) {
+        container.getChildren().clear();
+
+        if (users.isEmpty()) {
+            VBox emptyBox = new VBox(10);
+            emptyBox.setAlignment(Pos.CENTER);
+            emptyBox.setPadding(new Insets(40, 20, 40, 20));
+            emptyBox.getStyleClass().add("card");
+            Label emptyTitle = new Label("No Users Found");
+            emptyTitle.setStyle("-fx-font-weight: bold; -fx-font-size: 16px; -fx-text-fill: #5a5a7a;");
+            Label emptySub = new Label("No buyer or seller accounts matched the search and filter criteria.");
+            emptySub.setStyle("-fx-text-fill: #9aa0b0; -fx-font-size: 13px;");
+            emptyBox.getChildren().addAll(emptyTitle, emptySub);
+            container.getChildren().add(emptyBox);
+            return;
+        }
+
+        for (User u : users) {
+            container.getChildren().add(createUserRowCard(u, refreshCallback));
+        }
+    }
+
+    private HBox createUserRowCard(User u, Runnable refreshCallback) {
+        HBox row = new HBox(12);
+        row.getStyleClass().add("card");
+        row.setAlignment(Pos.CENTER_LEFT);
+        row.setPadding(new Insets(12, 16, 12, 16));
+
+        VBox info = new VBox(4);
+        HBox.setHgrow(info, Priority.ALWAYS);
+
+        HBox topInfo = new HBox(8);
+        topInfo.setAlignment(Pos.CENTER_LEFT);
+        Label name = new Label(u.getFullName() + " (@" + u.getUsername() + ")");
+        name.setStyle("-fx-font-weight: bold; -fx-font-size: 14px;");
+
+        Label roleBadge = new Label(u.getRole().name());
+        roleBadge.getStyleClass().addAll("badge", u.getRole() == UserRole.SELLER ? "badge-sell" : "badge-lend");
+
+        Label statusBadge = new Label(u.getAccountStatus().name());
+        String statusStyle = switch (u.getAccountStatus()) {
+            case ACTIVE -> "badge-completed";
+            case DEACTIVATED -> "badge-rejected";
+            case DELETED -> "badge-withdrawn";
+        };
+        statusBadge.getStyleClass().addAll("badge", statusStyle);
+        topInfo.getChildren().addAll(name, roleBadge, statusBadge);
+
+        String detailText;
+        if (u instanceof Buyer b) {
+            detailText = "Residence: " + (b.getResidence() != null && !b.getResidence().isEmpty() ? b.getResidence() : "Not specified");
+        } else if (u instanceof Seller s) {
+            detailText = "Meetup: " + (s.getPreferredMeetup() != null && !s.getPreferredMeetup().isEmpty() ? s.getPreferredMeetup() : "Not specified") +
+                    (s.getBio() != null && !s.getBio().isEmpty() ? "  ·  Bio: " + s.getBio() : "");
+        } else {
+            detailText = "";
+        }
+        Label details = new Label(detailText);
+        details.setStyle("-fx-text-fill: #5a5a7a; -fx-font-size: 12px;");
+        info.getChildren().addAll(topInfo, details);
+
+        row.getChildren().add(info);
+
+        if (u.isDeleted()) {
+            Label deletedNotice = new Label("Account Deleted");
+            deletedNotice.setStyle("-fx-text-fill: #9aa0b0; -fx-font-style: italic; -fx-font-size: 12px;");
+            row.getChildren().add(deletedNotice);
+        } else {
+            Button editBtn = new Button("Edit");
+            editBtn.getStyleClass().addAll("btn-outline", "btn-sm");
+            editBtn.setOnAction(e -> handleEditUser(u, refreshCallback));
+
+            boolean isActive = u.isActive();
+            Button toggleBtn = new Button(isActive ? "Deactivate" : "Reactivate");
+            toggleBtn.getStyleClass().addAll(isActive ? "btn-danger" : "btn-success", "btn-sm");
+            toggleBtn.setOnAction(e -> handleToggleStatus(u, refreshCallback));
+
+            Button deleteBtn = new Button("Delete");
+            deleteBtn.getStyleClass().addAll("btn-danger", "btn-sm");
+            deleteBtn.setOnAction(e -> handleDeleteUser(u, refreshCallback));
+
+            row.getChildren().addAll(editBtn, toggleBtn, deleteBtn);
+        }
+
+        return row;
+    }
+
+    private void handleEditUser(User u, Runnable refreshCallback) {
+        Dialog<ButtonType> dialog = new Dialog<>();
+        dialog.setTitle("Edit User Profile");
+        dialog.setHeaderText("Update account details for @" + u.getUsername());
+
+        dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
+
+        GridPane grid = new GridPane();
+        grid.setHgap(10);
+        grid.setVgap(10);
+        grid.setPadding(new Insets(20, 20, 10, 10));
+
+        TextField usernameField = new TextField(u.getUsername());
+        usernameField.setEditable(false);
+        usernameField.setDisable(true);
+
+        TextField nameField = new TextField(u.getFullName());
+
+        grid.add(new Label("Username:"), 0, 0);
+        grid.add(usernameField, 1, 0);
+        grid.add(new Label("Full Name:"), 0, 1);
+        grid.add(nameField, 1, 1);
+
+        TextField residenceField = null;
+        TextField bioField = null;
+        ComboBox<MeetupLocation> meetupCombo = null;
+
+        if (u instanceof Buyer b) {
+            residenceField = new TextField(b.getResidence() != null ? b.getResidence() : "");
+            grid.add(new Label("Residence:"), 0, 2);
+            grid.add(residenceField, 1, 2);
+        } else if (u instanceof Seller s) {
+            bioField = new TextField(s.getBio() != null ? s.getBio() : "");
+            meetupCombo = new ComboBox<>(FXCollections.observableArrayList(MeetupLocation.values()));
+            if (!s.getPreferredMeetups().isEmpty()) {
+                meetupCombo.getSelectionModel().select(s.getPreferredMeetups().get(0));
+            } else {
+                meetupCombo.getSelectionModel().selectFirst();
+            }
+            grid.add(new Label("Bio:"), 0, 2);
+            grid.add(bioField, 1, 2);
+            grid.add(new Label("Meetup Point:"), 0, 3);
+            grid.add(meetupCombo, 1, 3);
+        }
+
+        dialog.getDialogPane().setContent(grid);
+
+        Optional<ButtonType> res = dialog.showAndWait();
+        if (res.isPresent() && res.get() == ButtonType.OK) {
+            String newName = nameField.getText() != null ? nameField.getText().trim() : "";
+            if (newName.isEmpty()) {
+                new Alert(Alert.AlertType.WARNING, "Full name is required to update a user account.").showAndWait();
+                return;
+            }
+
+            UserEditRequest.Builder builder = UserEditRequest.builder()
+                    .targetUsername(u.getUsername())
+                    .adminUsername(getEffectiveAdminUsername())
+                    .newFullName(newName);
+
+            if (residenceField != null) {
+                builder.residence(residenceField.getText().trim());
+            }
+            if (bioField != null) {
+                builder.bio(bioField.getText().trim());
+            }
+            if (meetupCombo != null && meetupCombo.getValue() != null) {
+                builder.preferredMeetups(List.of(meetupCombo.getValue()));
+            }
+
+            UserManagementResult result = DummyDataService.getInstance()
+                    .getUserManagementService().editUser(builder.build());
+
+            if (result.isSuccess()) {
+                new Alert(Alert.AlertType.INFORMATION, result.getMessage()).showAndWait();
+                if (refreshCallback != null) refreshCallback.run();
+            } else {
+                new Alert(Alert.AlertType.ERROR, result.getMessage()).showAndWait();
+            }
+        }
+    }
+
+    private void handleToggleStatus(User u, Runnable refreshCallback) {
+        boolean deactivating = u.isActive();
+        AccountStatus targetStatus = deactivating ? AccountStatus.DEACTIVATED : AccountStatus.ACTIVE;
+        String actionName = deactivating ? "Deactivate" : "Reactivate";
+
+        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION,
+                "Are you sure you want to " + actionName.toLowerCase() + " user @" + u.getUsername() + "?\n\n" +
+                (deactivating ? "The user's active session will be ended immediately, and they will not be able to log in until reactivated."
+                        : "The user's account will be set to Active, allowing them to log in again."));
+        confirm.setTitle(actionName + " User");
+        confirm.setHeaderText(actionName + " @" + u.getUsername());
+
+        confirm.showAndWait().ifPresent(response -> {
+            if (response == ButtonType.OK) {
+                UserManagementResult result = DummyDataService.getInstance()
+                        .getUserManagementService().changeAccountStatus(u.getUsername(), targetStatus, getEffectiveAdminUsername());
+                if (result.isSuccess()) {
+                    new Alert(Alert.AlertType.INFORMATION, result.getMessage()).showAndWait();
+                    if (refreshCallback != null) refreshCallback.run();
+                } else {
+                    new Alert(Alert.AlertType.ERROR, result.getMessage()).showAndWait();
+                }
+            }
+        });
+    }
+
+    private void handleDeleteUser(User u, Runnable refreshCallback) {
+        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
+        confirm.setTitle("Soft-Delete User Account");
+        confirm.setHeaderText("Warning: Soft-delete user @" + u.getUsername() + "?");
+        confirm.setContentText(
+                "This action soft-deletes the user account:\n\n" +
+                "• The user's active session will be terminated immediately.\n" +
+                (u.getRole() == UserRole.SELLER ?
+                "• All pending review and live listings by this seller will be removed.\n• All pending offers on them will be declined.\n" :
+                "• All pending offers submitted by this buyer will be withdrawn.\n") +
+                "• Historical deals, chats, and reviews are preserved for audit.\n" +
+                "• The username '@" + u.getUsername() + "' will stay reserved.\n\n" +
+                "Do you want to proceed?"
+        );
+
+        confirm.showAndWait().ifPresent(response -> {
+            if (response == ButtonType.OK) {
+                UserManagementResult result = DummyDataService.getInstance()
+                        .getUserManagementService().deleteUser(u.getUsername(), getEffectiveAdminUsername());
+
+                if (result.isSuccess()) {
+                    new Alert(Alert.AlertType.INFORMATION,
+                            result.getMessage() + "\n" +
+                            (result.getAffectedListingsCount() > 0 ? "Listings removed: " + result.getAffectedListingsCount() + "\n" : "") +
+                            (result.getAffectedOffersCount() > 0 ? "Offers updated: " + result.getAffectedOffersCount() : "")
+                    ).showAndWait();
+                    if (refreshCallback != null) refreshCallback.run();
+                } else if (result.getStatus() == UserManagementStatus.ACTIVE_DEALS_EXIST) {
+                    String dealIds = result.getActiveDeals().stream()
+                            .map(Deal::getId)
+                            .collect(Collectors.joining(", "));
+                    Alert dealAlert = new Alert(Alert.AlertType.WARNING);
+                    dealAlert.setTitle("Deletion Blocked");
+                    dealAlert.setHeaderText("User Has Active Deals");
+                    dealAlert.setContentText(
+                            result.getMessage() + "\n\nActive Deals: [" + dealIds + "]\n\n" +
+                            "Active transactions must be completed or returned first. Consider deactivating the account instead."
+                    );
+                    dealAlert.showAndWait();
+                } else {
+                    new Alert(Alert.AlertType.ERROR, result.getMessage()).showAndWait();
+                }
+            }
+        });
     }
 
     @FXML

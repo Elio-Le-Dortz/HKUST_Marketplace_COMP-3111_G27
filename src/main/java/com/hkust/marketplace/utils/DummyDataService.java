@@ -359,6 +359,8 @@ public class DummyDataService {
         r1.setListingTitle("Old Chemistry Book");
         r1.setRating(5);
         r1.setComment("Very smooth transaction, book in excellent condition!");
+        r1.setFlagged(true);
+        r1.setFlagReason("Buyer requested off-platform payment method during meetup.");
         reviews.add(r1);
 
         Review r2 = new Review();
@@ -371,18 +373,6 @@ public class DummyDataService {
         r2.setReply("Thanks Alice, enjoy the book!");
         reviews.add(r2);
 
-        Review r3 = new Review();
-        r3.setId("R" + reviewIdCounter.getAndIncrement());
-        r3.setSellerUsername("charlie");
-        r3.setBuyerUsername("bob");
-        r3.setListingId(l1.getId());
-        r3.setListingTitle(l1.getTitle());
-        r3.setRating(1);
-        r3.setComment("Showed up 30 minutes late and was uncooperative.");
-        r3.setFlagged(true);
-        r3.setFlagReason("Inappropriate review: buyer missed two previous meetups and left false feedback.");
-        r3.setDate(LocalDateTime.now().minusHours(8));
-        reviews.add(r3);
 
         Report rep1 = new Report("REP" + reportIdCounter.getAndIncrement(), l2.getId(), l2.getTitle(), "alice",
                 "Item description says genuine Apple charger, but serial number is missing.");
@@ -467,8 +457,8 @@ public class DummyDataService {
         notifications.add(nAdminReport);
 
         Notification nAdminFlag = new Notification("admin", "Flagged Review for @charlie",
-                "Seller @charlie flagged review " + r3.getId() + " by @bob: 'Inappropriate review: buyer missed two previous meetups.'",
-                "Flagged Reviews", r3.getId(), "REVIEW");
+                "Seller @charlie flagged review " + r1.getId() + " by @bob: 'Buyer requested off-platform payment method.'",
+                "Flagged Reviews", r1.getId(), "REVIEW");
         nAdminFlag.setId("N" + notifIdCounter.getAndIncrement());
         nAdminFlag.setTimestamp(LocalDateTime.now().minusHours(8));
         nAdminFlag.setRead(false);

@@ -640,13 +640,14 @@ public class CreateListingService {
     }
 
     /**
-     * Creates the photos of a stored listing, numbered from 1 in display order.
+     * Creates the photos of a stored listing, numbered from 1 in display order, as in
+     * {@code L108-P1}. Also used when a listing is edited (use case 2.4, US-S04).
      *
      * @param listingId the identifier of the listing
      * @param files     the valid image files
      * @return the photos, holding the absolute paths of the files
      */
-    private static List<Photo> toPhotos(String listingId, List<Path> files) {
+    public static List<Photo> toPhotos(String listingId, List<Path> files) {
         List<Photo> photos = new ArrayList<>();
         for (int i = 0; i < files.size(); i++) {
             photos.add(new Photo(listingId + PHOTO_ID_SEPARATOR + (i + 1), normalize(files.get(i)).toString()));

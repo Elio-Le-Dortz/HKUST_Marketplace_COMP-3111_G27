@@ -97,6 +97,32 @@ The Seller dashboard does not open without it.
 Business logic lives in `services/SellerLoginService.java` (no JavaFX), tested by
 `SellerLoginServiceTest` (all flows, concurrent logins) and `SessionManagerTest`.
 
+## Create Listing (US-S03)
+
+Seller sidebar → **Create Listing**. The seller first chooses **Sell**, **Lend** or **Give Away**;
+the form of that type then appears. Changing the type discards the price or lending duration that
+no longer applies. Every field is checked at once and each invalid field is highlighted with its reason.
+
+| Field | Rule |
+|-------|------|
+| Item name | required, at most 80 characters (spaces around it are trimmed) |
+| Description | required, at most 1000 characters |
+| Category / Condition / Meet-up location | required, chosen from the predefined lists (the meet-up is preselected with the seller's first preferred location) |
+| Price (Sell only) | required; more than HK$ 0 and at most HK$ 1,000,000, at most 2 decimals. `HK$`, `$`, spaces and thousands separators in groups of 3 are accepted (`HK$ 1,200.50`); `1e3`, `NaN` or `12,50` are refused. A free item should be a Give Away. |
+| Lending duration (Lend only) | required; a whole number of seconds, minutes, hours, days or weeks, from **5 seconds** (the team's demo minimum, preset "10 s (Demo)") to **365 days** |
+| Photos | **1 to 6**, PNG / JPEG / GIF / BMP, at most 10 MB each. A file is accepted only if both its extension and its content are an image (a renamed `.txt` is refused). Rejected and extra files are listed with the reason; the same file cannot be added twice. The first photo is the cover. |
+
+On submission the listing is stored with status **Pending Review** in the logged-in seller's name,
+the admin gets a "Listing Submissions" notification that opens it, and the seller is told it awaits
+review. Buyers only see it once the admin approves it. **Cancel** asks for confirmation if something
+was entered and stores nothing. A photo is stored as the absolute path of the chosen file (not copied).
+
+Submitting requires a Seller session (`SessionManager.requireSeller()`). Business logic lives in
+`services/CreateListingService.java` (no JavaFX); its static validation methods can be reused to
+edit a listing (US-S04) or by the admin's "add listing on behalf of a seller" (US-A07). Tested by
+`CreateListingServiceTest` (all flows, real image files, integration with the admin review and buyer
+offers, concurrency) and `CreateListingModelsTest`.
+
 ## Manage Offers And Requests (US-S05)
 
 Seller sidebar → **Offers & Requests** (the button shows how many requests are pending).

@@ -1,8 +1,13 @@
 package com.hkust.marketplace.utils;
 
 import com.hkust.marketplace.models.*;
+import com.hkust.marketplace.services.SellerLoginService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+
+import java.lang.reflect.Method;
+import java.net.URL;
+import java.net.URLClassLoader;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -113,5 +118,72 @@ class DummyDataServiceTest {
         assertFalse(service.registerUserIfAbsent(new Seller("alice", "Impostor", "hash")));
         assertSame(existingBuyer, service.findUser("alice"));
         assertFalse(service.registerUserIfAbsent(new Seller("admin", "Impostor", "hash")));
+    }
+
+    @Test
+    @DisplayName("Seeded buyers and sellers have valid password hashes upon initialization")
+    void testSeededAccountsHaveValidPasswords() {
+        DummyDataService service = DummyDataService.getInstance();
+        for (String username : new String[]{"alice", "bob", "charlie", "diana"}) {
+            User user = service.findUser(username);
+            assertNotNull(user, "User " + username + " must exist");
+            String stored = user.getPasswordHash();
+            assertNotNull(stored, "User " + username + " password hash must not be null");
+            assertNotEquals("password1", stored);
+            assertTrue(PasswordHasher.verify("password1", stored), "User " + username + " password must verify");
+            assertTrue(PasswordUtil.verifyPassword("password1", stored), "PasswordUtil must verify " + username);
+        }
+        // Verify buyer login succeeds
+        LoginResult buyerLogin = service.loginBuyer("alice", "password1");
+        assertTrue(buyerLogin.isSuccess(), "Seeded buyer alice must be able to log in");
+        assertEquals("alice", buyerLogin.getUser().getUsername());
+
+        // Verify seller authentication succeeds
+        SellerLoginService sellerLoginService = new SellerLoginService(service);
+        LoginResult sellerLogin = sellerLoginService.authenticate("charlie", "password1");
+        assertTrue(sellerLogin.isSuccess(), "Seeded seller charlie must be able to log in");
+        assertEquals("charlie", sellerLogin.getUser().getUsername());
+    }
+
+    @Test
+    @DisplayName("Regression test for Issue #21: DummyDataService in fresh ClassLoader initializes seeded passwords")
+    void testFreshClassLoaderInitialization() throws Exception {
+        URL codeSourceUrl = DummyDataService.class.getProtectionDomain().getCodeSource().getLocation();
+        ClassLoader parent = DummyDataService.class.getClassLoader().getParent();
+
+        try (URLClassLoader isolatedLoader = new URLClassLoader(new URL[]{codeSourceUrl}, parent) {
+            @Override
+            protected Class<?> loadClass(String name, boolean resolve) throws ClassNotFoundException {
+                if (name.startsWith("com.hkust.marketplace.")) {
+                    Class<?> c = findLoadedClass(name);
+                    if (c == null) {
+                        try {
+                            c = findClass(name);
+                        } catch (ClassNotFoundException ignored) {
+                        }
+                    }
+                    if (c != null) {
+                        if (resolve) resolveClass(c);
+                        return c;
+                    }
+                }
+                return super.loadClass(name, resolve);
+            }
+        }) {
+            Class<?> freshClass = isolatedLoader.loadClass("com.hkust.marketplace.utils.DummyDataService");
+            Object freshInstance = freshClass.getMethod("getInstance").invoke(null);
+            Object alice = freshClass.getMethod("findUser", String.class).invoke(freshInstance, "alice");
+            assertNotNull(alice);
+            Method getPasswordHash = alice.getClass().getMethod("getPasswordHash");
+            String hash = (String) getPasswordHash.invoke(alice);
+            assertNotNull(hash, "Password hash must not be null upon initial class load");
+            assertTrue(hash.startsWith("pbkdf2_sha256$"), "Seeded user password hash must be a valid PBKDF2 hash");
+
+            Object charlie = freshClass.getMethod("findUser", String.class).invoke(freshInstance, "charlie");
+            assertNotNull(charlie);
+            String charlieHash = (String) getPasswordHash.invoke(charlie);
+            assertNotNull(charlieHash, "Charlie password hash must not be null upon initial class load");
+            assertTrue(charlieHash.startsWith("pbkdf2_sha256$"));
+        }
     }
 }

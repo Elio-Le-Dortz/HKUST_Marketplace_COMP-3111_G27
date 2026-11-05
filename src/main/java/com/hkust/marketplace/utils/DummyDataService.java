@@ -29,6 +29,13 @@ import java.util.stream.Collectors;
  */
 public class DummyDataService {
 
+    public static final String SEEDED_ADMIN_USERNAME = "admin";
+    public static final String SEEDED_ADMIN_FULLNAME = "HKUST Marketplace Admin";
+    public static final String SEEDED_ADMIN_PASSWORD = "admin123";
+
+    private static final String SEED_ADMIN_HASH = PasswordHasher.hash("admin123");
+    private static final String SEED_USER_HASH = PasswordHasher.hash("password1");
+
     private static final DummyDataService INSTANCE = new DummyDataService();
 
     private final Map<String, User> users = new LinkedHashMap<>();
@@ -96,10 +103,6 @@ public class DummyDataService {
             "New", "Like New", "Used", "For Parts"
     );
 
-    public static final String SEEDED_ADMIN_USERNAME = "admin";
-    public static final String SEEDED_ADMIN_FULLNAME = "HKUST Marketplace Admin";
-    public static final String SEEDED_ADMIN_PASSWORD = "admin123";
-
     private DummyDataService() {
         seedData();
     }
@@ -131,9 +134,6 @@ public class DummyDataService {
         messageIdCounter.set(1);
         seedData();
     }
-
-    private static final String SEED_ADMIN_HASH = PasswordHasher.hash("admin123");
-    private static final String SEED_USER_HASH = PasswordHasher.hash("password1");
 
     private void seedData() {
         // Admin

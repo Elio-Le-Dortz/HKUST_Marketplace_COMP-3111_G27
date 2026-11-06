@@ -153,12 +153,13 @@ public class SellerRegistrationService {
 
     /**
      * Joins rule descriptions into readable English: {@code "a"}, {@code "a and b"}
-     * or {@code "a, b and c"}.
+     * or {@code "a, b and c"}. Also used by {@link SellerProfileService}, so that a weak
+     * password is reported in the same words on the registration and profile screens.
      *
      * @param rules the rule descriptions; must not be empty
      * @return the joined descriptions
      */
-    private static String joinRules(List<String> rules) {
+    static String joinRules(List<String> rules) {
         if (rules.size() == 1) {
             return rules.get(0);
         }

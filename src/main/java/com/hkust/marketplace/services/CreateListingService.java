@@ -232,6 +232,9 @@ public class CreateListingService {
 
         Listing listing = newListing(request, seller);
         synchronized (dataService) {
+            // The name is read again under the lock, which the Seller Profile (US-S06) also takes to
+            // rename the Seller and their listings: a name changed at the same time is never lost.
+            listing.setSellerFullName(seller.getFullName());
             dataService.addListing(listing);
             listing.setPhotos(toPhotos(listing.getId(), request.photos()));
         }

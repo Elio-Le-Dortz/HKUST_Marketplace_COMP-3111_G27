@@ -102,6 +102,7 @@ public class DealService {
         }
 
         offer.setStatus(OfferStatus.WITHDRAWN);
+        dataService.updateOffer(offer);
 
         // Notify Seller (Subflow S1 Step 4)
         String sellerMsg = buyerUsername.trim() + " withdrew their offer on '" + offer.getListingTitle() + "'.";
@@ -176,11 +177,14 @@ public class DealService {
         }
 
         dataService.addDeal(deal);
+        dataService.updateListing(listing);
 
         // Mark offers accepted
         offer.setStatus(OfferStatus.ACCEPTED);
+        dataService.updateOffer(offer);
         if (offer.getCounterOffer() != null) {
             offer.getCounterOffer().setStatus(OfferStatus.ACCEPTED);
+            dataService.updateOffer(offer.getCounterOffer());
         }
 
         // Subflow S2 Step 4: Decline all other pending offers on this listing
@@ -189,6 +193,7 @@ public class DealService {
             if (!Objects.equals(other.getId(), offer.getId()) && other.getStatus() == OfferStatus.PENDING) {
                 other.setStatus(OfferStatus.DECLINED);
                 other.setDeclineReason("Listing was reserved by another accepted offer.");
+                dataService.updateOffer(other);
                 dataService.addNotification(new Notification(
                         other.getBuyerUsername(),
                         "Offer Declined",
@@ -237,8 +242,10 @@ public class DealService {
         }
 
         offer.setStatus(OfferStatus.DECLINED);
+        dataService.updateOffer(offer);
         if (offer.getCounterOffer() != null) {
             offer.getCounterOffer().setStatus(OfferStatus.DECLINED);
+            dataService.updateOffer(offer.getCounterOffer());
         }
 
         // Subflow S3 Step 4: Notify seller
@@ -287,11 +294,13 @@ public class DealService {
 
         deal.setStatus(DealStatus.RETURNED);
         deal.setClosedDate(LocalDateTime.now());
+        dataService.updateDeal(deal);
 
         // Update listing status back to Live (Subflow S4 Step 3)
         Listing listing = dataService.findListing(deal.getListingId());
         if (listing != null) {
             listing.setStatus(ListingStatus.LIVE);
+            dataService.updateListing(listing);
         }
 
         // Subflow S4 Step 4: Notify seller
@@ -336,6 +345,7 @@ public class DealService {
 
         deal.setStatus(DealStatus.COMPLETED);
         deal.setClosedDate(LocalDateTime.now());
+        dataService.updateDeal(deal);
 
         // Subflow S5 Step 3: Update listing status
         Listing listing = dataService.findListing(deal.getListingId());
@@ -345,6 +355,7 @@ public class DealService {
             } else {
                 listing.setStatus(ListingStatus.SOLD);
             }
+            dataService.updateListing(listing);
         }
 
         // Subflow S5 Step 4: Notify seller
@@ -379,10 +390,12 @@ public class DealService {
 
                 deal.setStatus(DealStatus.RETURNED);
                 deal.setClosedDate(now);
+                dataService.updateDeal(deal);
 
                 Listing listing = dataService.findListing(deal.getListingId());
                 if (listing != null) {
                     listing.setStatus(ListingStatus.LIVE);
+                    dataService.updateListing(listing);
                 }
 
                 // Step 2: Notify seller

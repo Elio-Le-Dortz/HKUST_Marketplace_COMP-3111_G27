@@ -315,6 +315,7 @@ public class AdminNotificationService {
 
         // Subflow A3 Step 3: Set status to Resolved
         report.setStatus(ReportStatus.RESOLVED);
+        dataService.updateReport(report);
 
         // Subflow A3 Step 3: Notify buyer who filed it
         if (report.getBuyerUsername() != null && !report.getBuyerUsername().trim().isEmpty()) {

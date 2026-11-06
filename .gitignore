@@ -9,3 +9,11 @@ agent.md
 AGENTS.md
 GEMINI.md
 *.zip
+
+# Local SQLite database files
+data/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+

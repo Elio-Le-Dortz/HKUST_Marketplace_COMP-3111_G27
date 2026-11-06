@@ -6,6 +6,7 @@ import com.hkust.marketplace.services.MyListingsService;
 import com.hkust.marketplace.services.OfferManagementService;
 import com.hkust.marketplace.services.ReviewHandlingService;
 import com.hkust.marketplace.services.SellerNotificationService;
+import com.hkust.marketplace.services.SellerStatisticsService;
 import com.hkust.marketplace.utils.DummyDataService;
 import com.hkust.marketplace.utils.SceneManager;
 import com.hkust.marketplace.utils.SessionManager;
@@ -29,6 +30,7 @@ import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.layout.*;
 import javafx.stage.FileChooser;
+import javafx.util.StringConverter;
 
 import java.io.File;
 import java.nio.file.Files;
@@ -80,6 +82,9 @@ public class SellerDashboardController {
 
     /** Business logic of the Notifications screen (use case 2.7, US-S07). */
     private final SellerNotificationService notificationService = new SellerNotificationService();
+
+    /** Business logic of the Seller Stats screen (use case 2.8, US-S08). */
+    private final SellerStatisticsService statisticsService = new SellerStatisticsService();
 
     /** The listing form currently shown (create or edit), {@code null} before it is first opened. */
     private ListingForm listingForm;
@@ -1380,70 +1385,481 @@ public class SellerDashboardController {
         node.setManaged(shown);
     }
 
+    // =====================================================================
+    // US-S08: Seller Stats screen (use case 2.8 "View Seller Statistics")
+    // =====================================================================
+
+    /** Colour of the views: metric card, bars and legend (HKUST blue, also set in {@code styles.css}). */
+    private static final String VIEWS_COLOR = "#003974";
+    /** Colour of the offers received: metric card, bars and legend (HKUST gold, also set in {@code styles.css}). */
+    private static final String OFFERS_COLOR = "#A68137";
+    /** Colour of the completed deals metric card. */
+    private static final String DEALS_COLOR = "#2e7d32";
+    /** Colour of each slice of the pie chart, by type of deal. */
+    private static final Map<DealType, String> OUTCOME_COLORS = new EnumMap<>(Map.of(
+            DealType.SALE, "#003974", DealType.LOAN, "#A68137", DealType.GIVEAWAY, "#2e7d32"));
+    /** Style class giving the bars of the statistics chart their colours (defined in {@code styles.css}). */
+    private static final String STATS_CHART_CLASS = "seller-stats-chart";
+    /** Format of the time the statistics were computed. */
+    private static final DateTimeFormatter STATS_TIME_FORMAT = DateTimeFormatter.ofPattern("HH:mm:ss", Locale.ENGLISH);
+    /** Width, in pixels, given to each listing on the bar chart; with many listings, the chart scrolls. */
+    private static final double BAR_GROUP_WIDTH = 90;
+    /** Narrowest bar chart, in pixels. */
+    private static final double MIN_BAR_CHART_WIDTH = 420;
+    /** Height, in pixels, of the charts. */
+    private static final double CHART_HEIGHT = 320;
+    /** Widest bar of the bar chart, in pixels, so that a few listings do not get huge bars. */
+    private static final double MAX_BAR_WIDTH = 46;
+    /** Smallest gap, in pixels, between the groups of bars of two listings. */
+    private static final double MIN_CATEGORY_GAP = 18;
+    /**
+     * Angle, in degrees, of the listing labels under the bar chart: steep enough for the label of
+     * every listing to fit (the chart hides labels that overlap), while staying readable.
+     */
+    private static final double STATS_LABEL_ROTATION = -60;
+    /** Style of the heading of a statistics card. */
+    private static final String STATS_HEADING_STYLE = "-fx-font-size: 15px; -fx-font-weight: bold; -fx-text-fill: #1e293b;";
+
+    /**
+     * Shows the Seller's statistics (use case 2.8, US-S08): the total views of their listings,
+     * the offers received, the completed deals and the average rating (step 3), a bar chart of
+     * the views and offers received for each listing (step 4), a pie chart of the completed
+     * deals by type (step 5), and a breakdown per listing. The values are computed from the
+     * live data each time the screen is opened or refreshed.
+     *
+     * <p>Without listings, the values are zero and a message replaces the charts (alternative
+     * flow A1). Without completed deals, a message replaces the pie chart (alternative flow
+     * A2). Without an active Seller session, the seller login screen is shown instead.</p>
+     */
     @FXML
     private void showStats() {
+        SellerStatistics stats;
+        try {
+            stats = statisticsService.getMyStatistics();
+            // Computing the statistics may auto-return an expired loan, which notifies the Seller.
+            updateOffersButton(offerService.getPendingOffers().size());
+            updateNotificationsButton(notificationService.getUnreadCount());
+        } catch (SecurityException e) {
+            endSellerSession();
+            return;
+        }
         setActive(btnStats, "Seller Stats");
         contentPane.getChildren().clear();
 
-        VBox root = new VBox(20);
+        VBox root = new VBox(16);
         root.setPadding(new Insets(4));
-
-        User user = SessionManager.getCurrentUser();
-        List<Listing> myListings = DummyDataService.getInstance()
-                .getListingsBySeller(user != null ? user.getUsername() : "");
-
-        // Metric cards
-        HBox metrics = new HBox(16);
-        metrics.getChildren().addAll(
-                metricCard("Listings", String.valueOf(myListings.size()), "#003974"),
-                metricCard("Avg Rating", String.format("%.1f", user != null ? user.getAverageRating() : 0), "#A68137"),
-                metricCard("Reviews", String.valueOf(user != null ? user.getRatingCount() : 0), "#2e7d32"),
-                metricCard("Views (demo)", "128", "#1565c0")
-        );
-        root.getChildren().add(metrics);
-
-        // Bar chart
-        CategoryAxis xAxis = new CategoryAxis();
-        NumberAxis yAxis = new NumberAxis();
-        BarChart<String, Number> barChart = new BarChart<>(xAxis, yAxis);
-        barChart.setTitle("Listings by Category (demo data)");
-        barChart.setLegendVisible(false);
-        barChart.setPrefHeight(280);
-        XYChart.Series<String, Number> series = new XYChart.Series<>();
-        series.getData().add(new XYChart.Data<>("Textbooks", 3));
-        series.getData().add(new XYChart.Data<>("Electronics", 5));
-        series.getData().add(new XYChart.Data<>("Furniture", 2));
-        series.getData().add(new XYChart.Data<>("Others", 1));
-        barChart.getData().add(series);
-
-        // Pie chart
-        PieChart pie = new PieChart();
-        pie.setTitle("Listing Status Distribution");
-        pie.setPrefHeight(280);
-        pie.getData().add(new PieChart.Data("Live", 4));
-        pie.getData().add(new PieChart.Data("Pending", 1));
-        pie.getData().add(new PieChart.Data("Sold", 2));
-
-        HBox charts = new HBox(20, barChart, pie);
-        root.getChildren().add(charts);
+        root.getChildren().addAll(statsHeader(stats), statsMetrics(stats));
+        if (!stats.hasListings()) {
+            // A1: zero values, and a message in place of the charts.
+            VBox noListings = emptyStateCard("📊", "No listings yet",
+                    "Your statistics appear here once you post a listing: how many buyers viewed it,"
+                            + " the offers it received and the deals you completed.");
+            noListings.setId("statsNoListings");
+            root.getChildren().add(noListings);
+        } else {
+            HBox charts = new HBox(16, viewsAndOffersCard(stats), completedDealsCard(stats));
+            root.getChildren().addAll(charts, statsBreakdown(stats));
+        }
+        root.getChildren().add(statsFootnote());
 
         ScrollPane scroll = new ScrollPane(root);
         scroll.setFitToWidth(true);
         contentPane.getChildren().add(scroll);
     }
 
-    private VBox metricCard(String label, String value, String color) {
-        VBox card = new VBox(4);
+    /**
+     * Builds the line above the statistics: how many listings they cover, when they were
+     * computed, and the Refresh button that computes them again.
+     *
+     * @param stats the statistics
+     * @return the header
+     */
+    private HBox statsHeader(SellerStatistics stats) {
+        int count = stats.getListingCount();
+        String covered = count == 0 ? "You have no listings yet"
+                : "Statistics of your " + count + (count == 1 ? " listing" : " listings");
+        Label summary = new Label(covered + "  ·  Updated at " + stats.getComputedAt().format(STATS_TIME_FORMAT));
+        summary.setId("statsSummary");
+        summary.setStyle(MUTED_STYLE);
+        summary.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(summary, Priority.ALWAYS);
+        Button refresh = smallButton("Refresh", "btn-outline", this::showStats);
+        refresh.setId("statsRefreshButton");
+        HBox header = new HBox(12, summary, refresh);
+        header.setAlignment(Pos.CENTER_LEFT);
+        return header;
+    }
+
+    /**
+     * Builds the four values of step 3: total views, offers received, completed deals and
+     * average rating ("No ratings yet" when the Seller has no ratings).
+     *
+     * @param stats the statistics
+     * @return the row of metric cards
+     */
+    private static HBox statsMetrics(SellerStatistics stats) {
+        SellerRatingInfo rating = stats.getRating();
+        int ratingCount = rating.getRatingCount();
+        VBox ratingCard = rating.hasRatings()
+                ? statsMetricCard("statsAverageRating", "Average rating",
+                        String.format(Locale.ENGLISH, "%.1f ★", rating.getAverageRating()),
+                        "From " + ratingCount + (ratingCount == 1 ? " rating" : " ratings"), STAR_COLOR, false)
+                : statsMetricCard("statsAverageRating", "Average rating", SellerRatingInfo.NO_RATINGS_TEXT,
+                        "Buyers rate you after a completed deal", STAR_COLOR, true);
+        return new HBox(16,
+                statsMetricCard("statsTotalViews", "Total views", String.valueOf(stats.getTotalViews()),
+                        "Times buyers opened your listings", VIEWS_COLOR, false),
+                statsMetricCard("statsOffersReceived", "Offers received", String.valueOf(stats.getOffersReceived()),
+                        "Offers, borrow requests and claims", OFFERS_COLOR, false),
+                statsMetricCard("statsCompletedDeals", "Completed deals", String.valueOf(stats.getCompletedDeals()),
+                        "Sold, given, or lent and returned", DEALS_COLOR, false),
+                ratingCard);
+    }
+
+    /**
+     * Builds one metric card: a value in large, its name and a short explanation.
+     *
+     * @param valueId    identifier of the value label
+     * @param name       name of the value
+     * @param value      the value
+     * @param caption    short explanation of the value
+     * @param color      colour of the value
+     * @param smallValue {@code true} for a value written in words, shown smaller
+     * @return the card
+     */
+    private static VBox statsMetricCard(String valueId, String name, String value, String caption,
+                                        String color, boolean smallValue) {
+        Label valueLabel = new Label(value);
+        valueLabel.setId(valueId);
+        valueLabel.setStyle("-fx-font-size: " + (smallValue ? 18 : 28) + "px; -fx-font-weight: bold;"
+                + " -fx-text-fill: " + color + ";");
+        valueLabel.setMinHeight(38);
+        Label nameLabel = new Label(name);
+        nameLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: #1e293b; -fx-font-size: 13px;");
+        Label captionLabel = new Label(caption);
+        captionLabel.setStyle(MUTED_STYLE);
+        captionLabel.setWrapText(true);
+        VBox card = new VBox(4, valueLabel, nameLabel, captionLabel);
         card.getStyleClass().add("card");
-        card.setAlignment(Pos.CENTER);
-        card.setPrefWidth(140);
         card.setPadding(new Insets(16));
-        Label val = new Label(value);
-        val.setStyle("-fx-font-size: 28px; -fx-font-weight: bold; -fx-text-fill: " + color + ";");
-        Label lbl = new Label(label);
-        lbl.setStyle("-fx-text-fill: #5a5a7a; -fx-font-size: 12px;");
-        card.getChildren().addAll(val, lbl);
+        card.setMinWidth(150);
+        card.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(card, Priority.ALWAYS);
         return card;
+    }
+
+    /**
+     * Builds the card of the bar chart of step 4: the views and the offers received for each
+     * listing, in the order of My Listings. Hovering over a bar shows the full title of the
+     * listing; with many listings, the chart scrolls sideways.
+     *
+     * @param stats the statistics, with at least one listing
+     * @return the card
+     */
+    private static VBox viewsAndOffersCard(SellerStatistics stats) {
+        List<SellerListingStatistics> listings = stats.getListings();
+        CategoryAxis xAxis = new CategoryAxis();
+        xAxis.setAnimated(false);
+        xAxis.setLabel("Your listings (newest first)");
+        xAxis.setTickLabelRotation(STATS_LABEL_ROTATION);
+        BarChart<String, Number> chart = new BarChart<>(xAxis, countAxis(stats.getMaxListingValue()));
+        chart.setId("statsBarChart");
+        chart.getStyleClass().add(STATS_CHART_CLASS);
+        chart.setAnimated(false);
+        // The legend is drawn above the chart, so that it stays visible when the chart scrolls.
+        chart.setLegendVisible(false);
+        chart.setBarGap(3);
+        // Bars stay narrow with few listings: the space left in each group becomes the gap.
+        chart.widthProperty().addListener((observable, oldWidth, chartWidth) -> chart.setCategoryGap(
+                Math.max(MIN_CATEGORY_GAP, chartWidth.doubleValue() * 0.85 / listings.size() - 2 * MAX_BAR_WIDTH)));
+
+        XYChart.Series<String, Number> views = new XYChart.Series<>();
+        views.setName("Views");
+        XYChart.Series<String, Number> offers = new XYChart.Series<>();
+        offers.setName("Offers received");
+        for (SellerListingStatistics listing : listings) {
+            views.getData().add(bar(listing.chartLabel(), listing.views(),
+                    listing.title() + ": " + plural(listing.views(), "view")));
+            offers.getData().add(bar(listing.chartLabel(), listing.offersReceived(),
+                    listing.title() + ": " + plural(listing.offersReceived(), "offer") + " received"));
+        }
+        chart.getData().addAll(List.of(views, offers));
+
+        // The chart fills the card when there is room, and scrolls when the listings need more.
+        double width = Math.max(MIN_BAR_CHART_WIDTH, listings.size() * BAR_GROUP_WIDTH);
+        chart.setMinWidth(width);
+        chart.setPrefWidth(width);
+        chart.setPrefHeight(CHART_HEIGHT);
+        ScrollPane chartScroll = new ScrollPane(chart);
+        chartScroll.setFitToHeight(true);
+        chartScroll.setPrefViewportHeight(CHART_HEIGHT);
+        chartScroll.setVbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        chartScroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+        chartScroll.setStyle("-fx-background-color: transparent; -fx-background: white;");
+        chartScroll.viewportBoundsProperty().addListener((observable, oldBounds, bounds) ->
+                chartScroll.setFitToWidth(bounds.getWidth() >= width));
+
+        Label heading = new Label("Views and offers received per listing");
+        heading.setStyle(STATS_HEADING_STYLE);
+        HBox legend = new HBox(16, legendEntry(VIEWS_COLOR, "Views"), legendEntry(OFFERS_COLOR, "Offers received"));
+        legend.setId("statsBarLegend");
+        legend.setAlignment(Pos.CENTER_LEFT);
+        Label hint = new Label("Hover over a bar to see the full title of the listing.");
+        hint.setStyle(MUTED_STYLE);
+        VBox card = new VBox(10, heading, legend, chartScroll, hint);
+        card.setId("statsViewsOffersCard");
+        card.getStyleClass().add("card");
+        card.setPadding(new Insets(16));
+        card.setPrefWidth(560);
+        card.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(card, Priority.ALWAYS);
+        return card;
+    }
+
+    /**
+     * Builds one bar of the bar chart, with a tooltip.
+     *
+     * @param label   label of the listing on the chart
+     * @param value   height of the bar
+     * @param tooltip text shown when hovering over the bar
+     * @return the data of the bar
+     */
+    private static XYChart.Data<String, Number> bar(String label, int value, String tooltip) {
+        XYChart.Data<String, Number> data = new XYChart.Data<>(label, value);
+        // The chart styles and places the node given here, so the tooltip stays on the bar.
+        StackPane node = new StackPane();
+        Tooltip.install(node, new Tooltip(tooltip));
+        data.setNode(node);
+        return data;
+    }
+
+    /**
+     * Builds the vertical axis of the bar chart, which shows whole numbers only.
+     *
+     * @param max the highest value drawn on the chart
+     * @return the axis, from zero to a little above {@code max}
+     */
+    private static NumberAxis countAxis(int max) {
+        int tick = Math.max(1, (int) Math.ceil(max / 8.0));
+        int upper = Math.max(4 * tick, (max / tick + 1) * tick);
+        NumberAxis axis = new NumberAxis(0, upper, tick);
+        axis.setAnimated(false);
+        axis.setMinorTickVisible(false);
+        axis.setLabel("Count");
+        axis.setTickLabelFormatter(new StringConverter<>() {
+            @Override
+            public String toString(Number value) {
+                return String.valueOf(value.intValue());
+            }
+
+            @Override
+            public Number fromString(String text) {
+                return Integer.valueOf(text.trim());
+            }
+        });
+        return axis;
+    }
+
+    /**
+     * Builds the card of the pie chart of step 5: the completed deals by type (Sold, Lent,
+     * Given), with a legend giving the number and share of each type. Without completed deals,
+     * a message is shown in place of the pie chart (alternative flow A2).
+     *
+     * @param stats the statistics
+     * @return the card
+     */
+    private static VBox completedDealsCard(SellerStatistics stats) {
+        Label heading = new Label("Completed deals by type");
+        heading.setStyle(STATS_HEADING_STYLE);
+        VBox card = new VBox(10, heading);
+        card.setId("statsCompletedDealsCard");
+        card.getStyleClass().add("card");
+        card.setPadding(new Insets(16));
+        card.setPrefWidth(360);
+        card.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(card, Priority.ALWAYS);
+
+        if (!stats.hasCompletedDeals()) {
+            // A2: a message in place of the pie chart.
+            Label icon = new Label("🤝");
+            icon.setStyle("-fx-font-size: 32px;");
+            Label title = new Label("No completed deals yet");
+            title.setStyle("-fx-font-size: 15px; -fx-font-weight: bold; -fx-text-fill: #003974;");
+            Label text = new Label("A deal counts here once the buyer marks it complete, or once a borrowed item"
+                    + " is returned.");
+            text.setStyle(MUTED_STYLE);
+            text.setWrapText(true);
+            text.setTextAlignment(javafx.scene.text.TextAlignment.CENTER);
+            VBox message = new VBox(8, icon, title, text);
+            message.setId("statsNoCompletedDeals");
+            message.setAlignment(Pos.CENTER);
+            message.setPadding(new Insets(30, 10, 30, 10));
+            VBox.setVgrow(message, Priority.ALWAYS);
+            card.getChildren().add(message);
+            return card;
+        }
+
+        int total = stats.getCompletedDeals();
+        PieChart pie = new PieChart();
+        pie.setId("statsPieChart");
+        pie.setAnimated(false);
+        pie.setLegendVisible(false);
+        pie.setLabelsVisible(true);
+        pie.setStartAngle(90);
+        pie.setPrefHeight(CHART_HEIGHT - 50);
+        HBox legend = new HBox(14);
+        legend.setAlignment(Pos.CENTER);
+        for (DealType type : DealType.values()) {
+            int count = stats.getCompletedDeals(type);
+            String outcome = SellerStatistics.outcomeName(type);
+            String share = Math.round(100.0 * count / total) + "%";
+            String color = OUTCOME_COLORS.get(type);
+            if (count > 0) {
+                PieChart.Data slice = new PieChart.Data(outcome + " (" + count + ")", count);
+                pie.getData().add(slice);
+                if (slice.getNode() != null) {
+                    slice.getNode().setStyle("-fx-pie-color: " + color + ";");
+                    Tooltip.install(slice.getNode(), new Tooltip(outcome + ": " + plural(count, "deal") + " (" + share + ")"));
+                }
+            }
+            HBox entry = legendEntry(color, outcome + ": " + count + " (" + share + ")");
+            entry.setId("statsDeals" + outcome);
+            legend.getChildren().add(entry);
+        }
+        card.getChildren().addAll(pie, legend);
+        return card;
+    }
+
+    /**
+     * Builds one entry of a chart legend: a coloured square and its text.
+     *
+     * @param color colour of the square
+     * @param text  text of the entry
+     * @return the entry
+     */
+    private static HBox legendEntry(String color, String text) {
+        Region swatch = new Region();
+        swatch.setMinSize(12, 12);
+        swatch.setMaxSize(12, 12);
+        swatch.setStyle("-fx-background-color: " + color + "; -fx-background-radius: 3;");
+        Label label = new Label(text);
+        label.setStyle("-fx-text-fill: #1e293b; -fx-font-size: 12px;");
+        HBox entry = new HBox(6, swatch, label);
+        entry.setAlignment(Pos.CENTER_LEFT);
+        return entry;
+    }
+
+    /**
+     * Builds the breakdown per listing: the title, status, views, offers received and completed
+     * deals of each listing, with the totals, so that the Seller can read the exact values drawn
+     * on the charts.
+     *
+     * @param stats the statistics, with at least one listing
+     * @return the card
+     */
+    private static VBox statsBreakdown(SellerStatistics stats) {
+        GridPane grid = new GridPane();
+        grid.setId("statsBreakdownGrid");
+        grid.setHgap(18);
+        grid.setVgap(8);
+        ColumnConstraints titleColumn = new ColumnConstraints();
+        titleColumn.setHgrow(Priority.ALWAYS);
+        grid.getColumnConstraints().add(titleColumn);
+        for (int column = 1; column < 5; column++) {
+            ColumnConstraints numberColumn = new ColumnConstraints();
+            numberColumn.setMinWidth(Region.USE_PREF_SIZE);
+            numberColumn.setHalignment(column == 1 ? javafx.geometry.HPos.LEFT : javafx.geometry.HPos.RIGHT);
+            grid.getColumnConstraints().add(numberColumn);
+        }
+        String[] headers = {"Listing", "Status", "Views", "Offers received", "Completed deals"};
+        for (int column = 0; column < headers.length; column++) {
+            Label header = new Label(headers[column]);
+            header.setStyle("-fx-font-weight: bold; -fx-text-fill: #5a5a7a; -fx-font-size: 12px;");
+            grid.add(header, column, 0);
+        }
+        int row = 1;
+        for (SellerListingStatistics listing : stats.getListings()) {
+            Label title = new Label(listing.title());
+            title.setWrapText(true);
+            title.setStyle("-fx-text-fill: #1e293b;");
+            grid.add(title, 0, row);
+            grid.add(statsStatusBadge(listing.status()), 1, row);
+            grid.add(statsNumber(listing.views(), false), 2, row);
+            grid.add(statsNumber(listing.offersReceived(), false), 3, row);
+            grid.add(statsNumber(listing.completedDeals(), false), 4, row);
+            row++;
+        }
+        Label total = new Label("Total");
+        total.setStyle("-fx-font-weight: bold; -fx-text-fill: #003974;");
+        grid.add(total, 0, row);
+        grid.add(statsNumber(stats.getTotalViews(), true), 2, row);
+        grid.add(statsNumber(stats.getOffersReceived(), true), 3, row);
+        grid.add(statsNumber(stats.getCompletedDeals(), true), 4, row);
+
+        Label heading = new Label("Breakdown per listing");
+        heading.setStyle(STATS_HEADING_STYLE);
+        VBox card = new VBox(12, heading, grid);
+        card.setId("statsBreakdown");
+        card.getStyleClass().add("card");
+        card.setPadding(new Insets(16));
+        return card;
+    }
+
+    /**
+     * Builds a number of the breakdown.
+     *
+     * @param value the number
+     * @param total {@code true} for a total, shown in bold
+     * @return the label
+     */
+    private static Label statsNumber(int value, boolean total) {
+        Label label = new Label(String.valueOf(value));
+        label.setStyle(total ? "-fx-font-weight: bold; -fx-text-fill: #003974;" : "-fx-text-fill: #1e293b;");
+        return label;
+    }
+
+    /**
+     * Builds the status badge of a listing in the breakdown, named as on My Listings.
+     *
+     * @param status the status of the listing
+     * @return the badge
+     */
+    private static Label statsStatusBadge(ListingStatus status) {
+        Label badge = new Label(statusName(status));
+        badge.getStyleClass().addAll("badge", switch (status) {
+            case LIVE -> "badge-live";
+            case PENDING_REVIEW -> "badge-pending";
+            case REJECTED, REMOVED -> "badge-rejected";
+            default -> "badge-sold";
+        });
+        return badge;
+    }
+
+    /**
+     * Builds the note explaining how the statistics are counted.
+     *
+     * @return the note
+     */
+    private static Label statsFootnote() {
+        Label note = new Label("Views count each time a buyer opens the detail page of a listing. Offers received"
+                + " include every offer, borrow request and claim, whatever its status; your counter offers are not"
+                + " counted. A deal is completed once the buyer marks it complete, or once a borrowed item is"
+                + " returned. Ratings hidden by the admin are not counted, and listings you deleted are not included.");
+        note.setId("statsFootnote");
+        note.setStyle(MUTED_STYLE);
+        note.setWrapText(true);
+        return note;
+    }
+
+    /**
+     * Writes a count with its unit, in the singular or plural.
+     *
+     * @param count the count
+     * @param unit  the unit in the singular
+     * @return for example {@code 1 view} or {@code 3 views}
+     */
+    private static String plural(int count, String unit) {
+        return count + " " + unit + (count == 1 ? "" : "s");
     }
 
     // =====================================================================

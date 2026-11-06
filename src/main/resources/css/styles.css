@@ -474,3 +474,12 @@
     -fx-border-color: #e2e8f0;
     -fx-border-width: 0 0 1 0;
 }
+
+/* ---------- Seller statistics charts (US-S08) ---------- */
+/* Bars of the "Views and offers received" chart: series 0 = views, series 1 = offers received. */
+.seller-stats-chart .default-color0.chart-bar {
+    -fx-bar-fill: #003974;
+}
+.seller-stats-chart .default-color1.chart-bar {
+    -fx-bar-fill: #A68137;
+}

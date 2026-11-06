@@ -12,31 +12,29 @@
 
 ### 1. Report on progress during the past week
 
-All three team members have successfully implemented, tested, and merged all 28 user stories across all portals into the `master` branch, covering all **Critical**, **High**, **Medium**, and **Low** priority features:
+The team achieved a major milestone: **all 28 user stories across all three portals (Critical, High, Medium, and Low priorities) have been fully implemented, unit-tested, and integrated into `master`**:
 
 | Name | Tasks worked on in the past week | Total hours |
 | :--- | :--- | :---: |
-| **Charles Dupouy**<br>*(Task 1: Buyer)* | <ul><li>Finalized and merged all 11 Buyer user stories (US-B01 to US-B11) into `master`</li><li>Implemented Critical features: US-B05 (Price offer, borrow request $\ge 5$s, atomic giveaway claim) and US-B07 (My Deals & auto-return timer)</li><li>Implemented Medium & Low features: US-B04 (Listing details view counter), US-B08 (Profile editing), US-B09 (Notification board), US-B10 (Deal history table)</li><li>Built comprehensive unit test suite for Buyer services (100% pass rate)</li></ul> | 8.5 |
-| **Antoine Lepin**<br>*(Task 2: Seller)* | <ul><li>Finalized and merged all 9 Seller user stories (US-S01 to US-S09) into `master`</li><li>Implemented Critical feature: US-S05 (Manage offers: accept, decline, counter-offer)</li><li>Implemented Medium & Low features: US-S06 (Seller profile & renames), US-S07 (Seller notifications), US-S08 (Statistics with JavaFX BarChart & PieChart), US-S09 (Review replies & flagging)</li><li>Authored unit test suite for Seller services and profile logic</li></ul> | 8.0 |
-| **Elio Le Dortz**<br>*(Task 3: Admin)* | <ul><li>Finalized and merged all 8 Admin user stories (US-A01 to US-A08) into `master`</li><li>Implemented Critical feature: US-A02 (Listing review queue with mandatory written rejection reasons)</li><li>Implemented Medium & Low features: US-A04 (Admin profile), US-A05 (All Deals system audit ledger), US-A06 (Notifications & report resolution), US-A07 (Manage all listings), US-A08 (Manage seller ratings)</li><li>Authored unit test suite for Admin services and user moderation</li></ul> | 8.0 |
+| **Charles Dupouy**<br>*(Task 1: Buyer Portal)* | <ul><li>Completed and merged all 11 Buyer user stories (US-B01 to US-B11) via PRs #2–#12</li><li>Implemented registration with PBKDF2 hashing, login role-checking, multi-attribute browse filters, listing details with view counter, offer and borrow requests, atomic giveaway claim, private chat persistence, auto-return countdown timer, deal history, and seller reviews</li><li>Maintained 100% test pass rate with $>88\%$ branch coverage on core services</li></ul> | 8.0 |
+| **Antoine Lepin**<br>*(Task 2: Seller Portal)* | <ul><li>Completed and merged all 9 Seller user stories (US-S01 to US-S09) via PRs #1, #18, #20, #25–#30</li><li>Implemented seller registration, login, dynamic listing creation (Sell/Lend/Giveaway with photos), My Listings management, offer acceptance/countering, seller profile with listing propagation, notifications board, JavaFX BarChart/PieChart statistics, and review replies/flags</li><li>Authored comprehensive service and model unit test suites</li></ul> | 8.5 |
+| **Elio Le Dortz**<br>*(Task 3: Admin Portal)* | <ul><li>Completed and merged all 8 Admin user stories (US-A01 to US-A08) via PRs #13–#17, #19, #22, #24</li><li>Implemented seeded admin login, listing approval/rejection queue with mandatory written reasons, user management with soft-delete safeguards, profile editing, all deals record table, admin notifications & report resolution, all listings management & takedowns, and seller ratings moderation</li><li>Maintained rigorous regression tests across all administrative workflows</li></ul> | 8.0 |
 
-**Current Quality Status**:
-* **1,600+ unit tests** passing with **0 failures and 0 errors**.
-* Branch coverage across domain models and business services exceeds **83%–88%** (surpassing the course requirement of $>65\%$).
+* **Overall Test Suite Status**: **1,600 tests passed, 0 failures, 0 errors**.
 
 ---
 
 ### 2. Discussion of impediments and resolution
 
-* **2.1. In-Memory Data Reset & Database Requirement**:
-  * *Discussion*: While `DummyDataService` allowed rapid parallel development and headless testing, all data resets upon closing the application. Course requirements mandate persistent storage across sessions for accounts, listings, deals, and chat messages.
-  * *Resolution*: Agreed to implement a local database using **SQLite** (`sqlite-jdbc`). To prevent breaking existing controller and service code, we will maintain the existing `DummyDataService` method signatures and adapt them into a persistent repository layer (`DatabaseService` / DAO).
-* **2.2. Code Review and Cross-Portal Refactoring**:
-  * *Discussion*: Now that each member's track is in `master`, code styles, helper utilities, and error message formats differ slightly between portals.
-  * *Resolution*: Conduct peer code reviews across tracks (Charles reviews Seller, Antoine reviews Admin, Elio reviews Buyer). Refactor shared components into common utility classes (`ValidationUtils`, `DialogUtils`, and unified CSS styles in `styles.css`).
-* **2.3. End-to-End Multi-User Scenario Testing**:
-  * *Discussion*: Unit tests isolate individual components, but full user interaction flows (e.g. Buyer offers $\rightarrow$ Seller counters $\rightarrow$ Admin moderates $\rightarrow$ Buyer completes) require end-to-end manual verification across all roles.
-  * *Resolution*: Formulated **6 comprehensive scenarios** (the 5 primary interaction scenarios + 1 full User Moderation & Soft-Delete scenario), allocated so each team member thoroughly tests 3 scenarios to identify and log any dysfunctions or edge-case bugs.
+* **2.1. Local Database Persistence Requirement (Course Mandatory Deliverable)**:
+  * *Discussion*: All portals currently operate against the in-memory data layer (`DummyDataService`). Although functional for live demos within a single session, the COMP 3111 course specification requires persistent storage across application restarts.
+  * *Resolution*: We decided to implement an embedded local relational database using **SQLite** (`sqlite-jdbc`). Charles Dupouy will lead the database architecture, creating relational tables and repository DAOs while preserving the existing service contracts so controllers remain unaffected.
+* **2.2. Cross-Teammate Code Review & Refactoring**:
+  * *Discussion*: Since each developer focused primarily on their own track, teammates must review each other’s code to identify redundant logic, standardize naming conventions, verify error handling, and ensure documentation integrity.
+  * *Resolution*: Established a peer review rotation: Charles reviews Seller code, Antoine reviews Admin code, and Elio reviews Buyer code. Refactoring will focus on decoupling, code clarity, and JavaDoc completeness.
+* **2.3. End-to-End Scenario Testing & Defect Tracking**:
+  * *Discussion*: Unit tests verify isolated business rules, but full cross-portal integration requires realistic user simulations to catch UI layout bugs, race conditions, or navigation hiccups.
+  * *Resolution*: Defined 6 comprehensive end-to-end scenarios, assigning 3 to Antoine and 3 to Elio to thoroughly validate all workflows and log any dysfunction before the final release.
 
 ---
 
@@ -44,13 +42,13 @@ All three team members have successfully implemented, tested, and merged all 28 
 
 | Name | Tasks that will be worked on in the coming week |
 | :--- | :--- |
-| **Charles Dupouy**<br>*(Task 1: Buyer)* | <ul><li>**Code Review**: Review Seller portal code (Antoine's track); refactor shared dialog and session handling logic</li><li>**Scenario Testing (3 scenarios)**: Execute Scenario 1 (Full Listing Lifecycle), Scenario 2 (Concurrency & Giveaway Claim), and Scenario 3 (Offer Negotiation & Chat); document any UI or status bugs</li><li>**Database Integration**: Implement SQLite tables and CRUD persistence for Buyer entities (Users, Offers, Chat Threads, Messages)</li></ul> |
-| **Antoine Lepin**<br>*(Task 2: Seller)* | <ul><li>**Code Review**: Review Admin portal code (Elio's track); refactor shared card and table UI layouts</li><li>**Scenario Testing (3 scenarios)**: Execute Scenario 3 (Offer Negotiation & Chat), Scenario 4 (Borrowing & Auto-Return Timer), and Scenario 5 (Seller Reviews & Stats Charts); document any UI or status bugs</li><li>**Database Integration**: Implement SQLite tables and CRUD persistence for Seller entities (Listings, Photos, Seller Profiles)</li></ul> |
-| **Elio Le Dortz**<br>*(Task 3: Admin)* | <ul><li>**Code Review**: Review Buyer portal code (Charles's track); standardize exception handling and error dialogs</li><li>**Scenario Testing (3 scenarios)**: Execute Scenario 5 (Seller Reviews & Stats Charts), Scenario 6 (User Moderation & Soft-Delete Lifecycle), and Scenario 1 (Full Listing Lifecycle); document any UI or status bugs</li><li>**Database Integration**: Set up SQLite schema initialization, connection management, and persistence for Admin entities (Reports, Reviews, System Deals Ledger)</li></ul> |
+| **Charles Dupouy**<br>*(Task 1: Buyer & Database Lead)* | <ul><li>Integrate SQLite database dependency (`sqlite-jdbc`) into `pom.xml`</li><li>Design schema (tables for Users, Listings, Photos, Offers, Deals, Reviews, Notifications, Reports) and implement database persistence layer replacing in-memory storage</li><li>Write automated unit and integration tests for SQLite CRUD operations and persistence across restarts</li><li>Perform peer code review and refactoring on teammates' tracks</li></ul> |
+| **Antoine Lepin**<br>*(Task 2: Seller & QA)* | <ul><li>Perform peer code review and refactoring on teammates' tracks</li><li>Execute **3 assigned End-to-End Test Scenarios**:<ul><li>**Scenario 1 (Listing Lifecycle)**: Seller posts item $\rightarrow$ Admin approves $\rightarrow$ Buyer browses & views details.</li><li>**Scenario 3 (Offer & Chat Negotiation)**: Buyer makes price offer $\rightarrow$ Seller counters $\rightarrow$ chat thread messaging.</li><li>**Scenario 5 (Feedback & Analytics)**: Buyer rates seller $\rightarrow$ Seller views stats charts & replies $\rightarrow$ Admin moderates review.</li></ul></li><li>Document, log, and resolve any visual or functional defects identified</li></ul> |
+| **Elio Le Dortz**<br>*(Task 3: Admin & QA)* | <ul><li>Perform peer code review and refactoring on teammates' tracks</li><li>Execute **3 assigned End-to-End Test Scenarios**:<ul><li>**Scenario 2 (Giveaway Concurrency)**: Simultaneous buyer claims on giveaway item, verifying strict atomic first-come first-served handling.</li><li>**Scenario 4 (Borrow & Auto-Return)**: Borrow request with 5-second minimum duration, verifying self-return and background timer auto-return to `LIVE`.</li><li>**Scenario 6 (User Moderation & Takedown)**: Admin account deactivation, deletion blocked with active deals, and listing takedown with bidder notifications.</li></ul></li><li>Document, log, and resolve any visual or functional defects identified</li></ul> |
 
 ---
 
 ### 4. Meeting adjournment and next meeting
 
-The meeting was adjourned at 6:15 p.m.  
-The next meeting (Meeting 3: Final Sprint Review & Delivery Preparation) will be held on **November 21, 2026 at 4:30 p.m.** in the Library Study Room / Discord.
+The meeting was adjourned at 6:00 p.m.  
+The next meeting (Meeting 3 — Final Release Review & Video Demo Rehearsal) will be held on **November 20, 2026 at 4:30 p.m.** in the Library Study Room / Discord.

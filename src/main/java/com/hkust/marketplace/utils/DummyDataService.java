@@ -1,5 +1,6 @@
 package com.hkust.marketplace.utils;
 
+import com.hkust.marketplace.database.DatabaseManager;
 import com.hkust.marketplace.models.*;
 import com.hkust.marketplace.services.ActOnListingService;
 import com.hkust.marketplace.services.AdminDealsService;
@@ -38,6 +39,9 @@ public class DummyDataService {
     private static final String SEED_USER_HASH = PasswordHasher.hash("password1");
 
     private static final DummyDataService INSTANCE = new DummyDataService();
+
+    private final DatabaseManager databaseManager;
+    private boolean persistenceEnabled = true;
 
     private final Map<String, User> users = new LinkedHashMap<>();
     private final Map<String, Listing> listings = new LinkedHashMap<>();
@@ -106,11 +110,151 @@ public class DummyDataService {
     );
 
     private DummyDataService() {
-        seedData();
+        DatabaseManager dm = null;
+        try {
+            dm = new DatabaseManager();
+        } catch (Throwable t) {
+            System.err.println("Notice: SQLite DatabaseManager not available in current class loader, operating in-memory: " + t.getMessage());
+        }
+        this.databaseManager = dm;
+        initData();
+    }
+
+    public DummyDataService(DatabaseManager databaseManager) {
+        this.databaseManager = databaseManager;
+        initData();
     }
 
     public static DummyDataService getInstance() {
         return INSTANCE;
+    }
+
+    public DatabaseManager getDatabaseManager() {
+        return databaseManager;
+    }
+
+    public boolean isPersistenceEnabled() {
+        return persistenceEnabled;
+    }
+
+    public void setPersistenceEnabled(boolean persistenceEnabled) {
+        this.persistenceEnabled = persistenceEnabled;
+    }
+
+    private synchronized void initData() {
+        if (databaseManager != null && !databaseManager.isEmpty()) {
+            loadFromDatabase();
+        } else {
+            seedData();
+            if (databaseManager != null && persistenceEnabled) {
+                persistAllToDatabase();
+            }
+        }
+    }
+
+    public synchronized void loadFromDatabase() {
+        if (databaseManager == null) return;
+        users.clear();
+        listings.clear();
+        deals.clear();
+        offers.clear();
+        reports.clear();
+        chatThreads.clear();
+        notifications.clear();
+        reviews.clear();
+
+        users.putAll(databaseManager.loadAllUsers());
+        if (!users.containsKey(SEEDED_ADMIN_USERNAME)) {
+            seedAdmin();
+        }
+        listings.putAll(databaseManager.loadAllListings());
+        deals.addAll(databaseManager.loadAllDeals());
+        offers.addAll(databaseManager.loadAllOffers());
+        reports.addAll(databaseManager.loadAllReports());
+        chatThreads.addAll(databaseManager.loadAllChatThreads());
+        notifications.addAll(databaseManager.loadAllNotifications());
+        reviews.addAll(databaseManager.loadAllReviews());
+
+        syncCounters();
+    }
+
+    public synchronized void persistAllToDatabase() {
+        if (databaseManager != null) {
+            databaseManager.persistAll(
+                    users.values(),
+                    listings.values(),
+                    offers,
+                    deals,
+                    reviews,
+                    notifications,
+                    reports,
+                    chatThreads
+            );
+        }
+    }
+
+    private void syncCounters() {
+        int maxListing = 100;
+        for (String id : listings.keySet()) {
+            maxListing = Math.max(maxListing, parseNumericId(id, "L"));
+        }
+        listingIdCounter.set(maxListing + 1);
+
+        int maxDeal = 500;
+        for (Deal d : deals) {
+            maxDeal = Math.max(maxDeal, parseNumericId(d.getId(), "D"));
+        }
+        dealIdCounter.set(maxDeal + 1);
+
+        int maxOffer = 700;
+        for (Offer o : offers) {
+            maxOffer = Math.max(maxOffer, parseNumericId(o.getId(), "O"));
+            if (o.getCounterOffer() != null) {
+                maxOffer = Math.max(maxOffer, parseNumericId(o.getCounterOffer().getId(), "O"));
+            }
+        }
+        offerIdCounter.set(maxOffer + 1);
+
+        int maxReport = 300;
+        for (Report r : reports) {
+            maxReport = Math.max(maxReport, parseNumericId(r.getId(), "REP"));
+        }
+        reportIdCounter.set(maxReport + 1);
+
+        int maxNotif = 1;
+        for (Notification n : notifications) {
+            maxNotif = Math.max(maxNotif, parseNumericId(n.getId(), "N"));
+        }
+        notifIdCounter.set(maxNotif + 1);
+
+        int maxReview = 1;
+        for (Review r : reviews) {
+            maxReview = Math.max(maxReview, parseNumericId(r.getId(), "R"));
+        }
+        reviewIdCounter.set(maxReview + 1);
+
+        int maxThread = 1;
+        int maxMessage = 1;
+        for (ChatThread t : chatThreads) {
+            maxThread = Math.max(maxThread, parseNumericId(t.getId(), "T"));
+            if (t.getMessages() != null) {
+                for (Message m : t.getMessages()) {
+                    maxMessage = Math.max(maxMessage, parseNumericId(m.getId(), "M"));
+                }
+            }
+        }
+        threadIdCounter.set(maxThread + 1);
+        messageIdCounter.set(maxMessage + 1);
+    }
+
+    private int parseNumericId(String id, String prefix) {
+        if (id == null) return 0;
+        if (id.startsWith(prefix)) {
+            try {
+                return Integer.parseInt(id.substring(prefix.length()));
+            } catch (NumberFormatException ignored) {}
+        }
+        return 0;
     }
 
     /**
@@ -134,7 +278,16 @@ public class DummyDataService {
         reviewIdCounter.set(1);
         threadIdCounter.set(1);
         messageIdCounter.set(1);
+
+        if (databaseManager != null && persistenceEnabled) {
+            databaseManager.clearAllData();
+        }
+
         seedData();
+
+        if (databaseManager != null && persistenceEnabled) {
+            persistAllToDatabase();
+        }
     }
 
     private void seedData() {
@@ -562,6 +715,9 @@ public class DummyDataService {
             throw new IllegalArgumentException("Username already exists.");
         }
         users.put(key, user);
+        if (databaseManager != null && persistenceEnabled) {
+            databaseManager.saveUser(user);
+        }
 
     }
 
@@ -715,27 +871,28 @@ public class DummyDataService {
      *         already taken (in which case nothing is changed)
      */
     public synchronized boolean registerUserIfAbsent(User user) {
-        return users.putIfAbsent(user.getUsername().toLowerCase(), user) == null;
+        if (user == null || user.getUsername() == null) return false;
+        String key = user.getUsername().toLowerCase();
+        if (users.putIfAbsent(key, user) == null) {
+            if (databaseManager != null && persistenceEnabled) {
+                databaseManager.saveUser(user);
+            }
+            return true;
+        }
+        return false;
+    }
 
+    public synchronized void updateUser(User user) {
+        if (user != null && user.getUsername() != null) {
+            users.put(user.getUsername().toLowerCase(), user);
+            if (databaseManager != null && persistenceEnabled) {
+                databaseManager.saveUser(user);
+            }
+        }
     }
 
     public void resetToSeedData() {
-        users.clear();
-        listings.clear();
-        deals.clear();
-        offers.clear();
-        reports.clear();
-        chatThreads.clear();
-        notifications.clear();
-        reviews.clear();
-        listingIdCounter.set(100);
-        dealIdCounter.set(500);
-        offerIdCounter.set(700);
-        reportIdCounter.set(300);
-        notifIdCounter.set(1);
-        reviewIdCounter.set(1);
-        threadIdCounter.set(1);
-        seedData();
+        resetData();
     }
 
 
@@ -923,14 +1080,23 @@ public class DummyDataService {
             listing.setId("L" + listingIdCounter.getAndIncrement());
         }
         listings.put(listing.getId(), listing);
+        if (databaseManager != null && persistenceEnabled) {
+            databaseManager.saveListing(listing);
+        }
     }
 
     public synchronized void updateListing(Listing listing) {
         listings.put(listing.getId(), listing);
+        if (databaseManager != null && persistenceEnabled) {
+            databaseManager.saveListing(listing);
+        }
     }
 
     public synchronized void removeListing(String id) {
         listings.remove(id);
+        if (databaseManager != null && persistenceEnabled) {
+            databaseManager.deleteListing(id);
+        }
     }
 
     // ========== Deal methods ==========
@@ -957,15 +1123,31 @@ public class DummyDataService {
             deal.setId("D" + dealIdCounter.getAndIncrement());
         }
         deals.add(deal);
+        if (databaseManager != null && persistenceEnabled) {
+            databaseManager.saveDeal(deal);
+        }
+    }
+
+    public synchronized void updateDeal(Deal deal) {
+        if (deal != null && databaseManager != null && persistenceEnabled) {
+            databaseManager.saveDeal(deal);
+        }
     }
 
     public synchronized boolean removeDeal(String id) {
         if (id == null) return false;
-        return deals.removeIf(d -> id.equalsIgnoreCase(d.getId()));
+        boolean removed = deals.removeIf(d -> id.equalsIgnoreCase(d.getId()));
+        if (removed && databaseManager != null && persistenceEnabled) {
+            databaseManager.deleteDeal(id);
+        }
+        return removed;
     }
 
     public synchronized void clearDeals() {
         deals.clear();
+        if (databaseManager != null && persistenceEnabled) {
+            databaseManager.clearDeals();
+        }
     }
 
     public synchronized int processAutoReturns() {
@@ -1034,6 +1216,10 @@ public class DummyDataService {
             d.setStatus(DealStatus.COMPLETED);
             d.setClosedDate(LocalDateTime.now());
             deals.add(d);
+            if (databaseManager != null && persistenceEnabled) {
+                databaseManager.saveDeal(d);
+                databaseManager.saveListing(l);
+            }
 
             addNotification(new Notification(l.getSellerUsername(), "Item Claimed",
                     buyerUsername + " claimed your giveaway item: " + l.getTitle(), "Offer"));
@@ -1072,6 +1258,15 @@ public class DummyDataService {
             offer.setId("O" + offerIdCounter.getAndIncrement());
         }
         offers.add(offer);
+        if (databaseManager != null && persistenceEnabled) {
+            databaseManager.saveOffer(offer);
+        }
+    }
+
+    public synchronized void updateOffer(Offer offer) {
+        if (offer != null && databaseManager != null && persistenceEnabled) {
+            databaseManager.saveOffer(offer);
+        }
     }
 
     public synchronized Offer findOffer(String id) {
@@ -1092,6 +1287,15 @@ public class DummyDataService {
             report.setId("REP" + reportIdCounter.getAndIncrement());
         }
         reports.add(report);
+        if (databaseManager != null && persistenceEnabled) {
+            databaseManager.saveReport(report);
+        }
+    }
+
+    public synchronized void updateReport(Report report) {
+        if (report != null && databaseManager != null && persistenceEnabled) {
+            databaseManager.saveReport(report);
+        }
     }
 
     public synchronized Report findReport(String reportId) {
@@ -1128,6 +1332,15 @@ public class DummyDataService {
                 thread.setId("T" + threadIdCounter.getAndIncrement());
             }
             chatThreads.add(thread);
+            if (databaseManager != null && persistenceEnabled) {
+                databaseManager.saveChatThread(thread);
+            }
+        }
+    }
+
+    public synchronized void updateChatThread(ChatThread thread) {
+        if (thread != null && databaseManager != null && persistenceEnabled) {
+            databaseManager.saveChatThread(thread);
         }
     }
 
@@ -1153,6 +1366,9 @@ public class DummyDataService {
             newThread.setListingTitle(l.getTitle());
         }
         chatThreads.add(newThread);
+        if (databaseManager != null && persistenceEnabled) {
+            databaseManager.saveChatThread(newThread);
+        }
         return newThread;
     }
 
@@ -1180,18 +1396,35 @@ public class DummyDataService {
             n.setId("N" + notifIdCounter.getAndIncrement());
         }
         notifications.add(n);
+        if (databaseManager != null && persistenceEnabled) {
+            databaseManager.saveNotification(n);
+        }
+    }
+
+    public synchronized void updateNotification(Notification n) {
+        if (n != null && databaseManager != null && persistenceEnabled) {
+            databaseManager.saveNotification(n);
+        }
     }
 
     public synchronized boolean removeNotification(String id) {
         if (id == null) return false;
-        return notifications.removeIf(n -> id.equalsIgnoreCase(n.getId()));
+        boolean removed = notifications.removeIf(n -> id.equalsIgnoreCase(n.getId()));
+        if (removed && databaseManager != null && persistenceEnabled) {
+            databaseManager.deleteNotification(id);
+        }
+        return removed;
     }
 
     public synchronized int removeNotificationsFor(String username) {
         if (username == null) return 0;
         int initial = notifications.size();
         notifications.removeIf(n -> username.equalsIgnoreCase(n.getUsername()));
-        return initial - notifications.size();
+        int removedCount = initial - notifications.size();
+        if (databaseManager != null && persistenceEnabled) {
+            databaseManager.deleteNotificationsFor(username);
+        }
+        return removedCount;
     }
 
     // ========== Review methods (US-B11 / Task 1.10) ==========
@@ -1211,6 +1444,9 @@ public class DummyDataService {
 
     public synchronized void clearReviews() {
         reviews.clear();
+        if (databaseManager != null && persistenceEnabled) {
+            databaseManager.clearReviews();
+        }
     }
 
     public synchronized List<Review> getReviewsByBuyer(String buyerUsername) {
@@ -1236,8 +1472,17 @@ public class DummyDataService {
             r.setId("R" + reviewIdCounter.getAndIncrement());
         }
         reviews.add(r);
+        if (databaseManager != null && persistenceEnabled) {
+            databaseManager.saveReview(r);
+        }
         if (r.getSellerUsername() != null && !r.getSellerUsername().trim().isEmpty()) {
             recalculateSellerRating(r.getSellerUsername());
+        }
+    }
+
+    public synchronized void updateReview(Review r) {
+        if (r != null && databaseManager != null && persistenceEnabled) {
+            databaseManager.saveReview(r);
         }
     }
 
@@ -1269,6 +1514,9 @@ public class DummyDataService {
             if (user instanceof Seller seller) {
                 seller.setAverageRating(average);
                 seller.setRatingCount(count);
+                if (databaseManager != null && persistenceEnabled) {
+                    databaseManager.saveUser(seller);
+                }
             }
             return SellerRatingInfo.withRatings(username, fullName, average, count);
         }

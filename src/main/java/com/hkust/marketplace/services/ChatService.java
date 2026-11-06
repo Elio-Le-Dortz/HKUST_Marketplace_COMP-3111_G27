@@ -143,6 +143,7 @@ public class ChatService {
         String messageId = "M" + dataService.nextMessageId();
         Message message = new Message(messageId, senderUsername.trim(), text.trim(), LocalDateTime.now());
         thread.addMessage(message);
+        dataService.updateChatThread(thread);
 
         // Subflow S1 Step 4: Notify the counterpart participant
         String recipient = thread.getOtherParticipant(senderUsername.trim());
@@ -210,6 +211,7 @@ public class ChatService {
         String msgId = "M" + dataService.nextMessageId();
         Message offerMsg = new Message(msgId, buyerUsername.trim(), structuredText, LocalDateTime.now(), offer.getId());
         thread.addMessage(offerMsg);
+        dataService.updateChatThread(thread);
 
         // Subflow S2 Step 4: Confirm to Buyer
         String confirmMsg = "Your formal offer of HK$ " + String.format("%.2f", price) + " has been sent to " + listing.getSellerFullName() + ".";
@@ -269,6 +271,7 @@ public class ChatService {
         String msgId = "M" + dataService.nextMessageId();
         Message offerMsg = new Message(msgId, buyerUsername.trim(), structuredText, LocalDateTime.now(), offer.getId());
         thread.addMessage(offerMsg);
+        dataService.updateChatThread(thread);
 
         // Subflow S2 Step 4: Confirm to Buyer
         String confirmMsg = "Your formal borrow request has been sent to " + listing.getSellerFullName() + ".";

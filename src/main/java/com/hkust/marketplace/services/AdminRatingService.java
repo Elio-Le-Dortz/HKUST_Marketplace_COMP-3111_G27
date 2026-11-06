@@ -186,6 +186,7 @@ public class AdminRatingService {
             // S1 Step 3: Mark as hidden and clear flag
             review.setHidden(true);
             review.setFlagged(false);
+            dataService.updateReview(review);
 
             // S1 Step 3: Atomically recalculate seller average rating
             String sellerUsername = review.getSellerUsername();
@@ -269,6 +270,7 @@ public class AdminRatingService {
         synchronized (review) {
             // S2 Step 3: Mark as not hidden
             review.setHidden(false);
+            dataService.updateReview(review);
 
             // S2 Step 3: Recalculate seller rating
             String sellerUsername = review.getSellerUsername();
@@ -318,6 +320,7 @@ public class AdminRatingService {
             // S3 Step 3: Clear flag; review stays visible
             review.setFlagged(false);
             review.setFlagReason(null);
+            dataService.updateReview(review);
 
             // S3 Step 4: Notify seller that the flag was reviewed and the review is kept
             String sellerUsername = review.getSellerUsername();

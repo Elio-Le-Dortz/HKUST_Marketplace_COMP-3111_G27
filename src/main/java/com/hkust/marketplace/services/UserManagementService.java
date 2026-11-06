@@ -150,6 +150,7 @@ public class UserManagementService {
                 seller.setPreferredMeetups(request.getPreferredMeetups());
             }
         }
+        dataService.updateUser(target);
 
         // 5. Subflow S1 Step 5: Notify user
         dataService.addNotification(new Notification(
@@ -224,6 +225,7 @@ public class UserManagementService {
 
         // 3. Apply status transition
         target.setAccountStatus(newStatus);
+        dataService.updateUser(target);
 
         if (newStatus == AccountStatus.DEACTIVATED) {
             // Subflow S2 Step 3.1: End any open session
@@ -329,6 +331,7 @@ public class UserManagementService {
 
         // 4. Subflow S3 Step 4: Mark soft-deleted and terminate session
         target.setAccountStatus(AccountStatus.DELETED);
+        dataService.updateUser(target);
         SessionManager.endSessionForUser(target.getUsername());
 
         int affectedListings = 0;
@@ -342,6 +345,7 @@ public class UserManagementService {
                     if (listing.getStatus() == ListingStatus.PENDING_REVIEW || listing.getStatus() == ListingStatus.LIVE) {
                         listing.setStatus(ListingStatus.REMOVED);
                         listing.setAdminReason("Listing removed due to seller account deletion by administrator.");
+                        dataService.updateListing(listing);
                         affectedListings++;
                     }
                 }
@@ -352,6 +356,7 @@ public class UserManagementService {
                     if (offer.getStatus() == OfferStatus.PENDING || offer.getStatus() == OfferStatus.COUNTERED) {
                         offer.setStatus(OfferStatus.DECLINED);
                         offer.setDeclineReason("Listing removed due to seller account deletion.");
+                        dataService.updateOffer(offer);
                         affectedOffers++;
 
                         // Notify buyer
@@ -378,6 +383,7 @@ public class UserManagementService {
                 if (offer != null && buyerUser.equalsIgnoreCase(offer.getBuyerUsername())) {
                     if (offer.getStatus() == OfferStatus.PENDING || offer.getStatus() == OfferStatus.COUNTERED) {
                         offer.setStatus(OfferStatus.WITHDRAWN);
+                        dataService.updateOffer(offer);
                         affectedOffers++;
 
                         // Notify seller

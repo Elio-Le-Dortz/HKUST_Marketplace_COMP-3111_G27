@@ -220,6 +220,43 @@ To try it with the demo data, log in as `admin` and reject `Mini Fridge` (Review
 reason, then log in as `diana` / `password1`: the rejection is on the board with the admin's reason, and
 **Open listing** shows the rejected listing on My Listings.
 
+## View Seller Statistics (US-S08)
+
+Seller sidebar → **Seller Stats**. The statistics are computed from the live data each time the screen is
+opened or **Refresh** is clicked (the time of the computation is shown). Nothing is stored: every value is
+read from the class diagram.
+
+| Value | How it is counted |
+|-------|-------------------|
+| **Total views** | `Listing.viewCount` of every listing: one more each time a buyer opens the listing's detail page (US-B04) |
+| **Offers received** | every offer, borrow request and claim received on the listings, whatever its status now (pending, accepted, declined, countered or withdrawn). The seller's own counter offers are not counted. |
+| **Completed deals** | deals with status `COMPLETED` (a sale or giveaway marked complete by the buyer) or `RETURNED` (a loan returned by the buyer, or auto-returned). A loan whose period has expired is auto-returned first, as on Deal History and All Deals. Active deals are not counted. |
+| **Average rating** | the same value as on Reviews & Feedback: reviews hidden by the admin are excluded (class diagram rule). Without ratings: "No ratings yet". |
+
+- The statistics cover **the same listings as My Listings**: every status, including listings rejected or taken
+  down by the admin, but not the listings the seller deleted (their views, offers and deals no longer count).
+- **Bar chart**: the views (blue) and offers received (gold) of each listing, newest first. Long titles are
+  shortened under the chart (hover over a bar for the full title), and two listings with the same title get
+  different labels (`Desk Lamp`, `Desk Lamp (2)`). With many listings, the chart scrolls sideways.
+- **Pie chart**: the completed deals by type, **Sold**, **Lent** and **Given**, with the number and share of
+  each type in the legend.
+- **Breakdown per listing**: the status, views, offers received and completed deals of each listing, with the
+  totals, so the exact values drawn on the charts can be read.
+- **No listings** (alternative flow A1): every value is 0 and a message replaces the charts.
+  **No completed deals** (A2): the bar chart is shown and a message replaces the pie chart.
+- The statistics are computed in one step under the data store lock: a view, offer or deal recorded at the
+  same time is either fully counted or not at all, so the totals, the bar chart and the pie chart always agree.
+
+Every call requires a Seller session (`SessionManager.requireSeller()`) and only reads the logged-in seller's
+listings. Business logic lives in `services/SellerStatisticsService.java` (no JavaFX), tested by
+`SellerStatisticsServiceTest` (all flows, integration with the buyer, seller and admin flows, concurrency) and
+`SellerStatisticsModelsTest`.
+
+To try it with the demo data, log in as `alice` / `password1` and open a few of Charlie's listings from
+Browse (for example *Calculus Textbook*), then log in as `charlie` / `password1` and open **Seller Stats**: the
+views are counted, with the 4 offers received and the completed sale (Sold). `diana` / `password1` has a Lent
+and a Given deal.
+
 ## Handle Reviews (US-S09)
 
 Seller sidebar → **Reviews & Feedback**. The screen shows the seller's **average rating** and all the

@@ -181,6 +181,43 @@ seller's own listings. Business logic lives in `services/OfferManagementService.
 tested by `OfferManagementServiceTest` (all flows, integration with the buyer side, concurrency)
 and `OfferManagementModelsTest`.
 
+## Manage Seller Profile (US-S06)
+
+Seller sidebar → **My Profile**. The screen shows the seller's **username** (it identifies the account and cannot
+be changed) and a form filled with the current **full name**, **bio** and **preferred meet-up locations**, with a
+**Change password** section. Every field is checked at once and each invalid field is highlighted with its reason;
+**nothing is saved** unless every field is valid.
+
+| Field | Rule |
+|-------|------|
+| Full name | required (A1), trimmed, at most 100 characters |
+| Bio | optional, trimmed, at most 500 characters; a blank bio removes it |
+| Preferred meet-up locations | optional, any number of the campus locations (`MeetupLocation`); the first one, in the order of the list, is preselected when creating a listing |
+| Password | changed only if one of the three password fields is filled in. The **current password** is then required and must be correct (A2). The **new password** must follow the [password rules](#password-rules), differ from the current one, and be typed twice identically (A3). It is stored as a PBKDF2 hash, like at registration, and the seller then logs in with it. |
+
+- The 100 and 500 character limits only apply to a value that is changed, so a longer name or bio saved before
+  (at registration or by the admin) can still be kept. Characters are counted as the seller sees them (an emoji
+  counts as one).
+- Saving without changing anything changes nothing ("Nothing to save"). Spaces around a value, a blank bio and
+  the order of the meet-up locations are not changes.
+- **Cancel** asks for confirmation if something was changed, then shows the saved profile again (A4).
+- **Updates are reflected across all posted listings** (acceptance criterion): every listing of the seller,
+  whatever its status, shows the new full name to buyers (Browse, listing details, chat, offers) and to the admin
+  (listing review, All Listings and its search). A listing created afterwards gets the new name too. The meet-up
+  location already chosen for a listing is not changed. The confirmation says how many listings were updated, and
+  the "Hello, …" greeting shows the new name.
+- Saves are **atomic**: a listing created during a rename always ends with the new name, and when two password
+  changes are sent at the same time with the same current password, only the first one succeeds.
+
+Every action requires a Seller session (`SessionManager.requireSeller()`) and only changes the logged-in seller's
+own profile. Business logic lives in `services/SellerProfileService.java` (no JavaFX), tested by
+`SellerProfileServiceTest` (all flows, integration with the buyer, seller and admin portals, concurrency) and
+`SellerProfileModelsTest`.
+
+To try it with the demo data, log in as `charlie` / `password1` and open **My Profile**: change the full name to
+`Charlie Lee-Wong`, then log in as `alice` / `password1`: Browse shows *Charlie Lee-Wong* on all of Charlie's
+listings. A new password must follow the rules, for example `NewPass123`.
+
 ## View Seller Notifications (US-S07)
 
 Seller sidebar → **Notifications** (the button shows how many are unread). The board lists the seller's

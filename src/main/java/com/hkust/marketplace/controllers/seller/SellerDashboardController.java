@@ -6,8 +6,10 @@ import com.hkust.marketplace.services.MyListingsService;
 import com.hkust.marketplace.services.OfferManagementService;
 import com.hkust.marketplace.services.ReviewHandlingService;
 import com.hkust.marketplace.services.SellerNotificationService;
+import com.hkust.marketplace.services.SellerProfileService;
 import com.hkust.marketplace.services.SellerStatisticsService;
 import com.hkust.marketplace.utils.DummyDataService;
+import com.hkust.marketplace.utils.PasswordPolicy;
 import com.hkust.marketplace.utils.SceneManager;
 import com.hkust.marketplace.utils.SessionManager;
 import javafx.application.Platform;
@@ -85,6 +87,9 @@ public class SellerDashboardController {
 
     /** Business logic of the Seller Stats screen (use case 2.8, US-S08). */
     private final SellerStatisticsService statisticsService = new SellerStatisticsService();
+
+    /** Business logic of the My Profile screen (use case 2.6, US-S06). */
+    private final SellerProfileService profileService = new SellerProfileService();
 
     /** The listing form currently shown (create or edit), {@code null} before it is first opened. */
     private ListingForm listingForm;
@@ -2895,37 +2900,400 @@ public class SellerDashboardController {
         scroll.setVvalue(Math.max(0, Math.min(1, target)));
     }
 
+    // =====================================================================
+    // US-S06: My Profile screen (use case 2.6 "Manage Seller Profile")
+    // =====================================================================
+
+    /**
+     * Shows the Seller's profile (use case 2.6, US-S06): the username, which cannot be changed,
+     * and a form filled with the full name, bio and preferred meet-up locations, with the fields
+     * to change the password (basic flow, step 2). Without an active Seller session, the seller
+     * login screen is shown instead.
+     */
     @FXML
     private void showProfile() {
+        Seller seller;
+        try {
+            seller = profileService.getMyProfile();
+        } catch (SecurityException e) {
+            endSellerSession();
+            return;
+        }
         setActive(btnProfile, "My Profile");
         contentPane.getChildren().clear();
-        User user = SessionManager.getCurrentUser();
-        VBox form = new VBox(12);
-        form.setMaxWidth(420);
-        form.getStyleClass().add("card");
-        form.setPadding(new Insets(20));
-        form.getChildren().add(new Label("Edit Seller Profile") {{ getStyleClass().add("section-title"); }});
+        contentPane.getChildren().add(new ProfileForm(seller).getView());
+    }
 
-        TextField name = new TextField(user != null ? user.getFullName() : "");
-        PasswordField pass = new PasswordField();
-        pass.setPromptText("New password (optional)");
-        TextArea bio = new TextArea(user != null && user.getBio() != null ? user.getBio() : "");
-        bio.setPrefRowCount(3);
-        ComboBox<String> meetup = new ComboBox<>(FXCollections.observableArrayList(DummyDataService.HKUST_LOCATIONS));
-        if (user != null && user.getPreferredMeetup() != null) meetup.setValue(user.getPreferredMeetup());
-        meetup.setMaxWidth(Double.MAX_VALUE);
+    /**
+     * The profile form of use case 2.6: its fields and the display of the errors of each field.
+     * The rules are checked by {@link SellerProfileService}; this class only reads the form and
+     * shows the outcome.
+     */
+    private final class ProfileForm {
 
-        Button save = new Button("Save Changes");
-        save.getStyleClass().add("btn-gold");
-        save.setOnAction(e -> new Alert(Alert.AlertType.INFORMATION, "Profile saved (demo).").showAndWait());
+        /** The logged-in Seller, whose profile is shown. */
+        private final Seller seller;
+        /** Full name input. */
+        private final TextField fullNameField = new TextField();
+        /** Bio input. */
+        private final TextArea bioArea = new TextArea();
+        /** One check box per meet-up location, in {@link MeetupLocation} order. */
+        private final Map<MeetupLocation, CheckBox> meetupBoxes = new EnumMap<>(MeetupLocation.class);
+        /** Current password input (alternative flow A2). */
+        private final PasswordField currentPasswordField = new PasswordField();
+        /** New password input (alternative flow A3). */
+        private final PasswordField newPasswordField = new PasswordField();
+        /** Confirmation of the new password (alternative flow A3). */
+        private final PasswordField confirmPasswordField = new PasswordField();
+        /** Error label of each field. */
+        private final Map<SellerProfileField, Label> errorLabels = new EnumMap<>(SellerProfileField.class);
+        /** Input of each field that can be invalid, highlighted when it is. */
+        private final Map<SellerProfileField, TextInputControl> inputs = new EnumMap<>(SellerProfileField.class);
+        /** Summary of the errors, next to the buttons. */
+        private final Label formError = dialogErrorLabel();
+        /** Button that saves the profile (step 5). */
+        private final Button saveButton = new Button("Save Changes");
+        /** Content of the screen. */
+        private final VBox page = new VBox(16);
+        /** Scroll pane holding the screen. */
+        private final ScrollPane scroll = new ScrollPane();
 
-        form.getChildren().addAll(
-                new Label("Full Name"), name,
-                new Label("New Password"), pass,
-                new Label("Bio"), bio,
-                new Label("Preferred Meet-up"), meetup,
-                save);
-        contentPane.getChildren().add(form);
+        /**
+         * Builds the form, filled with the current values of the Seller's profile.
+         *
+         * @param seller the logged-in Seller
+         */
+        ProfileForm(Seller seller) {
+            this.seller = seller;
+            page.setPadding(new Insets(4));
+            page.setMaxWidth(720);
+            page.getChildren().addAll(buildAccountCard(), buildAboutCard(), buildPasswordCard(), buildActions());
+            fill(SellerProfileService.toEditRequest(seller));
+            scroll.setContent(page);
+            scroll.setFitToWidth(true);
+        }
+
+        /**
+         * Returns the node showing the form.
+         *
+         * @return the scroll pane holding the form
+         */
+        Node getView() {
+            return scroll;
+        }
+
+        /**
+         * Builds the card with the username, which cannot be changed, and the full name.
+         *
+         * @return the card
+         */
+        private VBox buildAccountCard() {
+            Label username = new Label("@" + seller.getUsername());
+            username.setId("profileUsernameLabel");
+            username.setStyle("-fx-font-size: 14px; -fx-font-weight: bold; -fx-text-fill: #003974;");
+            VBox usernameBox = new VBox(6, fieldLabel("Username"), username,
+                    hint("Your username identifies your account and cannot be changed."));
+
+            fullNameField.setId("profileFullNameField");
+            fullNameField.setPromptText("For example: Charlie Lee");
+            VBox fullNameBox = field("Full name", SellerProfileField.FULL_NAME, fullNameField,
+                    lengthCounter(fullNameField, SellerProfileService.MAX_FULL_NAME_LENGTH),
+                    "Shown to buyers on all your listings. Changing it updates every listing.");
+            return card("Account", usernameBox, fullNameBox);
+        }
+
+        /**
+         * Builds the card with the bio and the preferred meet-up locations.
+         *
+         * @return the card
+         */
+        private VBox buildAboutCard() {
+            bioArea.setId("profileBioArea");
+            bioArea.setPromptText("Optional: tell buyers who you are and what you usually sell.");
+            bioArea.setPrefRowCount(4);
+            bioArea.setWrapText(true);
+            VBox bioBox = field("Bio", SellerProfileField.BIO, bioArea,
+                    lengthCounter(bioArea, SellerProfileService.MAX_BIO_LENGTH), "Optional.");
+
+            FlowPane meetupPane = new FlowPane(14, 10);
+            meetupPane.setId("profileMeetupPane");
+            for (MeetupLocation location : MeetupLocation.values()) {
+                CheckBox box = new CheckBox(location.getDisplayName());
+                box.setId("profileMeetup-" + location.name());
+                meetupBoxes.put(location, box);
+                meetupPane.getChildren().add(box);
+            }
+            VBox meetupBox = new VBox(6, fieldLabel("Preferred meet-up locations"), meetupPane,
+                    hint("Optional. The first one, in the order above, is preselected when you create a listing."));
+            return card("About you", bioBox, meetupBox);
+        }
+
+        /**
+         * Builds the card with the three password fields (basic flow, step 4).
+         *
+         * @return the card
+         */
+        private VBox buildPasswordCard() {
+            currentPasswordField.setId("profileCurrentPasswordField");
+            newPasswordField.setId("profileNewPasswordField");
+            confirmPasswordField.setId("profileConfirmPasswordField");
+            Label intro = hint("Leave these fields empty to keep your current password.");
+            VBox current = field("Current password", SellerProfileField.CURRENT_PASSWORD, currentPasswordField,
+                    null, null);
+            VBox next = field("New password", SellerProfileField.NEW_PASSWORD, newPasswordField, null,
+                    "Same rules as at registration: " + String.join(", ", PasswordPolicy.rules()) + ".");
+            VBox confirmBox = field("Confirm new password", SellerProfileField.CONFIRM_PASSWORD,
+                    confirmPasswordField, null, null);
+            return card("Change password", intro, current, next, confirmBox);
+        }
+
+        /**
+         * Builds the row with the error summary and the Cancel and Save Changes buttons.
+         *
+         * @return the row
+         */
+        private HBox buildActions() {
+            formError.setId("profileFormError");
+            formError.setMaxWidth(Double.MAX_VALUE);
+            HBox.setHgrow(formError, Priority.ALWAYS);
+            Button cancel = new Button("Cancel");
+            cancel.setId("profileCancelButton");
+            cancel.getStyleClass().add("btn-outline");
+            cancel.setOnAction(e -> cancel());
+            saveButton.setId("profileSaveButton");
+            saveButton.getStyleClass().add("btn-gold");
+            saveButton.setOnAction(e -> save());
+            HBox actions = new HBox(10, formError, cancel, saveButton);
+            actions.setAlignment(Pos.CENTER_RIGHT);
+            return actions;
+        }
+
+        /**
+         * Builds a card with a title.
+         *
+         * @param title   title of the card
+         * @param content content of the card
+         * @return the card
+         */
+        private VBox card(String title, Node... content) {
+            Label heading = new Label(title);
+            heading.getStyleClass().add("section-title");
+            VBox card = new VBox(14, heading);
+            card.getChildren().addAll(content);
+            card.getStyleClass().add("card");
+            card.setPadding(new Insets(18));
+            return card;
+        }
+
+        /**
+         * Builds a field: its label, its input, an optional counter and hint, and its hidden
+         * error label. Typing in the input removes its error.
+         *
+         * @param labelText text of the label
+         * @param field     the field
+         * @param input     the input
+         * @param counter   character counter shown next to the label, {@code null} for none
+         * @param hintText  hint shown under the input, {@code null} for none
+         * @return the field
+         */
+        private VBox field(String labelText, SellerProfileField field, TextInputControl input,
+                           Label counter, String hintText) {
+            Region gap = new Region();
+            HBox.setHgrow(gap, Priority.ALWAYS);
+            HBox labelRow = new HBox(8, fieldLabel(labelText), gap);
+            if (counter != null) {
+                labelRow.getChildren().add(counter);
+            }
+            labelRow.setAlignment(Pos.CENTER_LEFT);
+            VBox box = new VBox(6, labelRow, input);
+            if (hintText != null) {
+                box.getChildren().add(hint(hintText));
+            }
+            Label error = dialogErrorLabel();
+            error.setId("profileError" + field.name());
+            errorLabels.put(field, error);
+            box.getChildren().add(error);
+            inputs.put(field, input);
+            input.textProperty().addListener((observable, oldText, newText) -> clearError(field));
+            return box;
+        }
+
+        /**
+         * Creates the label of a field.
+         *
+         * @param text the text
+         * @return the label
+         */
+        private Label fieldLabel(String text) {
+            Label label = new Label(text);
+            label.setStyle(FIELD_LABEL_STYLE);
+            return label;
+        }
+
+        /**
+         * Creates a hint shown under a field.
+         *
+         * @param text the text
+         * @return the label
+         */
+        private Label hint(String text) {
+            Label label = new Label(text);
+            label.setStyle(MUTED_STYLE);
+            label.setWrapText(true);
+            return label;
+        }
+
+        /**
+         * Fills the form with values; the password fields are emptied.
+         *
+         * @param values the values, as given by {@link SellerProfileService#toEditRequest(Seller)}
+         */
+        private void fill(SellerProfileUpdateRequest values) {
+            fullNameField.setText(values.fullName());
+            bioArea.setText(values.bio());
+            meetupBoxes.forEach((location, box) -> box.setSelected(values.preferredMeetups().contains(location)));
+            currentPasswordField.clear();
+            newPasswordField.clear();
+            confirmPasswordField.clear();
+            clearAllErrors();
+        }
+
+        /**
+         * Reads the form.
+         *
+         * @return the values entered by the Seller
+         */
+        private SellerProfileUpdateRequest toRequest() {
+            List<MeetupLocation> meetups = new ArrayList<>();
+            meetupBoxes.forEach((location, box) -> {
+                if (box.isSelected()) {
+                    meetups.add(location);
+                }
+            });
+            return new SellerProfileUpdateRequest(fullNameField.getText(), bioArea.getText(), meetups,
+                    currentPasswordField.getText(), newPasswordField.getText(), confirmPasswordField.getText());
+        }
+
+        /**
+         * Saves the profile (steps 5 to 8). On success the Seller is told what changed and the
+         * form shows the saved profile, with the password fields emptied; if nothing changed, the
+         * Seller is told so; otherwise every invalid field is highlighted with its reason, the
+         * first one gets the focus, and nothing is saved (alternative flows A1, A2 and A3).
+         */
+        private void save() {
+            clearAllErrors();
+            SellerProfileResult result;
+            try {
+                result = profileService.updateProfile(toRequest());
+            } catch (SecurityException e) {
+                endSellerSession();
+                return;
+            }
+            switch (result.getStatus()) {
+                case SUCCESS -> {
+                    welcomeLabel.setText("Hello, " + result.getSeller().getFullName());
+                    showProfileAlert(Alert.AlertType.INFORMATION, "Profile updated", result.getMessage());
+                    showProfile();
+                }
+                case NO_CHANGES -> showProfileAlert(Alert.AlertType.INFORMATION, "Nothing to save", result.getMessage());
+                case INVALID_FIELDS -> {
+                    if (result.hasError(SellerProfileField.CURRENT_PASSWORD)) {
+                        // Cleared before highlighting: clearing the text fires the listener that
+                        // removes the highlight.
+                        currentPasswordField.clear();
+                    }
+                    result.getErrors().forEach(this::markInvalid);
+                    showError(formError, result.getMessage());
+                    focus(result.getFirstInvalidField());
+                }
+            }
+        }
+
+        /**
+         * Cancels the changes (alternative flow A4): after a confirmation if something was
+         * changed, the form shows the saved profile again and nothing is saved.
+         */
+        private void cancel() {
+            if (!SellerProfileService.isUnchanged(seller, toRequest())
+                    && !confirm("Cancel changes", "Discard your changes?", "Your profile stays as it was.")) {
+                return;
+            }
+            fill(SellerProfileService.toEditRequest(seller));
+        }
+
+        /**
+         * Highlights a field and shows its error messages.
+         *
+         * @param field    the invalid field
+         * @param messages its error messages
+         */
+        private void markInvalid(SellerProfileField field, List<String> messages) {
+            TextInputControl input = inputs.get(field);
+            if (input != null && !input.getStyleClass().contains(FIELD_ERROR_CLASS)) {
+                input.getStyleClass().add(FIELD_ERROR_CLASS);
+            }
+            Label error = errorLabels.get(field);
+            if (error != null) {
+                showError(error, String.join("\n", messages));
+            }
+        }
+
+        /**
+         * Removes the highlight and the error messages of a field, and the error summary once
+         * no field is invalid any more.
+         *
+         * @param field the field
+         */
+        private void clearError(SellerProfileField field) {
+            TextInputControl input = inputs.get(field);
+            if (input != null) {
+                input.getStyleClass().removeAll(FIELD_ERROR_CLASS);
+            }
+            Label error = errorLabels.get(field);
+            if (error != null) {
+                hideError(error);
+            }
+            if (errorLabels.values().stream().noneMatch(Node::isVisible)) {
+                hideError(formError);
+            }
+        }
+
+        /**
+         * Removes every highlight and error message.
+         */
+        private void clearAllErrors() {
+            for (SellerProfileField field : SellerProfileField.values()) {
+                clearError(field);
+            }
+        }
+
+        /**
+         * Gives the focus to the input of a field and scrolls the form so that it is visible.
+         *
+         * @param field the field, {@code null} to do nothing
+         */
+        private void focus(SellerProfileField field) {
+            TextInputControl input = field == null ? null : inputs.get(field);
+            if (input != null) {
+                input.requestFocus();
+                scrollIntoView(scroll, page, input);
+            }
+        }
+
+        /**
+         * Tells the Seller the outcome of a save.
+         *
+         * @param type    kind of alert
+         * @param header  header of the alert
+         * @param message the message
+         */
+        private void showProfileAlert(Alert.AlertType type, String header, String message) {
+            Alert alert = new Alert(type, message, ButtonType.OK);
+            alert.initOwner(SceneManager.getPrimaryStage());
+            alert.setTitle("My Profile");
+            alert.setHeaderText(header);
+            alert.showAndWait();
+        }
     }
 
     // =====================================================================

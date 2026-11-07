@@ -2,6 +2,8 @@ package com.hkust.marketplace.services;
 
 import com.hkust.marketplace.models.*;
 import com.hkust.marketplace.utils.DummyDataService;
+import com.hkust.marketplace.utils.SessionManager;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -27,6 +29,12 @@ class DealServiceTest {
         dataService = DummyDataService.getInstance();
         dataService.resetData();
         dealService = new DealService(dataService);
+        SessionManager.login(dataService.findUser("alice"));
+    }
+
+    @AfterEach
+    void tearDown() {
+        SessionManager.logout();
     }
 
     @Nested
@@ -98,7 +106,9 @@ class DealServiceTest {
                     .orElseThrow();
 
             // Unauthorized user
-            DealOperationResult unauthorized = dealService.withdrawOffer(pending.getId(), "bob");
+            DealOperationResult unauthorized = SessionManager.withSession(
+                    dataService.findUser("bob"),
+                    () -> dealService.withdrawOffer(pending.getId(), "bob"));
             assertFalse(unauthorized.isSuccess());
             assertEquals(DealOperationStatus.UNAUTHORIZED, unauthorized.getStatus());
 
@@ -256,7 +266,9 @@ class DealServiceTest {
                     .orElseThrow();
 
             // Unauthorized
-            DealOperationResult unauth = dealService.acceptCounterOffer(countered.getId(), "bob");
+            DealOperationResult unauth = SessionManager.withSession(
+                    dataService.findUser("bob"),
+                    () -> dealService.acceptCounterOffer(countered.getId(), "bob"));
             assertFalse(unauth.isSuccess());
             assertEquals(DealOperationStatus.UNAUTHORIZED, unauth.getStatus());
 
@@ -313,7 +325,8 @@ class DealServiceTest {
                     .orElseThrow();
 
             assertEquals(DealOperationStatus.UNAUTHORIZED,
-                    dealService.declineCounterOffer(countered.getId(), "bob").getStatus());
+                    SessionManager.withSession(dataService.findUser("bob"),
+                            () -> dealService.declineCounterOffer(countered.getId(), "bob")).getStatus());
 
             Offer pending = buyerOffers.stream()
                     .filter(o -> o.getStatus() == OfferStatus.PENDING)
@@ -381,7 +394,8 @@ class DealServiceTest {
                     .orElseThrow();
 
             assertEquals(DealOperationStatus.UNAUTHORIZED,
-                    dealService.selfReturnItem(loanDeal.getId(), "bob").getStatus());
+                    SessionManager.withSession(dataService.findUser("bob"),
+                            () -> dealService.selfReturnItem(loanDeal.getId(), "bob")).getStatus());
 
             loanDeal.setStatus(DealStatus.RETURNED);
             assertEquals(DealOperationStatus.DEAL_NOT_ACTIVE,
@@ -458,7 +472,8 @@ class DealServiceTest {
                     .orElseThrow();
 
             assertEquals(DealOperationStatus.UNAUTHORIZED,
-                    dealService.markDealComplete(saleDeal.getId(), "bob").getStatus());
+                    SessionManager.withSession(dataService.findUser("bob"),
+                            () -> dealService.markDealComplete(saleDeal.getId(), "bob")).getStatus());
 
             saleDeal.setStatus(DealStatus.COMPLETED);
             assertEquals(DealOperationStatus.DEAL_NOT_ACTIVE,
@@ -569,7 +584,8 @@ class DealServiceTest {
 
             // Unauthorized
             assertEquals(DealOperationStatus.UNAUTHORIZED,
-                    dealService.submitRating(deal.getId(), "bob", 5, "Good").getStatus());
+                    SessionManager.withSession(dataService.findUser("bob"),
+                            () -> dealService.submitRating(deal.getId(), "bob", 5, "Good")).getStatus());
 
             // Active deal
             deal.setStatus(DealStatus.ACTIVE);
@@ -596,7 +612,10 @@ class DealServiceTest {
             assertFalse(items.isEmpty());
 
             // Alternative Flow A1: user with no deals
-            List<MyDealsItem> empty = dealService.getMyDealsForBuyer("non_existent_buyer");
+            Buyer emptyBuyer = new Buyer("empty_buyer", "Empty Buyer", "h");
+            dataService.registerUserIfAbsent(emptyBuyer);
+            List<MyDealsItem> empty = SessionManager.withSession(emptyBuyer,
+                    () -> dealService.getMyDealsForBuyer("empty_buyer"));
             assertNotNull(empty);
             assertTrue(empty.isEmpty());
 
@@ -632,6 +651,7 @@ class DealServiceTest {
                         if (idx % 2 == 0) {
                             processedCount.addAndGet(dealService.processAutoReturns());
                         } else {
+                            SessionManager.login(dataService.findUser("alice"));
                             dealService.getMyDealsForBuyer("alice");
                         }
                     } catch (Exception e) {

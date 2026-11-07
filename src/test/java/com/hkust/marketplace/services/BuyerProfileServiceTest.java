@@ -4,6 +4,8 @@ import com.hkust.marketplace.models.*;
 import com.hkust.marketplace.utils.DummyDataService;
 import com.hkust.marketplace.utils.PasswordHasher;
 import com.hkust.marketplace.utils.PasswordUtil;
+import com.hkust.marketplace.utils.SessionManager;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -30,6 +32,12 @@ class BuyerProfileServiceTest {
         dataService = DummyDataService.getInstance();
         dataService.resetData();
         profileService = new BuyerProfileService(dataService);
+        SessionManager.login(dataService.findUser("alice"));
+    }
+
+    @AfterEach
+    void tearDown() {
+        SessionManager.logout();
     }
 
     @Nested

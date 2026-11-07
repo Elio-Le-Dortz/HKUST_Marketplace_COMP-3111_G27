@@ -2,6 +2,8 @@ package com.hkust.marketplace.services;
 
 import com.hkust.marketplace.models.*;
 import com.hkust.marketplace.utils.DummyDataService;
+import com.hkust.marketplace.utils.SessionManager;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -28,7 +30,14 @@ class DealHistoryServiceTest {
     @BeforeEach
     void setUp() {
         dataService = DummyDataService.getInstance();
+        dataService.resetData();
         historyService = dataService.getDealHistoryService();
+        SessionManager.login(dataService.findUser("alice"));
+    }
+
+    @AfterEach
+    void tearDown() {
+        SessionManager.logout();
     }
 
     @Nested
@@ -98,6 +107,8 @@ class DealHistoryServiceTest {
         @DisplayName("Expired loan deal is auto-returned before history query and appears as RETURNED")
         void testAutoReturnBeforeQuery() {
             String tempBuyer = "temp_borrower_" + UUID.randomUUID();
+            Buyer tb = new Buyer(tempBuyer, "Temp Buyer", "hash", "Hall 1");
+            dataService.registerUserIfAbsent(tb);
 
             // Create an expired active loan
             Deal expiredLoan = new Deal();
@@ -112,7 +123,8 @@ class DealHistoryServiceTest {
             dataService.addDeal(expiredLoan);
 
             // Querying history must trigger processAutoReturns()
-            List<DealHistoryItem> history = historyService.getDealHistory(tempBuyer, null);
+            List<DealHistoryItem> history = SessionManager.withSession(tb,
+                    () -> historyService.getDealHistory(tempBuyer, null));
 
             assertEquals(1, history.size());
             DealHistoryItem item = history.get(0);
@@ -157,6 +169,9 @@ class DealHistoryServiceTest {
         @BeforeEach
         void createTestDeals() {
             testBuyer = "filter_buyer_" + UUID.randomUUID();
+            Buyer b = new Buyer(testBuyer, "Filter Buyer", "hash", "Hall 1");
+            dataService.registerUserIfAbsent(b);
+            SessionManager.login(b);
 
             // Deal 1: Sale of Books on 2026-10-05, closed 2026-10-06 by charlie
             Listing l1 = new Listing();
@@ -291,6 +306,9 @@ class DealHistoryServiceTest {
         @BeforeEach
         void createTestDeals() {
             testBuyer = "search_buyer_" + UUID.randomUUID();
+            Buyer b = new Buyer(testBuyer, "Search Buyer", "hash", "Hall 1");
+            dataService.registerUserIfAbsent(b);
+            SessionManager.login(b);
 
             Deal d1 = new Deal();
             d1.setId("D-S1-" + testBuyer);
@@ -340,11 +358,15 @@ class DealHistoryServiceTest {
         @DisplayName("Alternative Flow A1: Buyer has no completed deals")
         void testNoCompletedDealsFlowA1() {
             String freshBuyer = "brand_new_buyer_" + UUID.randomUUID();
+            Buyer fb = new Buyer(freshBuyer, "Fresh Buyer", "hash", "Hall 1");
+            dataService.registerUserIfAbsent(fb);
 
-            assertFalse(historyService.hasCompletedDeals(freshBuyer));
-            List<DealHistoryItem> history = historyService.getDealHistory(freshBuyer, null);
-            assertNotNull(history);
-            assertTrue(history.isEmpty());
+            SessionManager.withSession(fb, () -> {
+                assertFalse(historyService.hasCompletedDeals(freshBuyer));
+                List<DealHistoryItem> history = historyService.getDealHistory(freshBuyer, null);
+                assertNotNull(history);
+                assertTrue(history.isEmpty());
+            });
         }
 
         @Test

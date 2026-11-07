@@ -2,6 +2,8 @@ package com.hkust.marketplace.services;
 
 import com.hkust.marketplace.models.*;
 import com.hkust.marketplace.utils.DummyDataService;
+import com.hkust.marketplace.utils.SessionManager;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -29,6 +31,12 @@ class BuyerReviewServiceTest {
         dataService = DummyDataService.getInstance();
         dataService.resetData();
         reviewService = new BuyerReviewService(dataService);
+        SessionManager.login(dataService.findUser("alice"));
+    }
+
+    @AfterEach
+    void tearDown() {
+        SessionManager.logout();
     }
 
     @Nested
@@ -110,7 +118,8 @@ class BuyerReviewServiceTest {
             deal.setRated(false);
             dataService.addDeal(deal);
 
-            RateSellerResult result = reviewService.submitRating("D_TEST_RETURNED", "bob", 1, null);
+            RateSellerResult result = SessionManager.withSession(dataService.findUser("bob"),
+                    () -> reviewService.submitRating("D_TEST_RETURNED", "bob", 1, null));
 
             assertTrue(result.isSuccess());
             assertEquals(RateSellerStatus.SUCCESS, result.getStatus());
@@ -154,7 +163,8 @@ class BuyerReviewServiceTest {
             assertEquals(1, testSeller.getRatingCount());
 
             // Bob rates 3 stars -> (5 + 3) / 2 = 4.0
-            RateSellerResult r2 = reviewService.submitRating("D_S2", "bob", 3, "Average");
+            RateSellerResult r2 = SessionManager.withSession(dataService.findUser("bob"),
+                    () -> reviewService.submitRating("D_S2", "bob", 3, "Average"));
             assertTrue(r2.isSuccess());
             assertEquals(4.0, testSeller.getAverageRating());
             assertEquals(2, testSeller.getRatingCount());
@@ -271,7 +281,8 @@ class BuyerReviewServiceTest {
             assertEquals(RateSellerStatus.DEAL_NOT_FOUND, notFound.getStatus());
 
             createSampleCompletedDeal("D_A3_2", "alice", "charlie");
-            RateSellerResult unauth = reviewService.skipRating("D_A3_2", "bob");
+            RateSellerResult unauth = SessionManager.withSession(dataService.findUser("bob"),
+                    () -> reviewService.skipRating("D_A3_2", "bob"));
             assertEquals(RateSellerStatus.UNAUTHORIZED, unauth.getStatus());
         }
     }
@@ -304,7 +315,8 @@ class BuyerReviewServiceTest {
             assertEquals(RateSellerStatus.DEAL_NOT_FOUND, notFound.getStatus());
 
             createSampleCompletedDeal("D_A4_2", "alice", "charlie");
-            RateSellerResult unauth = reviewService.cancelRating("D_A4_2", "bob");
+            RateSellerResult unauth = SessionManager.withSession(dataService.findUser("bob"),
+                    () -> reviewService.cancelRating("D_A4_2", "bob"));
             assertEquals(RateSellerStatus.UNAUTHORIZED, unauth.getStatus());
         }
     }
@@ -353,7 +365,8 @@ class BuyerReviewServiceTest {
         @DisplayName("Unauthorized buyer returns UNAUTHORIZED")
         void testUnauthorizedBuyer() {
             createSampleCompletedDeal("D_UNAUTH", "alice", "charlie");
-            RateSellerResult res = reviewService.submitRating("D_UNAUTH", "bob", 5, "Hacking rating");
+            RateSellerResult res = SessionManager.withSession(dataService.findUser("bob"),
+                    () -> reviewService.submitRating("D_UNAUTH", "bob", 5, "Hacking rating"));
             assertFalse(res.isSuccess());
             assertEquals(RateSellerStatus.UNAUTHORIZED, res.getStatus());
         }
@@ -518,6 +531,8 @@ class BuyerReviewServiceTest {
                 d.setStatus(DealStatus.COMPLETED);
                 dataService.addDeal(d);
                 deals.add(d);
+                Buyer b = new Buyer("buyer_" + i, "Buyer " + i, "hash", "Hall 1");
+                dataService.registerUserIfAbsent(b);
             }
 
             ExecutorService executor = Executors.newFixedThreadPool(dealCount);
@@ -528,6 +543,7 @@ class BuyerReviewServiceTest {
             for (int i = 0; i < dealCount; i++) {
                 final int idx = i;
                 executor.submit(() -> {
+                    SessionManager.login(dataService.findUser("buyer_" + idx));
                     try {
                         latch.await();
                         // All rate 5 stars

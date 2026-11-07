@@ -177,22 +177,28 @@ class MyListingsServiceTest {
     }
 
     private Offer priceOffer(Listing listing, Buyer buyer, double price) {
-        ActOnListingResult result = DATA.submitPriceOffer(listing.getId(), buyer.getUsername(), price);
-        assertTrue(result.isSuccess(), result::getMessage);
-        return result.getOffer();
+        return SessionManager.withSession(buyer, () -> {
+            ActOnListingResult result = DATA.submitPriceOffer(listing.getId(), buyer.getUsername(), price);
+            assertTrue(result.isSuccess(), result::getMessage);
+            return result.getOffer();
+        });
     }
 
     private Offer borrowRequest(Listing listing, Buyer buyer) {
-        LocalDateTime start = LocalDateTime.now().plusMinutes(5);
-        ActOnListingResult result = DATA.submitBorrowRequest(listing.getId(), buyer.getUsername(), start, start.plusDays(2));
-        assertTrue(result.isSuccess(), result::getMessage);
-        return result.getOffer();
+        return SessionManager.withSession(buyer, () -> {
+            LocalDateTime start = LocalDateTime.now().plusMinutes(5);
+            ActOnListingResult result = DATA.submitBorrowRequest(listing.getId(), buyer.getUsername(), start, start.plusDays(2));
+            assertTrue(result.isSuccess(), result::getMessage);
+            return result.getOffer();
+        });
     }
 
     private Offer claim(Listing listing, Buyer buyer) {
-        ActOnListingResult result = DATA.submitClaim(listing.getId(), buyer.getUsername());
-        assertTrue(result.isSuccess(), result::getMessage);
-        return result.getOffer();
+        return SessionManager.withSession(buyer, () -> {
+            ActOnListingResult result = DATA.submitClaim(listing.getId(), buyer.getUsername());
+            assertTrue(result.isSuccess(), result::getMessage);
+            return result.getOffer();
+        });
     }
 
     private Deal storeDeal(Listing listing, Buyer buyer, DealStatus status) {
@@ -485,7 +491,8 @@ class MyListingsServiceTest {
             earlier.setCreatedDate(LocalDateTime.now().minusMinutes(3));
             countered.setCreatedDate(LocalDateTime.now().minusMinutes(2));
             assertTrue(offerService.counterWithPrice(countered.getId(), 110.0).isSuccess());
-            assertTrue(DATA.withdrawOffer(withdrawn.getId(), buyer4.getUsername()).isSuccess());
+            assertTrue(SessionManager.withSession(buyer4, () ->
+                    DATA.withdrawOffer(withdrawn.getId(), buyer4.getUsername()).isSuccess()));
 
             assertEquals(List.of(earlier, countered, later), service.getOpenOffers(" " + listing.getId() + " "));
         }
@@ -692,7 +699,8 @@ class MyListingsServiceTest {
 
             assertFalse(DATA.getLiveListings().contains(listing));
             assertTrue(DATA.getPendingListings().contains(listing), "It is back in the admin's review queue");
-            ActOnListingResult offer = DATA.submitPriceOffer(listing.getId(), buyer1.getUsername(), 100.0);
+            ActOnListingResult offer = SessionManager.withSession(buyer1, () ->
+                    DATA.submitPriceOffer(listing.getId(), buyer1.getUsername(), 100.0));
             assertEquals(ActOnListingStatus.LISTING_NOT_LIVE, offer.getStatus());
 
             assertTrue(DATA.approveListing(listing.getId(), ADMIN).isSuccess());
@@ -1036,7 +1044,8 @@ class MyListingsServiceTest {
 
             assertEquals(OfferStatus.DECLINED, offer.getStatus());
             assertEquals(OfferStatus.DECLINED, offer.getCounterOffer().getStatus());
-            assertFalse(DATA.acceptCounterOffer(offer.getId(), buyer1.getUsername()).isSuccess());
+            assertFalse(SessionManager.withSession(buyer1, () ->
+                    DATA.acceptCounterOffer(offer.getId(), buyer1.getUsername()).isSuccess()));
         }
 
         @Test
@@ -1068,7 +1077,8 @@ class MyListingsServiceTest {
             Offer withdrawn = priceOffer(listing, buyer2, 105.0);
             CreateListingRequest request = formOf(listing).title("Changed").build();
             MyListingResult warning = service.editListing(listing.getId(), request, null);
-            assertTrue(DATA.withdrawOffer(withdrawn.getId(), buyer2.getUsername()).isSuccess());
+            assertTrue(SessionManager.withSession(buyer2, () ->
+                    DATA.withdrawOffer(withdrawn.getId(), buyer2.getUsername()).isSuccess()));
 
             MyListingResult result = service.editListing(listing.getId(), request, warning.getOfferIds());
 
@@ -1213,7 +1223,8 @@ class MyListingsServiceTest {
             deleteConfirmed(listing);
 
             assertEquals(ActOnListingStatus.LISTING_NOT_LIVE,
-                    DATA.submitPriceOffer(listing.getId(), buyer1.getUsername(), 100.0).getStatus());
+                    SessionManager.withSession(buyer1, () ->
+                            DATA.submitPriceOffer(listing.getId(), buyer1.getUsername(), 100.0).getStatus()));
         }
 
         @Test
@@ -1527,7 +1538,7 @@ class MyListingsServiceTest {
 
             editConfirmed(listing, formOf(listing).title("Changed").build());
 
-            assertTrue(DATA.getMyDealsForBuyer(buyer1.getUsername()).stream()
+            assertTrue(SessionManager.withSession(buyer1, () -> DATA.getMyDealsForBuyer(buyer1.getUsername())).stream()
                     .anyMatch(item -> offer.getId().equals(item.getId()) && "Declined".equals(item.getStatusDisplay())),
                     "The buyer sees the offer as declined");
         }
@@ -1541,7 +1552,8 @@ class MyListingsServiceTest {
             assertTrue(accepted.isSuccess(), accepted::getMessage);
             assertEquals(MyListingStatus.DEAL_IN_PROGRESS_OR_COMPLETED, service.checkCanEdit(listing.getId()).getStatus());
 
-            assertTrue(DATA.selfReturnItem(accepted.getDeal().getId(), buyer1.getUsername()).isSuccess());
+            assertTrue(SessionManager.withSession(buyer1, () ->
+                    DATA.selfReturnItem(accepted.getDeal().getId(), buyer1.getUsername()).isSuccess()));
 
             assertEquals(ListingStatus.LIVE, listing.getStatus());
             assertTrue(service.checkCanEdit(listing.getId()).isSuccess());
@@ -1655,7 +1667,8 @@ class MyListingsServiceTest {
             CreateListingRequest request = formOf(listing).title("Edited while busy").build();
             List<Callable<Object>> tasks = new ArrayList<>();
             for (Buyer buyer : buyers) {
-                tasks.add(() -> DATA.submitPriceOffer(listing.getId(), buyer.getUsername(), 100.0));
+                tasks.add(() -> SessionManager.withSession(buyer, () ->
+                        DATA.submitPriceOffer(listing.getId(), buyer.getUsername(), 100.0)));
             }
             tasks.add(() -> {
                 Set<String> confirmed = Set.of();

@@ -13,7 +13,9 @@ import com.hkust.marketplace.models.NotificationTargetType;
 import com.hkust.marketplace.models.Offer;
 import com.hkust.marketplace.models.OfferStatus;
 import com.hkust.marketplace.models.Review;
+import com.hkust.marketplace.models.Buyer;
 import com.hkust.marketplace.utils.DummyDataService;
+import com.hkust.marketplace.utils.SessionManager;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -46,6 +48,7 @@ public class BuyerNotificationService {
      * @return list of matching notifications sorted by timestamp descending
      */
     public synchronized List<Notification> getNotifications(String username, NotificationFilterCriteria criteria) {
+        checkSessionBuyer(username);
         if (username == null || username.trim().isEmpty()) {
             return new ArrayList<>();
         }
@@ -102,6 +105,7 @@ public class BuyerNotificationService {
      * Returns total count of unread notifications for a user.
      */
     public synchronized int getUnreadCount(String username) {
+        checkSessionBuyer(username);
         if (username == null || username.trim().isEmpty()) {
             return 0;
         }
@@ -114,6 +118,7 @@ public class BuyerNotificationService {
      * Computes unread count grouped by category for quick badge display.
      */
     public synchronized Map<NotificationCategory, Long> getUnreadCountsByCategory(String username) {
+        checkSessionBuyer(username);
         Map<NotificationCategory, Long> map = new EnumMap<>(NotificationCategory.class);
         for (NotificationCategory cat : NotificationCategory.values()) {
             map.put(cat, 0L);
@@ -136,6 +141,7 @@ public class BuyerNotificationService {
      * Computes total notification count grouped by category.
      */
     public synchronized Map<NotificationCategory, Long> getTotalCountsByCategory(String username) {
+        checkSessionBuyer(username);
         Map<NotificationCategory, Long> map = new EnumMap<>(NotificationCategory.class);
         for (NotificationCategory cat : NotificationCategory.values()) {
             map.put(cat, 0L);
@@ -160,6 +166,7 @@ public class BuyerNotificationService {
      * @return true if updated, false if not found
      */
     public synchronized boolean markAsRead(String username, String notificationId) {
+        checkSessionBuyer(username);
         Notification notif = findNotification(username, notificationId);
         if (notif != null) {
             notif.setRead(true);
@@ -172,6 +179,7 @@ public class BuyerNotificationService {
      * Marks a specific notification as unread.
      */
     public synchronized boolean markAsUnread(String username, String notificationId) {
+        checkSessionBuyer(username);
         Notification notif = findNotification(username, notificationId);
         if (notif != null) {
             notif.setRead(false);
@@ -187,6 +195,7 @@ public class BuyerNotificationService {
      * @return count of unread notifications that were changed to read
      */
     public synchronized int markAllAsRead(String username) {
+        checkSessionBuyer(username);
         if (username == null || username.trim().isEmpty()) {
             return 0;
         }
@@ -205,6 +214,7 @@ public class BuyerNotificationService {
      * Deletes a single notification.
      */
     public synchronized boolean deleteNotification(String username, String notificationId) {
+        checkSessionBuyer(username);
         if (username == null || notificationId == null) {
             return false;
         }
@@ -219,6 +229,7 @@ public class BuyerNotificationService {
      * Clears all notifications for a user.
      */
     public synchronized int clearAllNotifications(String username) {
+        checkSessionBuyer(username);
         if (username == null || username.trim().isEmpty()) {
             return 0;
         }
@@ -235,6 +246,7 @@ public class BuyerNotificationService {
      * @return NotificationTargetResult detailing the resolved item or deleted state
      */
     public synchronized NotificationTargetResult resolveNotificationTarget(String username, String notificationId) {
+        checkSessionBuyer(username);
         Notification notif = findNotification(username, notificationId);
         if (notif == null) {
             return NotificationTargetResult.notFound("Notification not found.");
@@ -456,5 +468,19 @@ public class BuyerNotificationService {
         return dataService.getNotificationsFor(username.trim()).stream()
                 .filter(n -> n.getId().equalsIgnoreCase(notificationId.trim()))
                 .findFirst().orElse(null);
+    }
+
+    /**
+     * Enforces that an active Buyer session is present and matches the requested username.
+     *
+     * @param username requested buyer username
+     * @throws SecurityException if no buyer session is active or usernames mismatch
+     */
+    private void checkSessionBuyer(String username) {
+        Buyer buyer = SessionManager.requireBuyer();
+        if (username != null && !username.trim().isEmpty()
+                && !buyer.getUsername().equalsIgnoreCase(username.trim())) {
+            throw new SecurityException("Unauthorized: Session buyer does not match requested username.");
+        }
     }
 }

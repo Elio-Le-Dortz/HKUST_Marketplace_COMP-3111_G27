@@ -2,6 +2,7 @@ package com.hkust.marketplace.utils;
 
 import com.hkust.marketplace.models.DealHistoryItem;
 import com.hkust.marketplace.services.DealHistoryService;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -18,6 +19,12 @@ class DummyDataServiceDealHistoryTest {
     @BeforeEach
     void setUp() {
         service = DummyDataService.getInstance();
+        SessionManager.login(service.findUser("alice"));
+    }
+
+    @AfterEach
+    void tearDown() {
+        SessionManager.logout();
     }
 
     @Test

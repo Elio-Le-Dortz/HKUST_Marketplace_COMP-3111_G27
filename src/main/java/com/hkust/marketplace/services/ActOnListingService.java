@@ -2,6 +2,7 @@ package com.hkust.marketplace.services;
 
 import com.hkust.marketplace.models.*;
 import com.hkust.marketplace.utils.DummyDataService;
+import com.hkust.marketplace.utils.SessionManager;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -37,6 +38,7 @@ public class ActOnListingService {
      * @return an {@link ActOnListingResult} containing the outcome
      */
     public synchronized ActOnListingResult submitPriceOffer(String listingId, String buyerUsername, Double price) {
+        checkSessionBuyer(buyerUsername);
         ActOnListingResult preCheck = validateCommonPreconditions(listingId, buyerUsername, ListingType.SELL);
         if (preCheck != null) {
             return preCheck;
@@ -83,6 +85,7 @@ public class ActOnListingService {
      */
     public synchronized ActOnListingResult submitBorrowRequest(String listingId, String buyerUsername,
                                                                LocalDateTime startDate, LocalDateTime endDate) {
+        checkSessionBuyer(buyerUsername);
         ActOnListingResult preCheck = validateCommonPreconditions(listingId, buyerUsername, ListingType.LEND);
         if (preCheck != null) {
             return preCheck;
@@ -128,6 +131,7 @@ public class ActOnListingService {
      * @return an {@link ActOnListingResult} containing the outcome
      */
     public synchronized ActOnListingResult submitClaim(String listingId, String buyerUsername) {
+        checkSessionBuyer(buyerUsername);
         ActOnListingResult preCheck = validateCommonPreconditions(listingId, buyerUsername, ListingType.GIVEAWAY);
         if (preCheck != null) {
             return preCheck;
@@ -269,5 +273,19 @@ public class ActOnListingService {
         }
 
         return null; // All common preconditions satisfied
+    }
+
+    /**
+     * Enforces that an active Buyer session is present and matches the requested username.
+     *
+     * @param buyerUsername requested buyer username
+     * @throws SecurityException if no buyer session is active or usernames mismatch
+     */
+    private void checkSessionBuyer(String buyerUsername) {
+        Buyer buyer = SessionManager.requireBuyer();
+        if (buyerUsername != null && !buyerUsername.trim().isEmpty()
+                && !buyer.getUsername().equalsIgnoreCase(buyerUsername.trim())) {
+            throw new SecurityException("Unauthorized: Session buyer does not match requested username.");
+        }
     }
 }

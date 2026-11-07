@@ -7,8 +7,11 @@ import com.hkust.marketplace.models.User;
  * TODO: Replace with proper JWT / session token handling when backend is added.
  */
 public class SessionManager {
-    /** The logged-in user, or {@code null} when nobody is logged in. */
-    private static User currentUser;
+    /** The globally logged-in user, or {@code null} when nobody is logged in. */
+    private static volatile User globalUser;
+
+    /** Thread-specific session override, used for concurrent multi-user execution in tests. */
+    private static final ThreadLocal<User> threadUser = new ThreadLocal<>();
 
     /**
      * Starts a session for the given user, replacing any previous session.
@@ -16,23 +19,26 @@ public class SessionManager {
      * @param user the authenticated user
      */
     public static void login(User user) {
-        currentUser = user;
+        globalUser = user;
+        threadUser.set(user);
     }
 
     /**
      * Ends the current session, if any.
      */
     public static void logout() {
-        currentUser = null;
+        globalUser = null;
+        threadUser.remove();
     }
 
     /**
-     * Returns the logged-in user.
+     * Returns the logged-in user. Checks thread-local context first, falling back to global session.
      *
      * @return the user of the current session, or {@code null} if nobody is logged in
      */
     public static User getCurrentUser() {
-        return currentUser;
+        User u = threadUser.get();
+        return u != null ? u : globalUser;
     }
 
     /**
@@ -41,7 +47,7 @@ public class SessionManager {
      * @return {@code true} if a session is active
      */
     public static boolean isLoggedIn() {
-        return currentUser != null;
+        return getCurrentUser() != null;
     }
 
     /**
@@ -50,7 +56,8 @@ public class SessionManager {
      * @return {@code true} if a Buyer is logged in
      */
     public static boolean isBuyer() {
-        return currentUser != null && currentUser.getRole() == com.hkust.marketplace.models.UserRole.BUYER;
+        User u = getCurrentUser();
+        return u != null && u.getRole() == com.hkust.marketplace.models.UserRole.BUYER;
     }
 
     /**
@@ -59,7 +66,8 @@ public class SessionManager {
      * @return {@code true} if a Seller is logged in
      */
     public static boolean isSeller() {
-        return currentUser != null && currentUser.getRole() == com.hkust.marketplace.models.UserRole.SELLER;
+        User u = getCurrentUser();
+        return u != null && u.getRole() == com.hkust.marketplace.models.UserRole.SELLER;
     }
 
     /**
@@ -68,7 +76,8 @@ public class SessionManager {
      * @return {@code true} if an Admin is logged in
      */
     public static boolean isAdmin() {
-        return currentUser != null && currentUser.getRole() == com.hkust.marketplace.models.UserRole.ADMIN;
+        User u = getCurrentUser();
+        return u != null && u.getRole() == com.hkust.marketplace.models.UserRole.ADMIN;
     }
 
     /**
@@ -78,8 +87,9 @@ public class SessionManager {
      * @param username the username of the user whose session should end
      */
     public static void endSessionForUser(String username) {
-        if (currentUser != null && username != null && username.trim().equalsIgnoreCase(currentUser.getUsername())) {
-            currentUser = null;
+        User u = getCurrentUser();
+        if (u != null && username != null && username.trim().equalsIgnoreCase(u.getUsername())) {
+            logout();
         }
     }
 
@@ -89,8 +99,9 @@ public class SessionManager {
      * @return Buyer instance or null if not logged in or not a Buyer
      */
     public static com.hkust.marketplace.models.Buyer getCurrentBuyer() {
-        if (currentUser instanceof com.hkust.marketplace.models.Buyer) {
-            return (com.hkust.marketplace.models.Buyer) currentUser;
+        User u = getCurrentUser();
+        if (u instanceof com.hkust.marketplace.models.Buyer) {
+            return (com.hkust.marketplace.models.Buyer) u;
         }
         return null;
     }
@@ -100,17 +111,66 @@ public class SessionManager {
      * Fulfills the special requirement of use case 1.2 that every Buyer-only function
      * checks the Buyer session on the server/service side.
      *
+     * @return the active Buyer of the current session
      * @throws SecurityException if not logged in, not a Buyer, or account is not active
      */
-    public static void requireBuyer() {
+    public static com.hkust.marketplace.models.Buyer requireBuyer() {
         if (!isLoggedIn()) {
             throw new SecurityException("Unauthorized: No user is currently logged in.");
         }
-        if (!isBuyer()) {
+        com.hkust.marketplace.models.Buyer buyer = getCurrentBuyer();
+        if (!isBuyer() || buyer == null) {
             throw new SecurityException("Unauthorized: Access requires a Buyer account.");
         }
-        if (!currentUser.isActive()) {
+        if (!buyer.isActive()) {
             throw new SecurityException("Unauthorized: Buyer account is not active.");
+        }
+        return buyer;
+    }
+
+    /**
+     * Executes an action with a temporary user session, restoring the previous session upon completion.
+     *
+     * @param tempUser the user to temporarily authenticate
+     * @param action   the action to execute
+     * @param <T>      the return type
+     * @return the result of the action
+     */
+    public static <T> T withSession(User tempUser, java.util.concurrent.Callable<T> action) {
+        User prev = threadUser.get();
+        threadUser.set(tempUser);
+        try {
+            return action.call();
+        } catch (RuntimeException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        } finally {
+            if (prev != null) {
+                threadUser.set(prev);
+            } else {
+                threadUser.remove();
+            }
+        }
+    }
+
+    /**
+     * Executes a runnable with a temporary user session, restoring the previous session upon completion.
+     *
+     * @param tempUser the user to temporarily authenticate
+     * @param action   the runnable to execute
+     */
+    public static void withSession(User tempUser, Runnable action) {
+        User prev = threadUser.get();
+        threadUser.set(tempUser);
+        try {
+            action.run();
+        } finally {
+            if (prev != null) {
+                threadUser.set(prev);
+            } else {
+                threadUser.remove();
+            }
         }
     }
 
@@ -120,8 +180,9 @@ public class SessionManager {
      * @return Seller instance or null if not logged in or not a Seller
      */
     public static com.hkust.marketplace.models.Seller getCurrentSeller() {
-        if (currentUser instanceof com.hkust.marketplace.models.Seller) {
-            return (com.hkust.marketplace.models.Seller) currentUser;
+        User u = getCurrentUser();
+        if (u instanceof com.hkust.marketplace.models.Seller) {
+            return (com.hkust.marketplace.models.Seller) u;
         }
         return null;
     }

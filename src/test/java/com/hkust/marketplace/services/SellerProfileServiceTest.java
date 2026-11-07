@@ -1099,7 +1099,8 @@ class SellerProfileServiceTest {
             Listing listing = storeListing(seller, "Lamp", ListingStatus.LIVE);
             saveOk(withName("Sam Lee"));
 
-            ActOnListingResult offer = DATA.submitPriceOffer(listing.getId(), buyer.getUsername(), 150.0);
+            ActOnListingResult offer = SessionManager.withSession(buyer, () ->
+                    DATA.submitPriceOffer(listing.getId(), buyer.getUsername(), 150.0));
 
             assertTrue(offer.isSuccess(), offer.getMessage());
             assertTrue(offer.getMessage().contains("Sam Lee"), offer.getMessage());

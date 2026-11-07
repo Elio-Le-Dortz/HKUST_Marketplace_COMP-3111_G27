@@ -464,8 +464,9 @@ class CreateListingServiceTest {
         @DisplayName("A buyer cannot make an offer on a listing that is not approved yet")
         void buyerCannotActOnPendingListing() {
             Listing listing = createValid(form().build());
-            storeBuyer("s03_buyer");
-            assertFalse(DATA.submitPriceOffer(listing.getId(), "s03_buyer", 100.0).isSuccess());
+            Buyer buyer = storeBuyer("s03_buyer");
+            assertFalse(SessionManager.withSession(buyer, () ->
+                    DATA.submitPriceOffer(listing.getId(), "s03_buyer", 100.0).isSuccess()));
             assertTrue(DATA.getOffersForListing(listing.getId()).isEmpty());
         }
 
@@ -491,8 +492,9 @@ class CreateListingServiceTest {
             assertTrue(approval.isSuccess(), approval.getMessage());
             assertTrue(DATA.getFilteredLiveListings(ListingFilterCriteria.all()).contains(listing));
 
-            storeBuyer("s03_buyer");
-            ActOnListingResult offer = DATA.submitPriceOffer(listing.getId(), "s03_buyer", 100.0);
+            Buyer buyer = storeBuyer("s03_buyer");
+            ActOnListingResult offer = SessionManager.withSession(buyer, () ->
+                    DATA.submitPriceOffer(listing.getId(), "s03_buyer", 100.0));
             assertTrue(offer.isSuccess(), offer.getMessage());
 
             List<Offer> pending = new OfferManagementService(DATA).getPendingOffers();
@@ -504,9 +506,10 @@ class CreateListingServiceTest {
         void shortLoanCanBeBorrowed() {
             Listing listing = createValid(form().type(ListingType.LEND).lending("10", LendingDurationUnit.SECONDS).build());
             assertTrue(DATA.approveListing(listing.getId(), ADMIN).isSuccess());
-            storeBuyer("s03_borrower");
+            Buyer borrower = storeBuyer("s03_borrower");
             LocalDateTime start = LocalDateTime.now().plusSeconds(1);
-            ActOnListingResult request = DATA.submitBorrowRequest(listing.getId(), "s03_borrower", start, start.plusSeconds(5));
+            ActOnListingResult request = SessionManager.withSession(borrower, () ->
+                    DATA.submitBorrowRequest(listing.getId(), "s03_borrower", start, start.plusSeconds(5)));
             assertTrue(request.isSuccess(), request.getMessage());
         }
     }

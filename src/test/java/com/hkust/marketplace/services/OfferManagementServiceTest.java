@@ -138,16 +138,20 @@ class OfferManagementServiceTest {
 
     /** Makes a price offer through the buyer action of use case 1.5. */
     private static Offer priceOffer(Listing listing, Buyer buyer, double price) {
-        ActOnListingResult r = DATA.submitPriceOffer(listing.getId(), buyer.getUsername(), price);
-        assertTrue(r.isSuccess(), r.getMessage());
-        return r.getOffer();
+        return SessionManager.withSession(buyer, () -> {
+            ActOnListingResult r = DATA.submitPriceOffer(listing.getId(), buyer.getUsername(), price);
+            assertTrue(r.isSuccess(), r.getMessage());
+            return r.getOffer();
+        });
     }
 
     /** Makes a borrow request through the buyer action of use case 1.5. */
     private static Offer borrowRequest(Listing listing, Buyer buyer, LocalDateTime start, LocalDateTime end) {
-        ActOnListingResult r = DATA.submitBorrowRequest(listing.getId(), buyer.getUsername(), start, end);
-        assertTrue(r.isSuccess(), r.getMessage());
-        return r.getOffer();
+        return SessionManager.withSession(buyer, () -> {
+            ActOnListingResult r = DATA.submitBorrowRequest(listing.getId(), buyer.getUsername(), start, end);
+            assertTrue(r.isSuccess(), r.getMessage());
+            return r.getOffer();
+        });
     }
 
     /** Makes a borrow request of one day starting in one hour. */
@@ -158,9 +162,11 @@ class OfferManagementServiceTest {
 
     /** Makes a claim through the buyer action of use case 1.5. */
     private static Offer claim(Listing listing, Buyer buyer) {
-        ActOnListingResult r = DATA.submitClaim(listing.getId(), buyer.getUsername());
-        assertTrue(r.isSuccess(), r.getMessage());
-        return r.getOffer();
+        return SessionManager.withSession(buyer, () -> {
+            ActOnListingResult r = DATA.submitClaim(listing.getId(), buyer.getUsername());
+            assertTrue(r.isSuccess(), r.getMessage());
+            return r.getOffer();
+        });
     }
 
     private static List<Deal> dealsFor(Listing listing) {
@@ -284,7 +290,8 @@ class OfferManagementServiceTest {
         void onlyOwnPendingOffers() {
             Offer mine = priceOffer(sellListing, buyer1, 150.0);
             Offer withdrawn = priceOffer(sellListing, buyer2, 160.0);
-            assertTrue(DATA.withdrawOffer(withdrawn.getId(), buyer2.getUsername()).isSuccess());
+            assertTrue(SessionManager.withSession(buyer2, () ->
+                    DATA.withdrawOffer(withdrawn.getId(), buyer2.getUsername()).isSuccess()));
             Listing othersListing = storeListing(otherSeller, "Other Lamp", ListingType.SELL);
             Offer othersOffer = priceOffer(othersListing, buyer1, 50.0);
 
@@ -359,7 +366,8 @@ class OfferManagementServiceTest {
             Offer offer = priceOffer(sellListing, buyer1, 150.0);
             Deal deal = service.acceptOffer(offer.getId()).getDeal();
 
-            assertTrue(DATA.getMyDealsForBuyer(buyer1.getUsername()).stream()
+            assertTrue(SessionManager.withSession(buyer1, () ->
+                    DATA.getMyDealsForBuyer(buyer1.getUsername())).stream()
                     .anyMatch(item -> deal.getId().equals(item.getId())));
         }
 
@@ -415,7 +423,8 @@ class OfferManagementServiceTest {
             Offer countered = priceOffer(sellListing, buyer3, 120.0);
             assertTrue(service.counterWithPrice(countered.getId(), 170.0).isSuccess());
             Offer withdrawn = priceOffer(sellListing, buyer2, 130.0);
-            assertTrue(DATA.withdrawOffer(withdrawn.getId(), buyer2.getUsername()).isSuccess());
+            assertTrue(SessionManager.withSession(buyer2, () ->
+                    DATA.withdrawOffer(withdrawn.getId(), buyer2.getUsername()).isSuccess()));
             Listing otherListing = storeListing(seller, "Bookshelf", ListingType.SELL);
             Offer elsewhere = priceOffer(otherListing, buyer2, 90.0);
 
@@ -463,7 +472,8 @@ class OfferManagementServiceTest {
         void reservedBecomesSold() {
             Deal deal = service.acceptOffer(priceOffer(sellListing, buyer1, 150.0).getId()).getDeal();
 
-            assertTrue(DATA.markDealComplete(deal.getId(), buyer1.getUsername()).isSuccess());
+            assertTrue(SessionManager.withSession(buyer1, () ->
+                    DATA.markDealComplete(deal.getId(), buyer1.getUsername()).isSuccess()));
 
             assertEquals(ListingStatus.SOLD, sellListing.getStatus());
         }
@@ -473,7 +483,8 @@ class OfferManagementServiceTest {
         void reservedBecomesGiven() {
             Deal deal = service.acceptOffer(claim(giveawayListing, buyer1).getId()).getDeal();
 
-            assertTrue(DATA.markDealComplete(deal.getId(), buyer1.getUsername()).isSuccess());
+            assertTrue(SessionManager.withSession(buyer1, () ->
+                    DATA.markDealComplete(deal.getId(), buyer1.getUsername()).isSuccess()));
 
             assertEquals(ListingStatus.GIVEN, giveawayListing.getStatus());
         }
@@ -520,7 +531,8 @@ class OfferManagementServiceTest {
         @DisplayName("A2: an offer withdrawn by the buyer cannot be accepted")
         void withdrawnOffer() {
             Offer offer = priceOffer(sellListing, buyer1, 150.0);
-            assertTrue(DATA.withdrawOffer(offer.getId(), buyer1.getUsername()).isSuccess());
+            assertTrue(SessionManager.withSession(buyer1, () ->
+                    DATA.withdrawOffer(offer.getId(), buyer1.getUsername()).isSuccess()));
 
             OfferManagementResult result = service.acceptOffer(offer.getId());
 
@@ -728,13 +740,15 @@ class OfferManagementServiceTest {
         @DisplayName("After a declined claim, another buyer can claim the giveaway (use case 1.5)")
         void declinedClaimFreesTheGiveaway() {
             Offer first = claim(giveawayListing, buyer1);
-            assertFalse(DATA.submitClaim(giveawayListing.getId(), buyer2.getUsername()).isSuccess(),
+            assertFalse(SessionManager.withSession(buyer2, () ->
+                    DATA.submitClaim(giveawayListing.getId(), buyer2.getUsername()).isSuccess()),
                     "A second claim is blocked while the first is pending");
 
             assertTrue(service.declineOffer(first.getId(), null).isSuccess());
 
             assertEquals(ListingStatus.LIVE, giveawayListing.getStatus());
-            assertTrue(DATA.submitClaim(giveawayListing.getId(), buyer2.getUsername()).isSuccess());
+            assertTrue(SessionManager.withSession(buyer2, () ->
+                    DATA.submitClaim(giveawayListing.getId(), buyer2.getUsername()).isSuccess()));
         }
 
         @Test
@@ -752,7 +766,8 @@ class OfferManagementServiceTest {
         @DisplayName("A2: an offer withdrawn by the buyer cannot be declined")
         void withdrawnOffer() {
             Offer offer = priceOffer(sellListing, buyer1, 50.0);
-            assertTrue(DATA.withdrawOffer(offer.getId(), buyer1.getUsername()).isSuccess());
+            assertTrue(SessionManager.withSession(buyer1, () ->
+                    DATA.withdrawOffer(offer.getId(), buyer1.getUsername()).isSuccess()));
 
             assertFailure(service.declineOffer(offer.getId(), null), OfferManagementStatus.OFFER_NOT_PENDING);
             assertEquals(OfferStatus.WITHDRAWN, offer.getStatus());
@@ -864,7 +879,8 @@ class OfferManagementServiceTest {
             Offer offer = priceOffer(sellListing, buyer1, 150.0);
             assertTrue(service.counterWithPrice(offer.getId(), 180.0).isSuccess());
 
-            DealOperationResult answer = DATA.acceptCounterOffer(offer.getId(), buyer1.getUsername());
+            DealOperationResult answer = SessionManager.withSession(buyer1, () ->
+                    DATA.acceptCounterOffer(offer.getId(), buyer1.getUsername()));
 
             assertTrue(answer.isSuccess(), answer.getMessage());
             assertEquals(180.0, answer.getDeal().getOfferPrice());
@@ -878,7 +894,8 @@ class OfferManagementServiceTest {
             Offer offer = priceOffer(sellListing, buyer1, 150.0);
             assertTrue(service.counterWithPrice(offer.getId(), 180.0).isSuccess());
 
-            assertTrue(DATA.declineCounterOffer(offer.getId(), buyer1.getUsername()).isSuccess());
+            assertTrue(SessionManager.withSession(buyer1, () ->
+                    DATA.declineCounterOffer(offer.getId(), buyer1.getUsername()).isSuccess()));
 
             assertEquals(OfferStatus.DECLINED, offer.getStatus());
             assertEquals(ListingStatus.LIVE, sellListing.getStatus());
@@ -994,7 +1011,8 @@ class OfferManagementServiceTest {
             LocalDateTime end = start.plusDays(2);
             assertTrue(service.counterWithDates(request.getId(), start, end).isSuccess());
 
-            DealOperationResult answer = DATA.acceptCounterOffer(request.getId(), buyer1.getUsername());
+            DealOperationResult answer = SessionManager.withSession(buyer1, () ->
+                    DATA.acceptCounterOffer(request.getId(), buyer1.getUsername()));
 
             assertTrue(answer.isSuccess(), answer.getMessage());
             assertEquals(DealType.LOAN, answer.getDeal().getType());
@@ -1144,7 +1162,8 @@ class OfferManagementServiceTest {
         @Test
         @DisplayName("A2: a request withdrawn by the buyer cannot be countered")
         void withdrawnRequest() {
-            assertTrue(DATA.withdrawOffer(request.getId(), buyer1.getUsername()).isSuccess());
+            assertTrue(SessionManager.withSession(buyer1, () ->
+                    DATA.withdrawOffer(request.getId(), buyer1.getUsername()).isSuccess()));
 
             assertFailure(service.counterWithDates(request.getId(), start, start.plusHours(1)),
                     OfferManagementStatus.OFFER_NOT_PENDING);
@@ -1393,7 +1412,8 @@ class OfferManagementServiceTest {
 
                 List<Callable<Boolean>> tasks = List.of(
                         () -> service.acceptOffer(offer.getId()).isSuccess(),
-                        () -> DATA.withdrawOffer(offer.getId(), buyer1.getUsername()).isSuccess());
+                        () -> SessionManager.withSession(buyer1, () ->
+                                DATA.withdrawOffer(offer.getId(), buyer1.getUsername()).isSuccess()));
                 List<Boolean> wins = runTogether(tasks);
 
                 assertNotEquals(wins.get(0), wins.get(1), "Exactly one of accept and withdraw must succeed");
@@ -1433,7 +1453,8 @@ class OfferManagementServiceTest {
             for (int i = 0; i < THREADS - 1; i++) {
                 Buyer late = storeBuyer("s05_late" + i);
                 double price = 120.0 + i;
-                tasks.add(() -> DATA.submitPriceOffer(sellListing.getId(), late.getUsername(), price).isSuccess());
+                tasks.add(() -> SessionManager.withSession(late, () ->
+                        DATA.submitPriceOffer(sellListing.getId(), late.getUsername(), price).isSuccess()));
             }
 
             List<Boolean> results = runTogether(tasks);

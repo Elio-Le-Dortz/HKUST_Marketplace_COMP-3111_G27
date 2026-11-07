@@ -1,6 +1,7 @@
 package com.hkust.marketplace.utils;
 
 import com.hkust.marketplace.models.*;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -16,6 +17,12 @@ class DummyDataServiceProfileTest {
     void setUp() {
         dataService = DummyDataService.getInstance();
         dataService.resetData();
+        SessionManager.login(dataService.findUser("alice"));
+    }
+
+    @AfterEach
+    void tearDown() {
+        SessionManager.logout();
     }
 
     @Test

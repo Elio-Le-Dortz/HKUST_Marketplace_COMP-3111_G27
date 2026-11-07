@@ -100,12 +100,20 @@ class BuyerRegistrationTest {
         assertNotEquals(plainPassword, buyer.getPassword());
         assertNotEquals(plainPassword, buyer.getPasswordHash());
 
-        // Password hash must contain salt separator
-        assertTrue(buyer.getPasswordHash().contains(":"));
+        // Password hash must use PBKDF2 format
+        assertTrue(buyer.getPasswordHash().startsWith("pbkdf2_sha256$"));
 
         // Must authenticate using PasswordUtil
         assertTrue(PasswordUtil.verifyPassword(plainPassword, buyer.getPasswordHash()));
         assertFalse(PasswordUtil.verifyPassword("WrongPassword123", buyer.getPasswordHash()));
+    }
+
+    @Test
+    @DisplayName("F02 regression: registered buyer password uses PBKDF2 hash")
+    void testRegisteredBuyerUsesPbkdf2Hash() {
+        RegistrationResult r = service.registerBuyer("zed", "Zed", "Abcdefg1", "Abcdefg1", null);
+        assertTrue(r.isSuccess());
+        assertTrue(r.getUser().getPasswordHash().startsWith("pbkdf2_sha256$"));
     }
 
     @Test

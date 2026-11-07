@@ -787,7 +787,7 @@ public class DummyDataService {
             return RegistrationResult.failure("Passwords do not match.", "confirmPassword");
         }
 
-        String hashedPassword = PasswordUtil.hashPassword(password);
+        String hashedPassword = PasswordHasher.hash(password);
         String cleanResidence = (residence != null && !residence.trim().isEmpty()) ? residence.trim() : null;
         Buyer buyer = new Buyer(cleanUsername.toLowerCase(), fullName.trim(), hashedPassword, cleanResidence);
         buyer.setAccountStatus(AccountStatus.ACTIVE);

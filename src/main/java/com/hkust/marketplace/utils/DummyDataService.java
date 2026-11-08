@@ -631,7 +631,7 @@ public class DummyDataService {
         Admin seededAdmin = new Admin(
                 SEEDED_ADMIN_USERNAME,
                 SEEDED_ADMIN_FULLNAME,
-                SEEDED_ADMIN_PASSWORD
+                SEED_ADMIN_HASH
         );
         seededAdmin.setActive(true);
         users.put(SEEDED_ADMIN_USERNAME, seededAdmin);

@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.util.Locale;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -75,23 +76,35 @@ class PasswordUtilTest {
     }
 
     @Test
-    @DisplayName("Fallback verification for legacy plaintext or legacy unsalted hashes")
-    void testLegacyVerificationFallback() throws Exception {
-        // Plaintext match fallback
-        assertTrue(PasswordUtil.verifyPassword("legacyPassword1", "legacyPassword1"));
+    @DisplayName("F01: Plaintext stored passwords and unsalted hashes are strictly rejected")
+    void testPlaintextAndUnsaltedRejected() throws Exception {
+        // Plaintext match must be rejected
+        assertFalse(PasswordUtil.verifyPassword("secret", "secret"));
+        assertFalse(PasswordUtil.verifyPassword("legacyPassword1", "legacyPassword1"));
         assertFalse(PasswordUtil.verifyPassword("legacyPassword1", "wrongLegacyPassword"));
 
-        // Legacy unsalted SHA-256 hash fallback
+        // Legacy unsalted SHA-256 hash must be rejected
         MessageDigest md = MessageDigest.getInstance("SHA-256");
         byte[] digest = md.digest("legacyPlain123".getBytes(StandardCharsets.UTF_8));
         StringBuilder sb = new StringBuilder();
         for (byte b : digest) {
-            sb.append(String.format("%02x", b));
+            sb.append(String.format(Locale.ENGLISH, "%02x", b));
         }
         String unsaltedHash = sb.toString();
 
-        assertTrue(PasswordUtil.verifyPassword("legacyPlain123", unsaltedHash));
+        assertFalse(PasswordUtil.verifyPassword("legacyPlain123", unsaltedHash));
         assertFalse(PasswordUtil.verifyPassword("wrongPassword", unsaltedHash));
         assertFalse(PasswordUtil.verifyPassword("legacyPlain123", "invalidHexDigestZ9"));
+    }
+
+    @Test
+    @DisplayName("F01: Verify PBKDF2 formatted hash")
+    void testVerifyPbkdf2Format() {
+        String rawPassword = "AdminSecurePass123";
+        String pbkdf2Hash = PasswordHasher.hash(rawPassword);
+
+        assertTrue(pbkdf2Hash.startsWith("pbkdf2_sha256$"));
+        assertTrue(PasswordUtil.verifyPassword(rawPassword, pbkdf2Hash));
+        assertFalse(PasswordUtil.verifyPassword("WrongPass", pbkdf2Hash));
     }
 }

@@ -6,6 +6,8 @@ import com.hkust.marketplace.models.AdminProfileUpdateRequest;
 import com.hkust.marketplace.models.User;
 import com.hkust.marketplace.models.UserRole;
 import com.hkust.marketplace.utils.DummyDataService;
+import com.hkust.marketplace.utils.PasswordHasher;
+import com.hkust.marketplace.utils.PasswordUtil;
 import com.hkust.marketplace.utils.SessionManager;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -39,6 +41,14 @@ public class AdminLoginTest {
         assertEquals("HKUST Marketplace Admin", admin.getFullName());
         assertEquals(UserRole.ADMIN, admin.getRole());
         assertTrue(admin.isActive());
+        // F01 regression: Seeded admin password is stored hashed with PBKDF2 and never plaintext
+        String stored = admin.getPasswordHash();
+        assertNotNull(stored);
+        assertNotEquals("admin123", stored, "Admin password must not be stored in plaintext");
+        assertTrue(stored.startsWith("pbkdf2_sha256$"), "Admin password hash must use PBKDF2");
+        assertTrue(PasswordHasher.verify("admin123", stored));
+        assertTrue(PasswordUtil.verifyPassword("admin123", stored));
+        assertFalse(PasswordUtil.verifyPassword("secret", "secret"), "Plaintext must not be accepted by PasswordUtil");
     }
 
     @Test

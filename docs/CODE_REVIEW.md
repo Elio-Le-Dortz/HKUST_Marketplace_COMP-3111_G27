@@ -113,7 +113,7 @@ After F03/F04 (session checks for buyers and admins) the snippets must log in th
 
 | ID | Priority | Owner | Problem | Requirement broken |
 |----|----------|-------|---------|--------------------|
-| F01 | P1 | Elio / shared | Seeded admin password stored in plaintext; plaintext accepted at login | Brief NFR "credentials hashed, never plaintext"; CLASS_DIAGRAM §3.1 |
+| F01 | P1 | Elio / shared | ~~Seeded admin password stored in plaintext; plaintext accepted at login~~ **[FIXED]** | Brief NFR "credentials hashed, never plaintext"; CLASS_DIAGRAM §3.1 |
 | F02 | P1 | Charles, Elio | ~~Three password schemes; buyers and profile changes use 1-round SHA-256~~ **[FIXED - PR #32]** | Same; README "Password Rules" |
 | F03 | P1 | Charles | ~~Buyer services do not check the session~~ **[FIXED - PR #33]** | Brief technical req. "RBAC at the API layer"; UC 1.2 special req. |
 | F04 | P1 | Elio | Admin services trust a username argument; dashboard has no session guard | Same; UC 3.1 special req. |
@@ -154,7 +154,12 @@ After F03/F04 (session checks for buyers and admins) the snippets must log in th
 
 ## P1 — Graded requirements
 
-### F01 — Seeded admin password stored in plaintext; plaintext accepted at login
+### F01 — [FIXED] Seeded admin password stored in plaintext; plaintext accepted at login
+> [!NOTE]
+> **Status: FIXED**
+> - Updated `DummyDataService.seedAdmin()` to initialize the seeded administrator using `SEED_ADMIN_HASH` (PBKDF2-HMAC-SHA256) instead of plaintext `SEEDED_ADMIN_PASSWORD`.
+> - Removed plaintext password fallback and legacy unsalted SHA-256 fallback branches in `PasswordUtil.verifyPassword`, ensuring only PBKDF2 and salted SHA-256 hashes are accepted.
+> - Added regression tests in `PasswordUtilTest`, `AdminLoginTest`, and `DummyDataServiceTest` verifying that plaintext passwords and unsalted hashes are strictly rejected, and that the seeded administrator password hash is properly formatted with PBKDF2.
 - **Owner:** Elio (admin seed) / shared utility.
 - **Requirement:** brief NFR "Ensure that data is securely stored, particularly all users' credentials (hashed,
   never plaintext)"; CLASS_DIAGRAM §3.1 "Hashed password (never store plaintext)"; UC 3.1 special req. "with its

@@ -80,6 +80,30 @@ class ActOnListingServiceTest {
             assertEquals("New Offer Received", latestNotif.getTitle());
             assertTrue(latestNotif.getMessage().contains("alice"));
             assertTrue(latestNotif.getMessage().contains("150.00"));
+            assertEquals(offer.getId(), latestNotif.getRelatedItemId());
+            assertEquals(NotificationTargetType.OFFER.name(), latestNotif.getRelatedItemType());
+        }
+
+        @Test
+        @DisplayName("F20: Seller can open notification from price offer deep link successfully")
+        void testSellerDeepLinkFromOfferNotification() {
+            Listing sellListing = dataService.getLiveListings().stream()
+                    .filter(l -> l.getType() == ListingType.SELL && !"alice".equalsIgnoreCase(l.getSellerUsername()))
+                    .findFirst()
+                    .orElseThrow();
+
+            ActOnListingResult result = actService.submitPriceOffer(sellListing.getId(), "alice", 150.0);
+            assertTrue(result.isSuccess());
+            Notification notif = dataService.getNotificationsFor(sellListing.getSellerUsername()).get(0);
+
+            SellerNotificationService sellerNotifService = new SellerNotificationService(dataService);
+            Seller seller = (Seller) dataService.findUser(sellListing.getSellerUsername());
+            SellerNotificationResult openResult = SessionManager.withSession(seller, () ->
+                    sellerNotifService.openNotification(notif.getId()));
+
+            assertTrue(openResult.isSuccess());
+            assertNotNull(openResult.getOffer());
+            assertEquals(result.getOffer().getId(), openResult.getOffer().getId());
         }
 
         @Test
@@ -128,6 +152,8 @@ class ActOnListingServiceTest {
             List<Notification> sellerNotifs = dataService.getNotificationsFor(lendListing.getSellerUsername());
             assertEquals(initialNotifCount + 1, sellerNotifs.size());
             assertEquals("Borrow Request Received", sellerNotifs.get(0).getTitle());
+            assertEquals(offer.getId(), sellerNotifs.get(0).getRelatedItemId());
+            assertEquals(NotificationTargetType.OFFER.name(), sellerNotifs.get(0).getRelatedItemType());
         }
 
         @Test
@@ -178,6 +204,8 @@ class ActOnListingServiceTest {
             assertEquals(initialOfferCount + 1, dataService.getOffersForListing(giveaway.getId()).size());
             List<Notification> notifs = dataService.getNotificationsFor(giveaway.getSellerUsername());
             assertEquals(initialNotifCount + 1, notifs.size());
+            assertEquals(offer.getId(), notifs.get(0).getRelatedItemId());
+            assertEquals(NotificationTargetType.OFFER.name(), notifs.get(0).getRelatedItemType());
             assertEquals("Giveaway Claim Received", notifs.get(0).getTitle());
         }
     }

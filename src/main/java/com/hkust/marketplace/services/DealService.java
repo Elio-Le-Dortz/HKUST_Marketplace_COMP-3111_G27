@@ -109,11 +109,13 @@ public class DealService {
 
         // Notify Seller (Subflow S1 Step 4)
         String sellerMsg = buyerUsername.trim() + " withdrew their offer on '" + offer.getListingTitle() + "'.";
-        dataService.addNotification(new Notification(offer.getSellerUsername(), "Offer Withdrawn", sellerMsg, "Offer"));
+        dataService.addNotification(new Notification(offer.getSellerUsername(), "Offer Withdrawn", sellerMsg, "Offer",
+                offer.getId(), NotificationTargetType.OFFER.name()));
 
         // Notify Buyer (Subflow S1 Step 5)
         String buyerMsg = "You withdrew your offer on '" + offer.getListingTitle() + "'.";
-        dataService.addNotification(new Notification(buyerUsername.trim(), "Offer Withdrawn", buyerMsg, "Offer"));
+        dataService.addNotification(new Notification(buyerUsername.trim(), "Offer Withdrawn", buyerMsg, "Offer",
+                offer.getId(), NotificationTargetType.OFFER.name()));
 
         return DealOperationResult.success(offer, "Offer successfully withdrawn.");
     }
@@ -215,11 +217,13 @@ public class DealService {
 
         // Subflow S2 Step 5: Notify seller
         String sellerMsg = buyerUsername.trim() + " accepted your counter offer for '" + listing.getTitle() + "'.";
-        dataService.addNotification(new Notification(listing.getSellerUsername(), "Counter Offer Accepted", sellerMsg, "Offer"));
+        dataService.addNotification(new Notification(listing.getSellerUsername(), "Counter Offer Accepted", sellerMsg, "Offer",
+                deal.getId(), NotificationTargetType.DEAL.name()));
 
         // Subflow S2 Step 6: Inform Buyer
         String buyerMsg = "You accepted the counter offer for '" + listing.getTitle() + "'. Deal is now active!";
-        dataService.addNotification(new Notification(buyerUsername.trim(), "Counter Offer Accepted", buyerMsg, "Offer"));
+        dataService.addNotification(new Notification(buyerUsername.trim(), "Counter Offer Accepted", buyerMsg, "Offer",
+                deal.getId(), NotificationTargetType.DEAL.name()));
 
         return DealOperationResult.success(deal, buyerMsg);
     }
@@ -261,11 +265,13 @@ public class DealService {
 
         // Subflow S3 Step 4: Notify seller
         String sellerMsg = buyerUsername.trim() + " declined your counter offer for '" + offer.getListingTitle() + "'.";
-        dataService.addNotification(new Notification(offer.getSellerUsername(), "Counter Offer Declined", sellerMsg, "Offer"));
+        dataService.addNotification(new Notification(offer.getSellerUsername(), "Counter Offer Declined", sellerMsg, "Offer",
+                offer.getId(), NotificationTargetType.OFFER.name()));
 
         // Subflow S3 Step 5: Inform buyer
         String buyerMsg = "You declined the counter offer for '" + offer.getListingTitle() + "'.";
-        dataService.addNotification(new Notification(buyerUsername.trim(), "Counter Offer Declined", buyerMsg, "Offer"));
+        dataService.addNotification(new Notification(buyerUsername.trim(), "Counter Offer Declined", buyerMsg, "Offer",
+                offer.getId(), NotificationTargetType.OFFER.name()));
 
         return DealOperationResult.success(offer, buyerMsg);
     }
@@ -317,11 +323,13 @@ public class DealService {
 
         // Subflow S4 Step 4: Notify seller
         String sellerMsg = buyerUsername.trim() + " returned your borrowed item: " + deal.getListingTitle() + ".";
-        dataService.addNotification(new Notification(deal.getSellerUsername(), "Item Returned", sellerMsg, "Loan"));
+        dataService.addNotification(new Notification(deal.getSellerUsername(), "Item Returned", sellerMsg, "Loan",
+                deal.getId(), NotificationTargetType.DEAL.name()));
 
         // Subflow S4 Step 5: Inform buyer
         String buyerMsg = "Return recorded for '" + deal.getListingTitle() + "'. The item has been returned to the seller.";
-        dataService.addNotification(new Notification(buyerUsername.trim(), "Item Returned", buyerMsg, "Loan"));
+        dataService.addNotification(new Notification(buyerUsername.trim(), "Item Returned", buyerMsg, "Loan",
+                deal.getId(), NotificationTargetType.DEAL.name()));
 
         return DealOperationResult.success(deal, buyerMsg);
     }
@@ -373,11 +381,13 @@ public class DealService {
 
         // Subflow S5 Step 4: Notify seller
         String sellerMsg = buyerUsername.trim() + " marked the deal for '" + deal.getListingTitle() + "' as completed.";
-        dataService.addNotification(new Notification(deal.getSellerUsername(), "Deal Completed", sellerMsg, "Deal"));
+        dataService.addNotification(new Notification(deal.getSellerUsername(), "Deal Completed", sellerMsg, "Deal",
+                deal.getId(), NotificationTargetType.DEAL.name()));
 
         // Subflow S5 Step 5: Prompt buyer to rate seller
         String buyerMsg = "Deal completed successfully! Please take a moment to rate and review the seller.";
-        dataService.addNotification(new Notification(buyerUsername.trim(), "Deal Completed", buyerMsg, "Deal"));
+        dataService.addNotification(new Notification(buyerUsername.trim(), "Deal Completed", buyerMsg, "Deal",
+                deal.getId(), NotificationTargetType.DEAL.name()));
 
         return DealOperationResult.completeWithRatingPrompt(deal, buyerMsg);
     }
@@ -413,11 +423,13 @@ public class DealService {
 
                 // Step 2: Notify seller
                 String sellerMsg = "The borrow period for '" + deal.getListingTitle() + "' has expired and the item was auto-returned to Live.";
-                dataService.addNotification(new Notification(deal.getSellerUsername(), "Item Auto-Returned", sellerMsg, "Loan"));
+                dataService.addNotification(new Notification(deal.getSellerUsername(), "Item Auto-Returned", sellerMsg, "Loan",
+                        deal.getId(), NotificationTargetType.DEAL.name()));
 
                 // Step 3: Notify buyer
                 String buyerMsg = "Your borrow period for '" + deal.getListingTitle() + "' has expired and has been auto-returned.";
-                dataService.addNotification(new Notification(deal.getBuyerUsername(), "Item Auto-Returned", buyerMsg, "Loan"));
+                dataService.addNotification(new Notification(deal.getBuyerUsername(), "Item Auto-Returned", buyerMsg, "Loan",
+                        deal.getId(), NotificationTargetType.DEAL.name()));
 
                 count++;
             }

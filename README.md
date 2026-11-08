@@ -343,6 +343,10 @@ and the review by `bob` is already flagged in the seeded data.
 | Seller | `charlie` | `password1`|
 | Seller | `diana`   | `password1`|
 
+> [!NOTE]
+> **Listing Photos & Demo Data Limitation (F31)**:
+> In accordance with the domain model (`Listing 1 *-- 1..6 Photo`), listings created via the Seller Portal (US-S02) or Admin Portal (US-A07) require 1 to 6 photos uploaded from the local filesystem. For the static in-memory seed listings (`DummyDataService`), no photos are attached to avoid requiring local filesystem image writes on startup across arbitrary operating systems. Seeded listings display the dedicated "No Photo" / "No photos uploaded for this listing" placeholders in the Marketplace Browse cards and Listing Details gallery.
+
 ## Features Implemented (UI Only)
 
 ### Shared

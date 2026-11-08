@@ -2,6 +2,7 @@ package com.hkust.marketplace.models;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Locale;
 import java.util.Objects;
 
 /**
@@ -212,7 +213,7 @@ public class DealHistoryItem {
 
     public String getFormattedPrice() {
         if (price != null && dealType == DealType.SALE) {
-            return String.format("HK$ %.2f", price);
+            return String.format(Locale.ENGLISH, "HK$ %.2f", price);
         } else if (dealType == DealType.GIVEAWAY) {
             return "Free";
         } else if (dealType == DealType.LOAN) {

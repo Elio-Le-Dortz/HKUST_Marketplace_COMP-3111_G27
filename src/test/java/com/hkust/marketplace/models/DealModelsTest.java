@@ -321,4 +321,52 @@ class DealModelsTest {
         offer.setStatus(OfferStatus.WITHDRAWN);
         assertTrue(offer.isWithdrawn());
     }
+
+    @Test
+    @DisplayName("F25: Deal items format prices and currency strings independently of default locale")
+    void testDealFormattingLocaleIndependence() {
+        java.util.Locale original = java.util.Locale.getDefault();
+        try {
+            java.util.Locale.setDefault(java.util.Locale.FRANCE);
+
+            // MyDealsItem price
+            Deal deal = new Deal();
+            deal.setId("D100");
+            deal.setType(DealType.SALE);
+            deal.setOfferPrice(12.50);
+            deal.setStatus(DealStatus.COMPLETED);
+            MyDealsItem item = MyDealsItem.fromDeal(deal);
+            assertEquals("HK$ 12.50", item.getFormattedPrice());
+            assertFalse(item.getFormattedPrice().contains(","));
+
+            // MyDealsItem counter price
+            Offer offer = new Offer();
+            offer.setStatus(OfferStatus.COUNTERED);
+            Offer counter = new Offer();
+            counter.setPrice(99.95);
+            offer.setCounterOffer(counter);
+            MyDealsItem counterItem = MyDealsItem.fromOffer(offer);
+            assertEquals("Counter Price: HK$ 99.95", counterItem.getCounterDetails());
+            assertFalse(counterItem.getCounterDetails().contains(","));
+
+            // DealHistoryItem
+            DealHistoryItem hist = new DealHistoryItem("D100", "L100", "Book", "charlie", "Charlie Lee",
+                    Category.BOOKS, DealType.SALE, DealStatus.COMPLETED, null, null, null, 15.75, false, null);
+            assertEquals("HK$ 15.75", hist.getFormattedPrice());
+            assertFalse(hist.getFormattedPrice().contains(","));
+
+            // DealHistorySummary
+            DealHistorySummary summary = new DealHistorySummary(1, 1, 0, 0, 15.75);
+            assertEquals("HK$ 15.75", summary.getFormattedTotalSpent());
+            assertFalse(summary.getFormattedTotalSpent().contains(","));
+
+            // AdminDealRecord
+            AdminDealRecord adminRec = new AdminDealRecord(deal, null, null, null, null, null);
+            deal.setOfferPrice(45.50);
+            assertEquals("$45.50", adminRec.getAgreedTermsDisplay());
+            assertFalse(adminRec.getAgreedTermsDisplay().contains(","));
+        } finally {
+            java.util.Locale.setDefault(original);
+        }
+    }
 }

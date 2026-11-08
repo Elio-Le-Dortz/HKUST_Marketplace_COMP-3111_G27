@@ -40,11 +40,11 @@ public final class PasswordUtil {
 
     /**
      * Verifies a plaintext password against a stored hash string.
-     * Supports salted format ("saltHex:hashHex") and provides fallback verification
-     * for legacy plaintext or unsalted hashes.
+     * Supports PBKDF2 format ("pbkdf2_sha256$...") and salted SHA-256 format ("saltHex:hashHex").
+     * Plaintext passwords and unsalted hashes are strictly rejected.
      *
      * @param password   Plaintext candidate password
-     * @param storedHash Stored password representation (salt:hash or fallback)
+     * @param storedHash Stored password representation (PBKDF2 or salt:hash)
      * @return true if candidate password matches stored hash, false otherwise
      */
     public static boolean verifyPassword(String password, String storedHash) {
@@ -73,17 +73,8 @@ public final class PasswordUtil {
             }
         }
 
-        // Fallback for legacy plaintext or legacy unsalted hash
-        if (storedHash.equals(password)) {
-            return true;
-        }
-
-        byte[] unsaltedHash = computeHash(password, new byte[0]);
-        try {
-            return MessageDigest.isEqual(hexToBytes(storedHash), unsaltedHash);
-        } catch (IllegalArgumentException e) {
-            return false;
-        }
+        // Plaintext and unsalted hashes are not accepted
+        return false;
     }
 
     private static byte[] computeHash(String password, byte[] salt) {

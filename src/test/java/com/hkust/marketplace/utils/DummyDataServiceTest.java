@@ -139,6 +139,16 @@ class DummyDataServiceTest {
         LoginResult sellerLogin = sellerLoginService.authenticate("charlie", "password1");
         assertTrue(sellerLogin.isSuccess(), "Seeded seller charlie must be able to log in");
         assertEquals("charlie", sellerLogin.getUser().getUsername());
+
+        // F01 regression: Seeded admin account has PBKDF2 hashed password, not plaintext
+        User admin = service.findUser("admin");
+        assertNotNull(admin, "Admin user must exist");
+        String adminStored = admin.getPasswordHash();
+        assertNotNull(adminStored);
+        assertNotEquals("admin123", adminStored, "Admin password must not be stored in plaintext");
+        assertTrue(adminStored.startsWith("pbkdf2_sha256$"), "Admin password hash must be PBKDF2");
+        assertTrue(PasswordHasher.verify("admin123", adminStored));
+        assertTrue(PasswordUtil.verifyPassword("admin123", adminStored));
     }
 
     @Test
@@ -180,6 +190,13 @@ class DummyDataServiceTest {
             String charlieHash = (String) getPasswordHash.invoke(charlie);
             assertNotNull(charlieHash, "Charlie password hash must not be null upon initial class load");
             assertTrue(charlieHash.startsWith("pbkdf2_sha256$"));
+
+            Object admin = freshClass.getMethod("findUser", String.class).invoke(freshInstance, "admin");
+            assertNotNull(admin);
+            String adminHash = (String) getPasswordHash.invoke(admin);
+            assertNotNull(adminHash, "Admin password hash must not be null upon initial class load");
+            assertNotEquals("admin123", adminHash, "Admin password must not be plaintext");
+            assertTrue(adminHash.startsWith("pbkdf2_sha256$"));
         }
     }
 }

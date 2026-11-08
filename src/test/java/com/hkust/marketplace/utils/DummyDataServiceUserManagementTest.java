@@ -57,7 +57,7 @@ class DummyDataServiceUserManagementTest {
     @Test
     @DisplayName("Soft-deleted user cannot log in (US-B02 Alternative Flow A4)")
     void testSoftDeletedUserCannotLogin() {
-        Buyer buyer = new Buyer("login_buyer", "Login Buyer", "Pass1234!", "Hall 5");
+        Buyer buyer = new Buyer("login_buyer", "Login Buyer", PasswordHasher.hash("Pass1234!"), "Hall 5");
         dataService.registerUserIfAbsent(buyer);
 
         // Before delete: status active

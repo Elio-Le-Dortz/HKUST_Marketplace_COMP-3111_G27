@@ -174,6 +174,79 @@ class DealServiceTest {
         }
 
         @Test
+        @DisplayName("Regression F18: Accepting a counter offer declines competing countered offers and their counter offers")
+        void testAcceptCounterOfferDeclinesCompetingCounteredOffers() {
+            Listing listing = new Listing();
+            listing.setTitle("Regression L105");
+            listing.setType(ListingType.SELL);
+            listing.setPrice(100.0);
+            listing.setSellerUsername("charlie");
+            listing.setStatus(ListingStatus.LIVE);
+            dataService.addListing(listing);
+
+            // Alice's offer and counter
+            Offer aliceOffer = new Offer();
+            aliceOffer.setType(OfferType.PRICE_OFFER);
+            aliceOffer.setListingId(listing.getId());
+            aliceOffer.setListingTitle(listing.getTitle());
+            aliceOffer.setBuyerUsername("alice");
+            aliceOffer.setSellerUsername("charlie");
+            aliceOffer.setPrice(10.0);
+            aliceOffer.setStatus(OfferStatus.COUNTERED);
+
+            Offer aliceCounter = new Offer();
+            aliceCounter.setType(OfferType.PRICE_OFFER);
+            aliceCounter.setListingId(listing.getId());
+            aliceCounter.setListingTitle(listing.getTitle());
+            aliceCounter.setBuyerUsername("alice");
+            aliceCounter.setSellerUsername("charlie");
+            aliceCounter.setPrice(20.0);
+            aliceCounter.setStatus(OfferStatus.COUNTERED);
+            aliceOffer.setCounterOffer(aliceCounter);
+            dataService.addOffer(aliceOffer);
+
+            // Bob's offer and counter
+            Offer bobOffer = new Offer();
+            bobOffer.setType(OfferType.PRICE_OFFER);
+            bobOffer.setListingId(listing.getId());
+            bobOffer.setListingTitle(listing.getTitle());
+            bobOffer.setBuyerUsername("bob");
+            bobOffer.setSellerUsername("charlie");
+            bobOffer.setPrice(12.0);
+            bobOffer.setStatus(OfferStatus.COUNTERED);
+
+            Offer bobCounter = new Offer();
+            bobCounter.setType(OfferType.PRICE_OFFER);
+            bobCounter.setListingId(listing.getId());
+            bobCounter.setListingTitle(listing.getTitle());
+            bobCounter.setBuyerUsername("bob");
+            bobCounter.setSellerUsername("charlie");
+            bobCounter.setPrice(21.0);
+            bobCounter.setStatus(OfferStatus.COUNTERED);
+            bobOffer.setCounterOffer(bobCounter);
+            dataService.addOffer(bobOffer);
+
+            // Alice accepts her counter offer
+            DealOperationResult result = dealService.acceptCounterOffer(aliceOffer.getId(), "alice");
+            assertTrue(result.isSuccess());
+
+            // Bob's offer and counter offer must both be DECLINED
+            assertEquals(OfferStatus.DECLINED, bobOffer.getStatus());
+            assertNotNull(bobOffer.getCounterOffer());
+            assertEquals(OfferStatus.DECLINED, bobOffer.getCounterOffer().getStatus());
+            assertTrue(bobOffer.getDeclineReason().contains("reserved"));
+
+            // Bob received notification linked to his offer
+            Notification bobNotif = dataService.getNotificationsFor("bob").stream()
+                    .filter(n -> n.getTitle().contains("Offer Declined"))
+                    .findFirst()
+                    .orElse(null);
+            assertNotNull(bobNotif);
+            assertEquals(bobOffer.getId(), bobNotif.getRelatedItemId());
+            assertEquals(NotificationTargetType.OFFER.name(), bobNotif.getRelatedItemType());
+        }
+
+        @Test
         @DisplayName("Accept counter offer for LEND listing sets listing status to LENT and records due date")
         void testAcceptCounterOfferLendSuccess() {
             Listing lendListing = new Listing();

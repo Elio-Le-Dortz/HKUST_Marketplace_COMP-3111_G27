@@ -70,8 +70,8 @@ Passwords are never stored in plaintext: `utils/PasswordHasher.java` stores a sa
 
 ## Seller Registration (US-S01)
 
-- Username is required and unique across buyer, seller and admin accounts, ignoring case
-  (usernames of deleted accounts stay reserved); it is stored in lower case.
+- Username is required, at least 3 characters long, cannot contain spaces, and is unique across buyer,
+  seller and admin accounts, ignoring case (usernames of deleted accounts stay reserved); it is stored in lower case.
 - Full name is required; password must follow the rules above; confirm password must match exactly.
 - Preferred meet-up locations (any number) and bio are optional.
 - All invalid fields are highlighted at once; on success the seller is sent to the Seller login.

@@ -807,8 +807,7 @@ class SellerNotificationServiceTest {
         @Test
         @DisplayName("A notification without related item is marked read and only its message is shown")
         void noRelatedItem() {
-            priceOffer(liveSellListing(), buyer1, 150.0);
-            Notification n = onlyNotificationTitled("New Offer Received");
+            Notification n = storeForSeller("Plain Notice", "Offer", 1);
 
             SellerNotificationResult result = service.openNotification(n.getId());
 

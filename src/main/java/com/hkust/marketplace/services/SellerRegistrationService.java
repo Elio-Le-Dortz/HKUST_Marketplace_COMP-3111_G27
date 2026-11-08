@@ -38,6 +38,12 @@ public class SellerRegistrationService {
     /** Error reported when the username is empty (A2). */
     public static final String USERNAME_REQUIRED = "Username is required.";
 
+    /** Error reported when the username contains spaces. */
+    public static final String USERNAME_NO_SPACES = "Username cannot contain spaces.";
+
+    /** Error reported when the username is shorter than 3 characters. */
+    public static final String USERNAME_TOO_SHORT = "Username must be at least 3 characters long.";
+
     /** Error reported when the username is already used by any account (A1). */
     public static final String USERNAME_TAKEN = "Username is already taken. Please choose another one.";
 
@@ -122,6 +128,10 @@ public class SellerRegistrationService {
     private void validateUsername(String username, Map<RegistrationField, List<String>> errors) {
         if (username.isEmpty()) {
             errors.put(RegistrationField.USERNAME, List.of(USERNAME_REQUIRED));
+        } else if (username.contains(" ")) {
+            errors.put(RegistrationField.USERNAME, List.of(USERNAME_NO_SPACES));
+        } else if (username.length() < 3) {
+            errors.put(RegistrationField.USERNAME, List.of(USERNAME_TOO_SHORT));
         } else if (dataService.usernameExists(username)) {
             errors.put(RegistrationField.USERNAME, List.of(USERNAME_TAKEN));
         }
@@ -160,11 +170,7 @@ public class SellerRegistrationService {
      * @return the joined descriptions
      */
     static String joinRules(List<String> rules) {
-        if (rules.size() == 1) {
-            return rules.get(0);
-        }
-        String allButLast = String.join(", ", rules.subList(0, rules.size() - 1));
-        return allButLast + " and " + rules.get(rules.size() - 1);
+        return PasswordPolicy.joinRules(rules);
     }
 
     /**

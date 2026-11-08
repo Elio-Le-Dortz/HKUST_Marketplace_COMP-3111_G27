@@ -66,10 +66,14 @@ class DealServiceTest {
             // Verify notifications sent to seller and buyer (Subflow S1 Steps 4 & 5)
             List<Notification> newNotifs = dataService.getAllNotifications();
             assertTrue(newNotifs.size() >= prevNotifCount + 2);
-            assertTrue(newNotifs.stream().anyMatch(n -> n.getRecipientUsername().equalsIgnoreCase("charlie")
-                    && n.getTitle().contains("Offer Withdrawn")));
-            assertTrue(newNotifs.stream().anyMatch(n -> n.getRecipientUsername().equalsIgnoreCase("alice")
-                    && n.getTitle().contains("Offer Withdrawn")));
+            Notification sellerNotif = newNotifs.stream().filter(n -> n.getRecipientUsername().equalsIgnoreCase("charlie")
+                    && n.getTitle().contains("Offer Withdrawn")).findFirst().orElseThrow();
+            Notification buyerNotif = newNotifs.stream().filter(n -> n.getRecipientUsername().equalsIgnoreCase("alice")
+                    && n.getTitle().contains("Offer Withdrawn")).findFirst().orElseThrow();
+            assertEquals(pending.getId(), sellerNotif.getRelatedItemId());
+            assertEquals(NotificationTargetType.OFFER.name(), sellerNotif.getRelatedItemType());
+            assertEquals(pending.getId(), buyerNotif.getRelatedItemId());
+            assertEquals(NotificationTargetType.OFFER.name(), buyerNotif.getRelatedItemType());
         }
 
         @Test
@@ -167,10 +171,87 @@ class DealServiceTest {
             List<Notification> notifs = dataService.getAllNotifications();
             assertTrue(notifs.stream().anyMatch(n -> n.getRecipientUsername().equalsIgnoreCase("bob")
                     && n.getTitle().contains("Offer Declined")));
-            assertTrue(notifs.stream().anyMatch(n -> n.getRecipientUsername().equalsIgnoreCase("charlie")
-                    && n.getTitle().contains("Counter Offer Accepted")));
-            assertTrue(notifs.stream().anyMatch(n -> n.getRecipientUsername().equalsIgnoreCase("alice")
-                    && n.getTitle().contains("Counter Offer Accepted")));
+            Notification charlieNotif = notifs.stream().filter(n -> n.getRecipientUsername().equalsIgnoreCase("charlie")
+                    && n.getTitle().contains("Counter Offer Accepted")).findFirst().orElseThrow();
+            Notification aliceNotif = notifs.stream().filter(n -> n.getRecipientUsername().equalsIgnoreCase("alice")
+                    && n.getTitle().contains("Counter Offer Accepted")).findFirst().orElseThrow();
+            assertEquals(result.getDeal().getId(), charlieNotif.getRelatedItemId());
+            assertEquals(NotificationTargetType.DEAL.name(), charlieNotif.getRelatedItemType());
+            assertEquals(result.getDeal().getId(), aliceNotif.getRelatedItemId());
+            assertEquals(NotificationTargetType.DEAL.name(), aliceNotif.getRelatedItemType());
+        }
+
+        @Test
+        @DisplayName("Regression F18: Accepting a counter offer declines competing countered offers and their counter offers")
+        void testAcceptCounterOfferDeclinesCompetingCounteredOffers() {
+            Listing listing = new Listing();
+            listing.setTitle("Regression L105");
+            listing.setType(ListingType.SELL);
+            listing.setPrice(100.0);
+            listing.setSellerUsername("charlie");
+            listing.setStatus(ListingStatus.LIVE);
+            dataService.addListing(listing);
+
+            // Alice's offer and counter
+            Offer aliceOffer = new Offer();
+            aliceOffer.setType(OfferType.PRICE_OFFER);
+            aliceOffer.setListingId(listing.getId());
+            aliceOffer.setListingTitle(listing.getTitle());
+            aliceOffer.setBuyerUsername("alice");
+            aliceOffer.setSellerUsername("charlie");
+            aliceOffer.setPrice(10.0);
+            aliceOffer.setStatus(OfferStatus.COUNTERED);
+
+            Offer aliceCounter = new Offer();
+            aliceCounter.setType(OfferType.PRICE_OFFER);
+            aliceCounter.setListingId(listing.getId());
+            aliceCounter.setListingTitle(listing.getTitle());
+            aliceCounter.setBuyerUsername("alice");
+            aliceCounter.setSellerUsername("charlie");
+            aliceCounter.setPrice(20.0);
+            aliceCounter.setStatus(OfferStatus.COUNTERED);
+            aliceOffer.setCounterOffer(aliceCounter);
+            dataService.addOffer(aliceOffer);
+
+            // Bob's offer and counter
+            Offer bobOffer = new Offer();
+            bobOffer.setType(OfferType.PRICE_OFFER);
+            bobOffer.setListingId(listing.getId());
+            bobOffer.setListingTitle(listing.getTitle());
+            bobOffer.setBuyerUsername("bob");
+            bobOffer.setSellerUsername("charlie");
+            bobOffer.setPrice(12.0);
+            bobOffer.setStatus(OfferStatus.COUNTERED);
+
+            Offer bobCounter = new Offer();
+            bobCounter.setType(OfferType.PRICE_OFFER);
+            bobCounter.setListingId(listing.getId());
+            bobCounter.setListingTitle(listing.getTitle());
+            bobCounter.setBuyerUsername("bob");
+            bobCounter.setSellerUsername("charlie");
+            bobCounter.setPrice(21.0);
+            bobCounter.setStatus(OfferStatus.COUNTERED);
+            bobOffer.setCounterOffer(bobCounter);
+            dataService.addOffer(bobOffer);
+
+            // Alice accepts her counter offer
+            DealOperationResult result = dealService.acceptCounterOffer(aliceOffer.getId(), "alice");
+            assertTrue(result.isSuccess());
+
+            // Bob's offer and counter offer must both be DECLINED
+            assertEquals(OfferStatus.DECLINED, bobOffer.getStatus());
+            assertNotNull(bobOffer.getCounterOffer());
+            assertEquals(OfferStatus.DECLINED, bobOffer.getCounterOffer().getStatus());
+            assertTrue(bobOffer.getDeclineReason().contains("reserved"));
+
+            // Bob received notification linked to his offer
+            Notification bobNotif = dataService.getNotificationsFor("bob").stream()
+                    .filter(n -> n.getTitle().contains("Offer Declined"))
+                    .findFirst()
+                    .orElse(null);
+            assertNotNull(bobNotif);
+            assertEquals(bobOffer.getId(), bobNotif.getRelatedItemId());
+            assertEquals(NotificationTargetType.OFFER.name(), bobNotif.getRelatedItemType());
         }
 
         @Test
@@ -307,10 +388,14 @@ class DealServiceTest {
             assertEquals(ListingStatus.LIVE, listing.getStatus(), "Listing must remain Live");
 
             List<Notification> notifs = dataService.getAllNotifications();
-            assertTrue(notifs.stream().anyMatch(n -> n.getRecipientUsername().equalsIgnoreCase("charlie")
-                    && n.getTitle().contains("Counter Offer Declined")));
-            assertTrue(notifs.stream().anyMatch(n -> n.getRecipientUsername().equalsIgnoreCase("alice")
-                    && n.getTitle().contains("Counter Offer Declined")));
+            Notification charlieNotif = notifs.stream().filter(n -> n.getRecipientUsername().equalsIgnoreCase("charlie")
+                    && n.getTitle().contains("Counter Offer Declined")).findFirst().orElseThrow();
+            Notification aliceNotif = notifs.stream().filter(n -> n.getRecipientUsername().equalsIgnoreCase("alice")
+                    && n.getTitle().contains("Counter Offer Declined")).findFirst().orElseThrow();
+            assertEquals(countered.getId(), charlieNotif.getRelatedItemId());
+            assertEquals(NotificationTargetType.OFFER.name(), charlieNotif.getRelatedItemType());
+            assertEquals(countered.getId(), aliceNotif.getRelatedItemId());
+            assertEquals(NotificationTargetType.OFFER.name(), aliceNotif.getRelatedItemType());
         }
 
         @Test
@@ -362,10 +447,14 @@ class DealServiceTest {
             assertEquals(ListingStatus.LIVE, listing.getStatus(), "Listing must be restored to Live");
 
             List<Notification> notifs = dataService.getAllNotifications();
-            assertTrue(notifs.stream().anyMatch(n -> n.getRecipientUsername().equalsIgnoreCase("diana")
-                    && n.getTitle().contains("Item Returned")));
-            assertTrue(notifs.stream().anyMatch(n -> n.getRecipientUsername().equalsIgnoreCase("alice")
-                    && n.getTitle().contains("Item Returned")));
+            Notification dianaNotif = notifs.stream().filter(n -> n.getRecipientUsername().equalsIgnoreCase("diana")
+                    && n.getTitle().contains("Item Returned")).findFirst().orElseThrow();
+            Notification aliceNotif = notifs.stream().filter(n -> n.getRecipientUsername().equalsIgnoreCase("alice")
+                    && n.getTitle().contains("Item Returned")).findFirst().orElseThrow();
+            assertEquals(loanDeal.getId(), dianaNotif.getRelatedItemId());
+            assertEquals(NotificationTargetType.DEAL.name(), dianaNotif.getRelatedItemType());
+            assertEquals(loanDeal.getId(), aliceNotif.getRelatedItemId());
+            assertEquals(NotificationTargetType.DEAL.name(), aliceNotif.getRelatedItemType());
         }
 
         @Test
@@ -428,10 +517,14 @@ class DealServiceTest {
             assertEquals(ListingStatus.SOLD, listing.getStatus());
 
             List<Notification> notifs = dataService.getAllNotifications();
-            assertTrue(notifs.stream().anyMatch(n -> n.getRecipientUsername().equalsIgnoreCase("charlie")
-                    && n.getTitle().contains("Deal Completed")));
-            assertTrue(notifs.stream().anyMatch(n -> n.getRecipientUsername().equalsIgnoreCase("alice")
-                    && n.getTitle().contains("Deal Completed")));
+            Notification charlieNotif = notifs.stream().filter(n -> n.getRecipientUsername().equalsIgnoreCase("charlie")
+                    && n.getTitle().contains("Deal Completed")).findFirst().orElseThrow();
+            Notification aliceNotif = notifs.stream().filter(n -> n.getRecipientUsername().equalsIgnoreCase("alice")
+                    && n.getTitle().contains("Deal Completed")).findFirst().orElseThrow();
+            assertEquals(saleDeal.getId(), charlieNotif.getRelatedItemId());
+            assertEquals(NotificationTargetType.DEAL.name(), charlieNotif.getRelatedItemType());
+            assertEquals(saleDeal.getId(), aliceNotif.getRelatedItemId());
+            assertEquals(NotificationTargetType.DEAL.name(), aliceNotif.getRelatedItemType());
         }
 
         @Test
@@ -479,6 +572,29 @@ class DealServiceTest {
             assertEquals(DealOperationStatus.DEAL_NOT_ACTIVE,
                     dealService.markDealComplete(saleDeal.getId(), "alice").getStatus());
         }
+
+        @Test
+        @DisplayName("F21: Cannot mark complete an active loan deal (loans must end by return)")
+        void testMarkCompleteLoanFails() {
+            List<Deal> buyerDeals = dataService.getDealsForBuyer("alice");
+            Deal loanDeal = buyerDeals.stream()
+                    .filter(d -> d.getType() == DealType.LOAN && d.getStatus() == DealStatus.ACTIVE)
+                    .findFirst()
+                    .orElseThrow();
+
+            Listing listing = dataService.findListing(loanDeal.getListingId());
+            listing.setStatus(ListingStatus.LENT);
+
+            DealOperationResult result = dealService.markDealComplete(loanDeal.getId(), "alice");
+
+            assertFalse(result.isSuccess());
+            assertEquals(DealOperationStatus.DEAL_IS_LOAN, result.getStatus());
+            assertTrue(result.getMessage().contains("Loan deals cannot be marked complete"));
+
+            // Deal must remain ACTIVE, listing must remain LENT
+            assertEquals(DealStatus.ACTIVE, loanDeal.getStatus());
+            assertEquals(ListingStatus.LENT, listing.getStatus());
+        }
     }
 
     @Nested
@@ -519,10 +635,14 @@ class DealServiceTest {
             assertEquals(ListingStatus.LIVE, listing.getStatus(), "Auto-return must reset listing to Live");
 
             List<Notification> notifs = dataService.getAllNotifications();
-            assertTrue(notifs.stream().anyMatch(n -> n.getRecipientUsername().equalsIgnoreCase("charlie")
-                    && n.getTitle().contains("Item Auto-Returned")));
-            assertTrue(notifs.stream().anyMatch(n -> n.getRecipientUsername().equalsIgnoreCase("alice")
-                    && n.getTitle().contains("Item Auto-Returned")));
+            Notification charlieNotif = notifs.stream().filter(n -> n.getRecipientUsername().equalsIgnoreCase("charlie")
+                    && n.getTitle().contains("Item Auto-Returned")).findFirst().orElseThrow();
+            Notification aliceNotif = notifs.stream().filter(n -> n.getRecipientUsername().equalsIgnoreCase("alice")
+                    && n.getTitle().contains("Item Auto-Returned")).findFirst().orElseThrow();
+            assertEquals(expiredLoan.getId(), charlieNotif.getRelatedItemId());
+            assertEquals(NotificationTargetType.DEAL.name(), charlieNotif.getRelatedItemType());
+            assertEquals(expiredLoan.getId(), aliceNotif.getRelatedItemId());
+            assertEquals(NotificationTargetType.DEAL.name(), aliceNotif.getRelatedItemType());
         }
 
         @Test

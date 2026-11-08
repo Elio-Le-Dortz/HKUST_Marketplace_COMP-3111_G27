@@ -31,6 +31,9 @@ public enum DealOperationStatus {
     /** The deal is not a borrowed loan item (cannot self-return). */
     DEAL_NOT_BORROW,
 
+    /** The deal is a borrowed loan item (cannot mark complete; loans must be returned). */
+    DEAL_IS_LOAN,
+
     /** The user is not authorized to act on this deal or offer. */
     UNAUTHORIZED,
 

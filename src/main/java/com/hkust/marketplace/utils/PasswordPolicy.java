@@ -94,4 +94,35 @@ public final class PasswordPolicy {
     public static boolean isValid(String password) {
         return findViolations(password).isEmpty();
     }
+
+    /**
+     * Joins rule descriptions into readable English: {@code "a"}, {@code "a and b"}
+     * or {@code "a, b and c"}.
+     *
+     * @param rules the rule descriptions; must not be empty
+     * @return the joined descriptions, or empty string if {@code rules} is empty
+     */
+    public static String joinRules(List<String> rules) {
+        if (rules == null || rules.isEmpty()) {
+            return "";
+        }
+        if (rules.size() == 1) {
+            return rules.get(0);
+        }
+        String allButLast = String.join(", ", rules.subList(0, rules.size() - 1));
+        return allButLast + " and " + rules.get(rules.size() - 1);
+    }
+
+    /**
+     * Formats a list of password rule violations into a user-facing error message.
+     *
+     * @param violations the broken rules from {@link #findViolations(String)}
+     * @return the formatted error message, e.g. "Password must contain at least 8 characters and at least one digit."
+     */
+    public static String formatViolations(List<String> violations) {
+        if (violations == null || violations.isEmpty()) {
+            return "";
+        }
+        return "Password must contain " + joinRules(violations) + ".";
+    }
 }

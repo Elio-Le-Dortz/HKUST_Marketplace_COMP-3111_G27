@@ -136,8 +136,8 @@ After F03/F04 (session checks for buyers and admins) the snippets must log in th
 | F21 | P3 | Charles | ~~`markDealComplete` accepts a loan (listing becomes Sold)~~ **[FIXED - PR #41]** | UC 1.6 S5 |
 | F22 | P3 | Charles | ~~Lock-order inversion between chat formal offers and offers~~ **[FIXED - PR #42]** | Brief "support concurrent actions gracefully" |
 | F23 | P4 | Shared / Charles / Elio | Lend terms shown in whole days ("up to 0 days") | Task 1.3/1.4 display; 5-second minimum |
-| F24 | P4 | Charles — *Decision* | Borrow request may exceed the listing's lending duration | Consistency with UC 2.5 A4 |
-| F25 | P4 | Charles, Elio, shared | Number formatting depends on the default locale | Brief "consistent interface" |
+| F24 | P4 | Charles — *Decision* | ~~Borrow request may exceed the listing's lending duration~~ **[DECIDED - As Specified]** | Consistency with UC 2.5 A4 |
+| F25 | P4 | Charles, Elio, shared | ~~Number formatting depends on the default locale~~ **[FIXED - PR #44]** | Brief "consistent interface" |
 | F26 | P4 | Charles | Two classes named `RegistrationResult` | Brief "readability and maintainability" |
 | F27 | P4 | Charles — *Decision* | "Favourites" screen is a visible placeholder | Brief (favourites/follow mentioned) |
 | F28 | P4 | Team | Dead / legacy code in `DummyDataService` | Brief "best coding practices" |
@@ -628,14 +628,21 @@ After F03/F04 (session checks for buyers and admins) the snippets must log in th
 - **Suggested fix:** format with `OfferManagementService.formatDuration(listing.getLendingDuration())`
   ("10 seconds", "36 hours", "7 days"); base the borrow dialog's default and maximum on the `Duration`.
 
-### F24 — Borrow request may exceed the listing's lending duration (*Decision*)
+### F24 — [DECIDED - As Specified] Borrow request may exceed the listing's lending duration (*Decision*)
+> [!NOTE]
+> **Status: DECIDED (No code change needed)**
+> Decision made by owner (Charles): Kept as is per UC 1.5 A3 (which does not enforce a maximum duration on initial buyer requests; sellers may counter or decline within their listing limits).
 - **Owner:** Charles.
 - **Where:** `services/ActOnListingService.java:218` `validateBorrowDates` has no maximum.
 - **Observed:** a 400-day request on L103 (lent for up to 90 days) is accepted.
 - **Note:** UC 1.5 A3 does not require a maximum, but the seller's counter offer is limited to the lending duration
   (UC 2.5 A4, `OfferManagementService.counterDatesError`). Decide, then align.
 
-### F25 — Number formatting depends on the default locale
+### F25 — [FIXED - PR #44] Number formatting depends on the default locale
+> [!NOTE]
+> **Status: FIXED (PR #44)**
+> - Added `Locale.ENGLISH` to all unlocalized `String.format` calls for prices, ratings, totals, and currency values across `models/SellerRatingInfo.java`, `models/MyDealsItem.java`, `models/DealHistoryItem.java`, `models/DealHistorySummary.java`, `models/AdminDealRecord.java`, `models/Listing.java`, `services/ActOnListingService.java`, `services/ChatService.java`, `controllers/buyer/BuyerDashboardController.java`, `controllers/admin/AdminDashboardController.java`, and `utils/PasswordUtil.java`.
+> - Added regression tests in `RateSellerModelsTest` and `DealModelsTest` asserting that numbers, ratings, and currencies format with standard decimal points even when executed under `Locale.FRANCE`.
 - **Owner:** Charles, Elio, shared models.
 - **Where:** `String.format(...)` without `Locale` in `models/SellerRatingInfo.java:49-50, 90`,
   `models/MyDealsItem.java:68, 197`, `models/DealHistoryItem.java:215`, `models/DealHistorySummary.java:76`,

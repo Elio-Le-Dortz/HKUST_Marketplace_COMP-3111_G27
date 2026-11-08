@@ -6,6 +6,7 @@ import com.hkust.marketplace.utils.SessionManager;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.Locale;
 
 /**
  * Service encapsulating the business rules for acting on listings:
@@ -66,12 +67,12 @@ public class ActOnListingService {
             dataService.addOffer(offer);
 
             // Notify Seller (Subflow S1 Step 4)
-            String notifMsg = buyerUsername.trim() + " offered HK$" + String.format("%.2f", price) + " for '" + listing.getTitle() + "'.";
+            String notifMsg = buyerUsername.trim() + " offered HK$" + String.format(Locale.ENGLISH, "%.2f", price) + " for '" + listing.getTitle() + "'.";
             dataService.addNotification(new Notification(listing.getSellerUsername(), "New Offer Received", notifMsg, "Offer",
                     offer.getId(), NotificationTargetType.OFFER.name()));
 
             // Confirm to Buyer (Subflow S1 Step 5)
-            String confirmMsg = "Your offer of HK$" + String.format("%.2f", price) + " has been submitted to " + listing.getSellerFullName() + ".";
+            String confirmMsg = "Your offer of HK$" + String.format(Locale.ENGLISH, "%.2f", price) + " has been submitted to " + listing.getSellerFullName() + ".";
             return ActOnListingResult.success(offer, confirmMsg);
         }
     }

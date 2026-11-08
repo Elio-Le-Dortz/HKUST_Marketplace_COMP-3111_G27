@@ -167,4 +167,19 @@ class RateSellerModelsTest {
         assertNotEquals(success, new RateSellerResult(true, success.getStatus(), success.getMessage(), review, new Deal(), info));
         assertNotEquals(success, new RateSellerResult(true, success.getStatus(), success.getMessage(), review, deal, SellerRatingInfo.noRatings("diff", "diff")));
     }
+
+    @Test
+    @DisplayName("F25: Number formatting in SellerRatingInfo is locale-independent")
+    void testSellerRatingInfoLocaleIndependence() {
+        java.util.Locale original = java.util.Locale.getDefault();
+        try {
+            java.util.Locale.setDefault(java.util.Locale.FRANCE);
+            SellerRatingInfo info = SellerRatingInfo.withRatings("charlie", "Charlie Lee", 4.3, 8);
+            assertEquals("4.3", info.getFormattedScore());
+            assertEquals("★ 4.3 / 5.0 (8 reviews)", info.getDisplayText());
+            assertFalse(info.getDisplayText().contains(","));
+        } finally {
+            java.util.Locale.setDefault(original);
+        }
+    }
 }

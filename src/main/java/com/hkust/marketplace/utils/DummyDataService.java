@@ -77,38 +77,6 @@ public class DummyDataService {
     private final AtomicInteger threadIdCounter = new AtomicInteger(1);
     private final AtomicInteger messageIdCounter = new AtomicInteger(1);
 
-    // Predefined HKUST locations
-    public static final List<String> HKUST_LOCATIONS = List.of(
-            "Academic Building (LG1)",
-            "Library",
-            "Student Centre",
-            "Hall 1 Lobby",
-            "Hall 2 Lobby",
-            "Hall 3 Lobby",
-            "Hall 4 Lobby",
-            "Hall 5 Lobby",
-            "Hall 6 Lobby",
-            "Hall 7 Lobby",
-            "Hall 8 Lobby",
-            "Hall 9 Lobby",
-            "UG Hall 1",
-            "UG Hall 2",
-            "North Gate",
-            "South Gate",
-            "Shaw Auditorium",
-            "Coffee Shop (LG5)",
-            "Sports Hall"
-    );
-
-    public static final List<String> CATEGORIES = List.of(
-            "Textbooks", "Electronics", "Furniture", "Clothing",
-            "Stationery", "Sports Equipment", "Kitchenware", "Others"
-    );
-
-    public static final List<String> CONDITIONS = List.of(
-            "New", "Like New", "Used", "For Parts"
-    );
-
     private DummyDataService() {
         DatabaseManager dm = null;
         try {
@@ -316,12 +284,12 @@ public class DummyDataService {
         // Sample listings
         Listing l1 = createListing("Calculus Textbook (Stewart)", "Barely used, 8th edition. Perfect for MATH 1013.",
                 "Textbooks", ListingType.SELL, "Like New", 180.0, null, "Library", "charlie", "Charlie Lee");
-        l1.setStatus(ListingStatus.LIVE);
+        l1.setStatus(ListingStatus.RESERVED);
         listings.put(l1.getId(), l1);
 
         Listing l2 = createListing("MacBook Pro Charger 61W", "Original Apple charger, works perfectly.",
                 "Electronics", ListingType.SELL, "Used", 250.0, null, "Academic Building (LG1)", "charlie", "Charlie Lee");
-        l2.setStatus(ListingStatus.LIVE);
+        l2.setStatus(ListingStatus.SOLD);
         listings.put(l2.getId(), l2);
 
         Listing l3 = createListing("IKEA Desk Lamp", "Good condition, LED bulb included.",
@@ -331,7 +299,7 @@ public class DummyDataService {
 
         Listing l4 = createListing("Graphing Calculator TI-84", "Can lend for one semester.",
                 "Electronics", ListingType.LEND, "Like New", null, 90, "Student Centre", "diana", "Diana Ng");
-        l4.setStatus(ListingStatus.LIVE);
+        l4.setStatus(ListingStatus.LENT);
         listings.put(l4.getId(), l4);
 
         Listing l5 = createListing("Mini Fridge", "Works well, cleaning required.",
@@ -351,7 +319,7 @@ public class DummyDataService {
 
         Listing l8 = createListing("HKUST Hoodie (Size M)", "Grey university hoodie in great condition.",
                 "Clothing", ListingType.GIVEAWAY, "Like New", null, null, "UG Hall 1", "diana", "Diana Ng");
-        l8.setStatus(ListingStatus.LIVE);
+        l8.setStatus(ListingStatus.GIVEN);
         listings.put(l8.getId(), l8);
 
         Listing l9 = createListing("Vintage Mechanical Keyboard", "Cherry MX Blue switches, custom keycaps.",
@@ -360,6 +328,17 @@ public class DummyDataService {
         l9.setStatus(ListingStatus.REMOVED);
         l9.setAdminReason("Reported for inappropriate accessories");
         listings.put(l9.getId(), l9);
+
+        // Additional live listings for active marketplace browsing, searching, and lending
+        Listing l10 = createListing("Multivariable Calculus (Stewart 8th)", "Clean copy for MATH 2011, minimal notes.",
+                "Textbooks", ListingType.SELL, "Like New", 190.0, null, "Library", "charlie", "Charlie Lee");
+        l10.setStatus(ListingStatus.LIVE);
+        listings.put(l10.getId(), l10);
+
+        Listing l11 = createListing("Scientific Calculator Casio fx-991ES", "Allowed in HKUST exams. Lend for up to 30 days.",
+                "Electronics", ListingType.LEND, "Like New", null, 30, "Student Centre", "diana", "Diana Ng");
+        l11.setStatus(ListingStatus.LIVE);
+        listings.put(l11.getId(), l11);
 
         // Sample deals
         Deal d1 = new Deal();
@@ -400,11 +379,11 @@ public class DummyDataService {
         d3.setRated(true);
         deals.add(d3);
 
-        // Returned deal (Borrowed item)
+        // Returned deal (Borrowed item returned, listing returned to LIVE)
         Deal d4 = new Deal();
         d4.setId("D" + dealIdCounter.getAndIncrement());
-        d4.setListingId(l5.getId());
-        d4.setListingTitle(l5.getTitle());
+        d4.setListingId(l11.getId());
+        d4.setListingTitle(l11.getTitle());
         d4.setBuyerUsername("alice");
         d4.setSellerUsername("diana");
         d4.setType(DealType.LOAN);
@@ -446,8 +425,8 @@ public class DummyDataService {
         Offer o2 = new Offer();
         o2.setId("O" + offerIdCounter.getAndIncrement());
         o2.setType(OfferType.PRICE_OFFER);
-        o2.setListingId(l2.getId());
-        o2.setListingTitle(l2.getTitle());
+        o2.setListingId(l6.getId());
+        o2.setListingTitle(l6.getTitle());
         o2.setBuyerUsername("alice");
         o2.setSellerUsername("charlie");
         o2.setPrice(200.0);
@@ -456,8 +435,8 @@ public class DummyDataService {
         Offer counterO2 = new Offer();
         counterO2.setId("O" + offerIdCounter.getAndIncrement());
         counterO2.setType(OfferType.PRICE_OFFER);
-        counterO2.setListingId(l2.getId());
-        counterO2.setListingTitle(l2.getTitle());
+        counterO2.setListingId(l6.getId());
+        counterO2.setListingTitle(l6.getTitle());
         counterO2.setBuyerUsername("alice");
         counterO2.setSellerUsername("charlie");
         counterO2.setPrice(220.0);
@@ -777,9 +756,9 @@ public class DummyDataService {
             return BuyerRegistrationResult.failure("Username already taken. Please choose another.", "username");
         }
 
-        String pwdCheck = checkPasswordStrength(password);
-        if (!"OK".equals(pwdCheck)) {
-            return BuyerRegistrationResult.failure(pwdCheck, "password");
+        List<String> pwdViolations = PasswordPolicy.findViolations(password);
+        if (!pwdViolations.isEmpty()) {
+            return BuyerRegistrationResult.failure(PasswordPolicy.formatViolations(pwdViolations), "password");
         }
 
         if (!password.equals(confirmPassword)) {
@@ -889,11 +868,6 @@ public class DummyDataService {
             }
         }
     }
-
-    public void resetToSeedData() {
-        resetData();
-    }
-
 
     public Collection<User> getAllUsers() {
         return users.values();
@@ -1197,38 +1171,6 @@ public class DummyDataService {
 
     public synchronized boolean hasCompletedDeals(String buyerUsername) {
         return dealHistoryService != null && dealHistoryService.hasCompletedDeals(buyerUsername);
-    }
-
-    /**
-     * Atomic claim for Giveaway items (Requirement 4.1: Concurrency on Giveaway items).
-     * Synchronized to guarantee first-come, first-served.
-     */
-    public synchronized boolean claimListing(String listingId, String buyerUsername) {
-        Listing l = listings.get(listingId);
-        if (l != null && l.getStatus() == ListingStatus.LIVE && l.getType() == ListingType.GIVEAWAY) {
-            l.setStatus(ListingStatus.GIVEN);
-            Deal d = new Deal();
-            d.setId("D" + dealIdCounter.getAndIncrement());
-            d.setListingId(l.getId());
-            d.setListingTitle(l.getTitle());
-            d.setBuyerUsername(buyerUsername);
-            d.setSellerUsername(l.getSellerUsername());
-            d.setType(DealType.GIVEAWAY);
-            d.setStatus(DealStatus.COMPLETED);
-            d.setClosedDate(LocalDateTime.now());
-            deals.add(d);
-            if (databaseManager != null && persistenceEnabled) {
-                databaseManager.saveDeal(d);
-                databaseManager.saveListing(l);
-            }
-
-            addNotification(new Notification(l.getSellerUsername(), "Item Claimed",
-                    buyerUsername + " claimed your giveaway item: " + l.getTitle(), "Offer"));
-            addNotification(new Notification(buyerUsername, "Claim Confirmed",
-                    "You successfully claimed: " + l.getTitle(), "Offer"));
-            return true;
-        }
-        return false;
     }
 
     // ========== Offer methods ==========
@@ -1579,15 +1521,5 @@ public class DummyDataService {
 
     public synchronized AdminRatingOperationResult dismissReviewFlagByAdmin(String reviewId, String adminUsername) {
         return adminRatingService.dismissFlag(reviewId, adminUsername);
-    }
-
-    // Password strength helper
-    public static String checkPasswordStrength(String password) {
-        if (password == null || password.isEmpty()) return "Password cannot be empty.";
-        List<String> violations = PasswordPolicy.findViolations(password);
-        if (violations.isEmpty()) {
-            return "OK";
-        }
-        return PasswordPolicy.formatViolations(violations);
     }
 }

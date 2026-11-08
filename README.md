@@ -290,7 +290,7 @@ listings. Business logic lives in `services/SellerStatisticsService.java` (no Ja
 `SellerStatisticsModelsTest`.
 
 To try it with the demo data, log in as `alice` / `password1` and open a few of Charlie's listings from
-Browse (for example *Calculus Textbook*), then log in as `charlie` / `password1` and open **Seller Stats**: the
+Browse (for example *Multivariable Calculus* or *Engineering Notebook*), then log in as `charlie` / `password1` and open **Seller Stats**: the
 views are counted, with the 4 offers received and the completed sale (Sold). `diana` / `password1` has a Lent
 and a Given deal.
 

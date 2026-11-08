@@ -29,14 +29,14 @@ class AdminProfileServiceTest {
     @BeforeEach
     void setUp() {
         dataService = DummyDataService.getInstance();
-        dataService.resetToSeedData();
+        dataService.resetData();
         profileService = new AdminProfileService(dataService);
         SessionManager.logout();
     }
 
     @AfterEach
     void tearDown() {
-        dataService.resetToSeedData();
+        dataService.resetData();
         SessionManager.logout();
     }
 

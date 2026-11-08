@@ -5,6 +5,7 @@ import com.hkust.marketplace.services.CreateListingService;
 import com.hkust.marketplace.services.MyListingsService;
 import com.hkust.marketplace.services.OfferManagementService;
 import com.hkust.marketplace.services.ReviewHandlingService;
+import com.hkust.marketplace.services.SellerChatService;
 import com.hkust.marketplace.services.SellerNotificationService;
 import com.hkust.marketplace.services.SellerProfileService;
 import com.hkust.marketplace.services.SellerStatisticsService;
@@ -66,12 +67,15 @@ public class SellerDashboardController {
     @FXML private StackPane contentPane;
     @FXML private Label pageTitle;
     @FXML private Label welcomeLabel;
-    @FXML private Button btnListings, btnOffers, btnCreate, btnStats, btnReviews, btnNotifications, btnProfile;
+    @FXML private Button btnListings, btnOffers, btnMessages, btnCreate, btnStats, btnReviews, btnNotifications, btnProfile;
 
     private Button currentActiveBtn;
 
     /** Business logic of the Offers &amp; Requests screen (use case 2.5, US-S05). */
     private final OfferManagementService offerService = new OfferManagementService();
+
+    /** Business logic of the Messages screen (Task 1.5, F09). */
+    private final SellerChatService sellerChatService = new SellerChatService();
 
     /** Business logic of the Create Listing screen (use case 2.3, US-S03). */
     private final CreateListingService createListingService = new CreateListingService();
@@ -3710,6 +3714,101 @@ public class SellerDashboardController {
             return;
         }
         showOfferChat(result.getChatThread(), offer);
+    }
+
+    /**
+     * Shows all chat threads of the Seller with buyers about their listings (Task 1.5, F09),
+     * ordered newest first.
+     */
+    @FXML
+    private void showMessages() {
+        setActive(btnMessages, "Messages");
+        contentPane.getChildren().clear();
+
+        List<ChatThread> threads;
+        try {
+            threads = sellerChatService.getMyChatThreads();
+        } catch (SecurityException e) {
+            endSellerSession();
+            return;
+        }
+
+        VBox root = new VBox(14);
+        root.setPadding(new Insets(4));
+
+        Label intro = new Label(threads.isEmpty()
+                ? "All conversations with buyers about your listings appear here."
+                : threads.size() + (threads.size() == 1 ? " conversation" : " conversations") + ", most recent first.");
+        intro.setStyle(MUTED_STYLE);
+        root.getChildren().add(intro);
+
+        if (threads.isEmpty()) {
+            root.getChildren().add(emptyStateCard("💬", "No messages yet",
+                    "When buyers inquire about your listings, your chat threads will appear here."));
+        } else {
+            for (ChatThread thread : threads) {
+                root.getChildren().add(createThreadCard(thread));
+            }
+        }
+
+        ScrollPane scroll = new ScrollPane(root);
+        scroll.setFitToWidth(true);
+        contentPane.getChildren().add(scroll);
+    }
+
+    /**
+     * Builds the card of a chat thread: listing title, buyer username, last message snippet,
+     * timestamp, and a button to open the chat.
+     *
+     * @param thread the chat thread
+     * @return the card node
+     */
+    private VBox createThreadCard(ChatThread thread) {
+        Label listingBadge = new Label("📦 " + (thread.getListingTitle() != null ? thread.getListingTitle() : "Listing " + thread.getListingId()));
+        listingBadge.getStyleClass().addAll("badge", "badge-chat");
+
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+
+        Message lastMsg = thread.getLastMessage();
+        DateTimeFormatter timeFormat = DateTimeFormatter.ofPattern("MMM d, HH:mm", Locale.ENGLISH);
+        String timeStr = lastMsg != null && lastMsg.getSentDate() != null
+                ? lastMsg.getSentDate().format(timeFormat)
+                : (thread.getCreatedDate() != null ? thread.getCreatedDate().format(timeFormat) : "");
+        Label timeLabel = new Label(timeStr);
+        timeLabel.setStyle("-fx-text-fill: #9aa0b0; -fx-font-size: 11px;");
+
+        HBox header = new HBox(8, listingBadge, spacer, timeLabel);
+        header.setAlignment(Pos.CENTER_LEFT);
+
+        Label buyerLabel = new Label("Buyer: @" + thread.getBuyerUsername());
+        buyerLabel.setStyle("-fx-font-weight: bold; -fx-font-size: 14px; -fx-text-fill: #003974;");
+
+        String snippetText = lastMsg != null ? lastMsg.getSenderUsername() + ": " + lastMsg.getText() : "No messages in thread.";
+        if (snippetText.length() > 80) {
+            snippetText = snippetText.substring(0, 77) + "...";
+        }
+        Label snippet = new Label(snippetText);
+        snippet.setStyle("-fx-text-fill: #334155; -fx-font-size: 13px;");
+        snippet.setWrapText(true);
+
+        Button openBtn = smallButton("Open chat →", "btn-primary",
+                () -> showChat(thread, null, "← Back to Messages", this::showMessages));
+        openBtn.setId("openChat-" + thread.getId());
+        HBox actions = new HBox(8, openBtn);
+        actions.setAlignment(Pos.CENTER_RIGHT);
+
+        VBox card = new VBox(8, header, buyerLabel, snippet, actions);
+        card.setId("thread-" + thread.getId());
+        card.getStyleClass().addAll("card");
+        card.setPadding(new Insets(12, 16, 12, 16));
+        card.setCursor(Cursor.HAND);
+        card.setOnMouseClicked(event -> {
+            if (!isInsideButton(event.getTarget(), card)) {
+                showChat(thread, null, "← Back to Messages", this::showMessages);
+            }
+        });
+        return card;
     }
 
     /**

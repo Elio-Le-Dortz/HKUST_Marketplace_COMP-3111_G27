@@ -150,7 +150,14 @@ public class ChatService {
         if (recipient != null) {
             String preview = text.trim().length() > 50 ? text.trim().substring(0, 47) + "..." : text.trim();
             String notifMsg = "@" + senderUsername.trim() + " sent you a message: \"" + preview + "\"";
-            Notification notification = new Notification(recipient, "New Chat Message", notifMsg, "Chat");
+            Notification notification = new Notification(
+                    recipient,
+                    "New Chat Message",
+                    notifMsg,
+                    "Chat",
+                    thread.getId(),
+                    NotificationTargetType.CHAT_THREAD.name()
+            );
             dataService.addNotification(notification);
         }
 

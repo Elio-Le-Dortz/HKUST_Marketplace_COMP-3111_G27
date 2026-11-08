@@ -22,13 +22,13 @@ public class AdminLoginTest {
     void setUp() {
         SessionManager.logout();
         dataService = DummyDataService.getInstance();
-        dataService.resetToSeedData();
+        dataService.resetData();
         controller = new AdminLoginController();
     }
 
     @AfterEach
     void tearDown() {
-        dataService.resetToSeedData();
+        dataService.resetData();
         SessionManager.logout();
     }
 

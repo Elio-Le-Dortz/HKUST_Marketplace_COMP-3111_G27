@@ -23,7 +23,7 @@ class AdminRatingServiceTest {
     @BeforeEach
     void setUp() {
         dataService = DummyDataService.getInstance();
-        dataService.resetToSeedData();
+        dataService.resetData();
         ratingService = dataService.getAdminRatingService();
     }
 

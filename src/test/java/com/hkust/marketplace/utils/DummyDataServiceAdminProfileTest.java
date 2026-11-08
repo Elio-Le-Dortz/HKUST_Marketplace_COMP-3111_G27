@@ -19,13 +19,13 @@ class DummyDataServiceAdminProfileTest {
     @BeforeEach
     void setUp() {
         dataService = DummyDataService.getInstance();
-        dataService.resetToSeedData();
+        dataService.resetData();
         SessionManager.logout();
     }
 
     @AfterEach
     void tearDown() {
-        dataService.resetToSeedData();
+        dataService.resetData();
         SessionManager.logout();
     }
 
@@ -71,7 +71,7 @@ class DummyDataServiceAdminProfileTest {
         dataService.updateAdminProfile(DummyDataService.SEEDED_ADMIN_USERNAME, req);
         assertEquals("Temporary Name", dataService.getAdminProfile(DummyDataService.SEEDED_ADMIN_USERNAME).getFullName());
 
-        dataService.resetToSeedData();
+        dataService.resetData();
         Admin restored = dataService.getAdminProfile(DummyDataService.SEEDED_ADMIN_USERNAME);
         assertEquals(DummyDataService.SEEDED_ADMIN_FULLNAME, restored.getFullName());
         assertTrue(PasswordUtil.verifyPassword(DummyDataService.SEEDED_ADMIN_PASSWORD, restored.getPasswordHash()));

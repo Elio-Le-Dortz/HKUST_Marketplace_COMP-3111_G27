@@ -479,6 +479,29 @@ class DealServiceTest {
             assertEquals(DealOperationStatus.DEAL_NOT_ACTIVE,
                     dealService.markDealComplete(saleDeal.getId(), "alice").getStatus());
         }
+
+        @Test
+        @DisplayName("F21: Cannot mark complete an active loan deal (loans must end by return)")
+        void testMarkCompleteLoanFails() {
+            List<Deal> buyerDeals = dataService.getDealsForBuyer("alice");
+            Deal loanDeal = buyerDeals.stream()
+                    .filter(d -> d.getType() == DealType.LOAN && d.getStatus() == DealStatus.ACTIVE)
+                    .findFirst()
+                    .orElseThrow();
+
+            Listing listing = dataService.findListing(loanDeal.getListingId());
+            listing.setStatus(ListingStatus.LENT);
+
+            DealOperationResult result = dealService.markDealComplete(loanDeal.getId(), "alice");
+
+            assertFalse(result.isSuccess());
+            assertEquals(DealOperationStatus.DEAL_IS_LOAN, result.getStatus());
+            assertTrue(result.getMessage().contains("Loan deals cannot be marked complete"));
+
+            // Deal must remain ACTIVE, listing must remain LENT
+            assertEquals(DealStatus.ACTIVE, loanDeal.getStatus());
+            assertEquals(ListingStatus.LENT, listing.getStatus());
+        }
     }
 
     @Nested

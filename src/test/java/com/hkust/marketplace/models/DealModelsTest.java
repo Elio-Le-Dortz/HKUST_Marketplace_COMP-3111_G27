@@ -19,6 +19,7 @@ class DealModelsTest {
         assertEquals(DealOperationStatus.SUCCESS, DealOperationStatus.valueOf("SUCCESS"));
         assertEquals(DealOperationStatus.OFFER_NOT_PENDING, DealOperationStatus.valueOf("OFFER_NOT_PENDING"));
         assertEquals(DealOperationStatus.COUNTER_NOT_VALID, DealOperationStatus.valueOf("COUNTER_NOT_VALID"));
+        assertEquals(DealOperationStatus.DEAL_IS_LOAN, DealOperationStatus.valueOf("DEAL_IS_LOAN"));
     }
 
     @Test

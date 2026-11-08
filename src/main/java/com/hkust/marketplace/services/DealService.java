@@ -350,6 +350,11 @@ public class DealService {
                     "Deal is not active (current status: " + deal.getStatus() + ").");
         }
 
+        if (deal.getType() == DealType.LOAN) {
+            return DealOperationResult.failure(DealOperationStatus.DEAL_IS_LOAN,
+                    "Loan deals cannot be marked complete; borrowed items must be returned.");
+        }
+
         deal.setStatus(DealStatus.COMPLETED);
         deal.setClosedDate(LocalDateTime.now());
         dataService.updateDeal(deal);

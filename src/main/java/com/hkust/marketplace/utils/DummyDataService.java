@@ -728,11 +728,11 @@ public class DummyDataService {
      * @param password        Plaintext password meeting strength criteria
      * @param confirmPassword Confirmation password that must match
      * @param residence       Optional residence hall or off-campus location
-     * @return RegistrationResult indicating success or failure with affected fields
+     * @return BuyerRegistrationResult indicating success or failure with affected fields
      */
-    public synchronized RegistrationResult registerBuyer(String username, String fullName,
-                                                        String password, String confirmPassword,
-                                                        String residence) {
+    public synchronized BuyerRegistrationResult registerBuyer(String username, String fullName,
+                                                              String password, String confirmPassword,
+                                                              String residence) {
         Set<String> emptyFields = new LinkedHashSet<>();
         if (username == null || username.trim().isEmpty()) {
             emptyFields.add("username");
@@ -762,28 +762,28 @@ public class DummyDataService {
             } else {
                 message = "Please fill in all required fields.";
             }
-            return RegistrationResult.failure(message, emptyFields);
+            return BuyerRegistrationResult.failure(message, emptyFields);
         }
 
         String cleanUsername = username.trim();
         if (cleanUsername.contains(" ")) {
-            return RegistrationResult.failure("Username cannot contain spaces.", "username");
+            return BuyerRegistrationResult.failure("Username cannot contain spaces.", "username");
         }
         if (cleanUsername.length() < 3) {
-            return RegistrationResult.failure("Username must be at least 3 characters long.", "username");
+            return BuyerRegistrationResult.failure("Username must be at least 3 characters long.", "username");
         }
 
         if (usernameExists(cleanUsername)) {
-            return RegistrationResult.failure("Username already taken. Please choose another.", "username");
+            return BuyerRegistrationResult.failure("Username already taken. Please choose another.", "username");
         }
 
         String pwdCheck = checkPasswordStrength(password);
         if (!"OK".equals(pwdCheck)) {
-            return RegistrationResult.failure(pwdCheck, "password");
+            return BuyerRegistrationResult.failure(pwdCheck, "password");
         }
 
         if (!password.equals(confirmPassword)) {
-            return RegistrationResult.failure("Passwords do not match.", "confirmPassword");
+            return BuyerRegistrationResult.failure("Passwords do not match.", "confirmPassword");
         }
 
         String hashedPassword = PasswordHasher.hash(password);
@@ -792,7 +792,7 @@ public class DummyDataService {
         buyer.setAccountStatus(AccountStatus.ACTIVE);
         registerUser(buyer);
 
-        return RegistrationResult.success(buyer);
+        return BuyerRegistrationResult.success(buyer);
     }
 
     /**

@@ -135,10 +135,10 @@ After F03/F04 (session checks for buyers and admins) the snippets must log in th
 | F20 | P3 | Charles | ~~Buyer-flow notifications have no link (seller deep links fail)~~ **[FIXED - PR #40]** | Backlog US-S07 "deep links to relevant offer/deal"; UC 2.7 step 4 |
 | F21 | P3 | Charles | ~~`markDealComplete` accepts a loan (listing becomes Sold)~~ **[FIXED - PR #41]** | UC 1.6 S5 |
 | F22 | P3 | Charles | ~~Lock-order inversion between chat formal offers and offers~~ **[FIXED - PR #42]** | Brief "support concurrent actions gracefully" |
-| F23 | P4 | Shared / Charles / Elio | Lend terms shown in whole days ("up to 0 days") | Task 1.3/1.4 display; 5-second minimum |
+| F23 | P4 | Shared / Charles / Elio | ~~Lend terms shown in whole days ("up to 0 days")~~ **[FIXED - PR #43]** | Task 1.3/1.4 display; 5-second minimum |
 | F24 | P4 | Charles — *Decision* | ~~Borrow request may exceed the listing's lending duration~~ **[DECIDED - As Specified]** | Consistency with UC 2.5 A4 |
 | F25 | P4 | Charles, Elio, shared | ~~Number formatting depends on the default locale~~ **[FIXED - PR #44]** | Brief "consistent interface" |
-| F26 | P4 | Charles | Two classes named `RegistrationResult` | Brief "readability and maintainability" |
+| F26 | P4 | Charles | ~~Two classes named `RegistrationResult`~~ **[FIXED - PR #45]** | Brief "readability and maintainability" |
 | F27 | P4 | Charles — *Decision* | "Favourites" screen is a visible placeholder | Brief (favourites/follow mentioned) |
 | F28 | P4 | Team | Dead / legacy code in `DummyDataService` | Brief "best coding practices" |
 | F29 | P4 | Elio | Report does not record the handling admin; resolution logged as "User Accounts" | CLASS_DIAGRAM `Admin 1 --> * Report : Handles`; UC 3.6 categories |
@@ -656,7 +656,12 @@ After F03/F04 (session checks for buyers and admins) the snippets must log in th
 - **Observed:** in fr_FR, buyers see "★ 4,3 / 5.0" and "HK$10,00"; seller screens show "4.3" and "HK$ 10.00".
 - **Suggested fix:** `String.format(Locale.ENGLISH, …)` everywhere text is shown to users.
 
-### F26 — Two classes named `RegistrationResult`
+### F26 — [FIXED - PR #45] Two classes named `RegistrationResult`
+> [!NOTE]
+> **Status: FIXED (PR #45)**
+> - Renamed `models/RegistrationResult.java` to `models/BuyerRegistrationResult.java` and updated callers in `BuyerRegisterController` and `DummyDataService.registerBuyer`.
+> - Renamed `RegistrationResultTest` in `models/` to `BuyerRegistrationResultTest` and updated references across tests (`BuyerRegistrationTest`, `BuyerLoginTest`, and `DummyDataServiceUserManagementTest`).
+> - Preserved generic `services/RegistrationResult.java` for seller registration, eliminating class naming ambiguity across packages.
 - **Owner:** Charles.
 - **Where:** `models/RegistrationResult.java` (buyer registration) and `services/RegistrationResult.java` (generic,
   seller registration). Code importing both packages must fully qualify one.

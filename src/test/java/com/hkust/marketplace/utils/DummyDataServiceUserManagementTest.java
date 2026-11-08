@@ -47,7 +47,7 @@ class DummyDataServiceUserManagementTest {
         assertTrue(dataService.usernameExists("e2e_buyer"));
 
         // Attempting to register another buyer with same username fails
-        RegistrationResult regResult = dataService.registerBuyer(
+        BuyerRegistrationResult regResult = dataService.registerBuyer(
                 "e2e_buyer", "Another Name", "Pass1234!", "Pass1234!", "Hall 1"
         );
         assertFalse(regResult.isSuccess());

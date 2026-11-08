@@ -620,7 +620,12 @@ After F03/F04 (session checks for buyers and admins) the snippets must log in th
 
 ## P4 — Minor issues and decisions
 
-### F23 — Lend terms shown in whole days ("Lend (up to 0 days)")
+### F23 — [FIXED - PR #43] Lend terms shown in whole days ("Lend (up to 0 days)")
+> [!NOTE]
+> **Status: FIXED (PR #43)**
+> - Updated `Listing.getPriceDisplay()` to format lending duration with `OfferManagementService.formatDuration(lendingDuration)`, properly displaying periods in seconds, hours, and days (e.g., "10 seconds", "36 hours", "7 days", "1 day").
+> - Updated `BuyerDashboardController.showBorrowDialog` and `showChatFormalBorrowRequestDialog` to show human-readable suggested lending durations and initialize proposed default end dates/times based on `listing.getLendingDuration()`.
+> - Added regression tests in `DomainModelTest` covering durations in seconds, minutes, hours, and days.
 - **Owner:** shared model (`Listing`) + Charles (buyer UI) + Elio (admin UI).
 - **Where:** `models/Listing.java:300-309` `getPriceDisplay()` uses `getLendingDays()` (truncated);
   buyer `BuyerDashboardController.java:991, 1007, 3119`; admin `AdminDashboardController.java:560, 828, 1007`.

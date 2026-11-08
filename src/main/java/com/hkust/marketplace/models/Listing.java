@@ -1,5 +1,7 @@
 package com.hkust.marketplace.models;
 
+import com.hkust.marketplace.services.OfferManagementService;
+
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -303,8 +305,10 @@ public class Listing {
         if (type == ListingType.SELL) {
             return price != null ? "HK$ " + String.format(Locale.ENGLISH, "%.0f", price) : "Free";
         } else if (type == ListingType.LEND) {
-            Integer days = getLendingDays();
-            return days != null ? "Lend (up to " + days + " days)" : "Lend";
+            if (lendingDuration != null) {
+                return "Lend (up to " + OfferManagementService.formatDuration(lendingDuration) + ")";
+            }
+            return "Lend";
         } else {
             return "FREE";
         }

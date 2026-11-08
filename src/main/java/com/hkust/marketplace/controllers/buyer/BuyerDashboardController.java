@@ -1,6 +1,7 @@
 package com.hkust.marketplace.controllers.buyer;
 
 import com.hkust.marketplace.models.*;
+import com.hkust.marketplace.services.OfferManagementService;
 import com.hkust.marketplace.utils.DummyDataService;
 import com.hkust.marketplace.utils.SceneManager;
 import com.hkust.marketplace.utils.SessionManager;
@@ -1036,15 +1037,21 @@ public class BuyerDashboardController {
         content.setPrefWidth(420);
         content.setPadding(new Insets(10));
 
-        Label infoLabel = new Label("Seller suggested lending period: "
-                + (listing.getLendingDays() != null ? listing.getLendingDays() + " days" : "Flexible"));
+        String periodDesc = "Flexible";
+        if (listing.getLendingDuration() != null) {
+            periodDesc = OfferManagementService.formatDuration(listing.getLendingDuration());
+        } else if (listing.getLendingDays() != null) {
+            periodDesc = listing.getLendingDays() + " days";
+        }
+        Label infoLabel = new Label("Seller suggested lending period: " + periodDesc);
         infoLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: #003974; -fx-font-size: 13px;");
 
         // Start Date & Time
         Label startLabel = new Label("Proposed Start Date & Time:");
         startLabel.setStyle("-fx-font-weight: 600; -fx-text-fill: #333344;");
-        DatePicker startDatePicker = new DatePicker(LocalDate.now());
-        TextField startTimeField = new TextField(LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss")));
+        LocalDateTime initialNow = LocalDateTime.now().truncatedTo(ChronoUnit.SECONDS);
+        DatePicker startDatePicker = new DatePicker(initialNow.toLocalDate());
+        TextField startTimeField = new TextField(initialNow.toLocalTime().format(DateTimeFormatter.ofPattern("HH:mm:ss")));
         startTimeField.setPromptText("HH:mm:ss");
         startTimeField.setPrefWidth(100);
         HBox startBox = new HBox(8, startDatePicker, startTimeField);
@@ -1053,9 +1060,16 @@ public class BuyerDashboardController {
         // End Date & Time
         Label endLabel = new Label("Proposed End Date & Time:");
         endLabel.setStyle("-fx-font-weight: 600; -fx-text-fill: #333344;");
-        int defaultDays = (listing.getLendingDays() != null && listing.getLendingDays() > 0) ? listing.getLendingDays() : 1;
-        DatePicker endDatePicker = new DatePicker(LocalDate.now().plusDays(defaultDays));
-        TextField endTimeField = new TextField(LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss")));
+        LocalDateTime defaultEnd;
+        if (listing.getLendingDuration() != null && !listing.getLendingDuration().isZero() && !listing.getLendingDuration().isNegative()) {
+            defaultEnd = initialNow.plus(listing.getLendingDuration());
+        } else if (listing.getLendingDays() != null && listing.getLendingDays() > 0) {
+            defaultEnd = initialNow.plusDays(listing.getLendingDays());
+        } else {
+            defaultEnd = initialNow.plusDays(1);
+        }
+        DatePicker endDatePicker = new DatePicker(defaultEnd.toLocalDate());
+        TextField endTimeField = new TextField(defaultEnd.toLocalTime().format(DateTimeFormatter.ofPattern("HH:mm:ss")));
         endTimeField.setPromptText("HH:mm:ss");
         endTimeField.setPrefWidth(100);
         HBox endBox = new HBox(8, endDatePicker, endTimeField);
@@ -3185,8 +3199,14 @@ public class BuyerDashboardController {
     private void showChatFormalBorrowRequestDialog(ChatThread thread, Listing listing, String returnView) {
         Dialog<ButtonType> dialog = new Dialog<>();
         dialog.setTitle("Formal Borrow Request");
+        String maxDurationDesc = "Flexible";
+        if (listing.getLendingDuration() != null) {
+            maxDurationDesc = OfferManagementService.formatDuration(listing.getLendingDuration());
+        } else if (listing.getLendingDays() != null) {
+            maxDurationDesc = listing.getLendingDays() + " days";
+        }
         dialog.setHeaderText("Request to borrow '" + listing.getTitle() + "'\n"
-                + "Maximum Duration: " + (listing.getLendingDays() != null ? listing.getLendingDays() + " days" : "Flexible"));
+                + "Maximum Duration: " + maxDurationDesc);
 
         ButtonType submitBtnType = new ButtonType("Submit Request", ButtonBar.ButtonData.OK_DONE);
         dialog.getDialogPane().getButtonTypes().addAll(submitBtnType, ButtonType.CANCEL);
@@ -3194,8 +3214,15 @@ public class BuyerDashboardController {
         VBox form = new VBox(10);
         form.setPadding(new Insets(20));
 
+        int defaultEndDays = 1;
+        if (listing.getLendingDuration() != null) {
+            long days = listing.getLendingDuration().toDays();
+            defaultEndDays = days > 0 ? (int) days : 1;
+        } else if (listing.getLendingDays() != null && listing.getLendingDays() > 0) {
+            defaultEndDays = listing.getLendingDays();
+        }
         DatePicker startDatePicker = new DatePicker(LocalDate.now());
-        DatePicker endDatePicker = new DatePicker(LocalDate.now().plusDays(7));
+        DatePicker endDatePicker = new DatePicker(LocalDate.now().plusDays(defaultEndDays));
 
         Label errorLbl = new Label();
         errorLbl.setStyle("-fx-text-fill: #d32f2f; -fx-font-size: 12px;");

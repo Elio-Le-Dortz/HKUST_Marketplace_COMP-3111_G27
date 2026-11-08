@@ -292,4 +292,40 @@ class DomainModelTest {
         assertTrue(threeArgBuyer.isActive());
         assertEquals(AccountStatus.ACTIVE, threeArgBuyer.getAccountStatus());
     }
+
+    @Test
+    void testListingLendTermsDurationFormattingF23() {
+        Listing listing = new Listing();
+        listing.setType(ListingType.LEND);
+
+        // Sub-day durations: seconds, minutes, hours (F23 regression)
+        listing.setLendingDuration(Duration.ofSeconds(10));
+        assertEquals("Lend (up to 10 seconds)", listing.getPriceDisplay());
+
+        listing.setLendingDuration(Duration.ofSeconds(1));
+        assertEquals("Lend (up to 1 second)", listing.getPriceDisplay());
+
+        listing.setLendingDuration(Duration.ofMinutes(30));
+        assertEquals("Lend (up to 30 minutes)", listing.getPriceDisplay());
+
+        listing.setLendingDuration(Duration.ofHours(1));
+        assertEquals("Lend (up to 1 hour)", listing.getPriceDisplay());
+
+        listing.setLendingDuration(Duration.ofHours(36));
+        assertEquals("Lend (up to 36 hours)", listing.getPriceDisplay());
+
+        // Single day and multiple days
+        listing.setLendingDuration(Duration.ofDays(1));
+        assertEquals("Lend (up to 1 day)", listing.getPriceDisplay());
+
+        listing.setLendingDuration(Duration.ofDays(7));
+        assertEquals("Lend (up to 7 days)", listing.getPriceDisplay());
+
+        // Null and backward-compatible setLendingDays
+        listing.setLendingDuration(null);
+        assertEquals("Lend", listing.getPriceDisplay());
+
+        listing.setLendingDays(3);
+        assertEquals("Lend (up to 3 days)", listing.getPriceDisplay());
+    }
 }

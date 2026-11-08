@@ -1,9 +1,12 @@
 package com.hkust.marketplace.models;
 
+import com.hkust.marketplace.services.OfferManagementService;
+
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * Domain model for Listing as defined in the UML Class Diagram.
@@ -300,10 +303,12 @@ public class Listing {
 
     public String getPriceDisplay() {
         if (type == ListingType.SELL) {
-            return price != null ? "HK$ " + String.format("%.0f", price) : "Free";
+            return price != null ? "HK$ " + String.format(Locale.ENGLISH, "%.0f", price) : "Free";
         } else if (type == ListingType.LEND) {
-            Integer days = getLendingDays();
-            return days != null ? "Lend (up to " + days + " days)" : "Lend";
+            if (lendingDuration != null) {
+                return "Lend (up to " + OfferManagementService.formatDuration(lendingDuration) + ")";
+            }
+            return "Lend";
         } else {
             return "FREE";
         }

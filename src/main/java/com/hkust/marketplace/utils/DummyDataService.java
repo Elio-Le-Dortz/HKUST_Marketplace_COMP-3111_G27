@@ -77,38 +77,6 @@ public class DummyDataService {
     private final AtomicInteger threadIdCounter = new AtomicInteger(1);
     private final AtomicInteger messageIdCounter = new AtomicInteger(1);
 
-    // Predefined HKUST locations
-    public static final List<String> HKUST_LOCATIONS = List.of(
-            "Academic Building (LG1)",
-            "Library",
-            "Student Centre",
-            "Hall 1 Lobby",
-            "Hall 2 Lobby",
-            "Hall 3 Lobby",
-            "Hall 4 Lobby",
-            "Hall 5 Lobby",
-            "Hall 6 Lobby",
-            "Hall 7 Lobby",
-            "Hall 8 Lobby",
-            "Hall 9 Lobby",
-            "UG Hall 1",
-            "UG Hall 2",
-            "North Gate",
-            "South Gate",
-            "Shaw Auditorium",
-            "Coffee Shop (LG5)",
-            "Sports Hall"
-    );
-
-    public static final List<String> CATEGORIES = List.of(
-            "Textbooks", "Electronics", "Furniture", "Clothing",
-            "Stationery", "Sports Equipment", "Kitchenware", "Others"
-    );
-
-    public static final List<String> CONDITIONS = List.of(
-            "New", "Like New", "Used", "For Parts"
-    );
-
     private DummyDataService() {
         DatabaseManager dm = null;
         try {
@@ -777,9 +745,9 @@ public class DummyDataService {
             return BuyerRegistrationResult.failure("Username already taken. Please choose another.", "username");
         }
 
-        String pwdCheck = checkPasswordStrength(password);
-        if (!"OK".equals(pwdCheck)) {
-            return BuyerRegistrationResult.failure(pwdCheck, "password");
+        List<String> pwdViolations = PasswordPolicy.findViolations(password);
+        if (!pwdViolations.isEmpty()) {
+            return BuyerRegistrationResult.failure(PasswordPolicy.formatViolations(pwdViolations), "password");
         }
 
         if (!password.equals(confirmPassword)) {
@@ -889,11 +857,6 @@ public class DummyDataService {
             }
         }
     }
-
-    public void resetToSeedData() {
-        resetData();
-    }
-
 
     public Collection<User> getAllUsers() {
         return users.values();
@@ -1197,38 +1160,6 @@ public class DummyDataService {
 
     public synchronized boolean hasCompletedDeals(String buyerUsername) {
         return dealHistoryService != null && dealHistoryService.hasCompletedDeals(buyerUsername);
-    }
-
-    /**
-     * Atomic claim for Giveaway items (Requirement 4.1: Concurrency on Giveaway items).
-     * Synchronized to guarantee first-come, first-served.
-     */
-    public synchronized boolean claimListing(String listingId, String buyerUsername) {
-        Listing l = listings.get(listingId);
-        if (l != null && l.getStatus() == ListingStatus.LIVE && l.getType() == ListingType.GIVEAWAY) {
-            l.setStatus(ListingStatus.GIVEN);
-            Deal d = new Deal();
-            d.setId("D" + dealIdCounter.getAndIncrement());
-            d.setListingId(l.getId());
-            d.setListingTitle(l.getTitle());
-            d.setBuyerUsername(buyerUsername);
-            d.setSellerUsername(l.getSellerUsername());
-            d.setType(DealType.GIVEAWAY);
-            d.setStatus(DealStatus.COMPLETED);
-            d.setClosedDate(LocalDateTime.now());
-            deals.add(d);
-            if (databaseManager != null && persistenceEnabled) {
-                databaseManager.saveDeal(d);
-                databaseManager.saveListing(l);
-            }
-
-            addNotification(new Notification(l.getSellerUsername(), "Item Claimed",
-                    buyerUsername + " claimed your giveaway item: " + l.getTitle(), "Offer"));
-            addNotification(new Notification(buyerUsername, "Claim Confirmed",
-                    "You successfully claimed: " + l.getTitle(), "Offer"));
-            return true;
-        }
-        return false;
     }
 
     // ========== Offer methods ==========
@@ -1579,15 +1510,5 @@ public class DummyDataService {
 
     public synchronized AdminRatingOperationResult dismissReviewFlagByAdmin(String reviewId, String adminUsername) {
         return adminRatingService.dismissFlag(reviewId, adminUsername);
-    }
-
-    // Password strength helper
-    public static String checkPasswordStrength(String password) {
-        if (password == null || password.isEmpty()) return "Password cannot be empty.";
-        List<String> violations = PasswordPolicy.findViolations(password);
-        if (violations.isEmpty()) {
-            return "OK";
-        }
-        return PasswordPolicy.formatViolations(violations);
     }
 }

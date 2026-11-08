@@ -24,7 +24,7 @@ class UserManagementServiceTest {
     @BeforeEach
     void setUp() {
         dataService = DummyDataService.getInstance();
-        dataService.resetToSeedData();
+        dataService.resetData();
         SessionManager.logout();
         service = new UserManagementService(dataService);
     }

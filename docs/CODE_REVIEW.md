@@ -139,12 +139,12 @@ After F03/F04 (session checks for buyers and admins) the snippets must log in th
 | F24 | P4 | Charles — *Decision* | ~~Borrow request may exceed the listing's lending duration~~ **[DECIDED - As Specified]** | Consistency with UC 2.5 A4 |
 | F25 | P4 | Charles, Elio, shared | ~~Number formatting depends on the default locale~~ **[FIXED - PR #44]** | Brief "consistent interface" |
 | F26 | P4 | Charles | ~~Two classes named `RegistrationResult`~~ **[FIXED - PR #45]** | Brief "readability and maintainability" |
-| F27 | P4 | Charles — *Decision* | "Favourites" screen is a visible placeholder | Brief (favourites/follow mentioned) |
-| F28 | P4 | Team | Dead / legacy code in `DummyDataService` | Brief "best coding practices" |
+| F27 | P4 | Charles — *Decision* | ~~"Favourites" screen is a visible placeholder~~ **[FIXED - PR #46]** | Brief (favourites/follow mentioned) |
+| F28 | P4 | Team | ~~Dead / legacy code in `DummyDataService`~~ **[FIXED - PR #48]** | Brief "best coding practices" |
 | F29 | P4 | Elio | Report does not record the handling admin; resolution logged as "User Accounts" | CLASS_DIAGRAM `Admin 1 --> * Report : Handles`; UC 3.6 categories |
 | F30 | P4 | *Decision* | Seeded admin is `admin`, specs say `admin@ust.hk` | UC 3.1; CLASS_DIAGRAM §3.1 |
 | F31 | P4 | *Decision* | Seeded listings have no photos | CLASS_DIAGRAM `Listing 1 *-- 1..6 Photo` |
-| F32 | P4 | Charles | My Deals cannot rate a returned loan (Deal History can) | Consistency (UC 1.10) |
+| F32 | P4 | Charles | ~~My Deals cannot rate a returned loan (Deal History can)~~ **[FIXED - PR #47]** | Consistency (UC 1.10) |
 | F33 | P4 | Elio | All Deals matches a deal's review by users + listing, not by deal | UC 3.5 step 4 |
 | F34 | P4 | Antoine — *Decision* | Seller cannot cancel or mark sold a Reserved deal | Brief: sellers can "mark as sold" |
 | F35 | P4 | Team | Documentation out of date or inconsistent | Brief submission guidelines (README) |
@@ -667,14 +667,23 @@ After F03/F04 (session checks for buyers and admins) the snippets must log in th
   seller registration). Code importing both packages must fully qualify one.
 - **Suggested fix:** rename the buyer one (e.g. `BuyerRegistrationResult`) and update its tests, or merge both.
 
-### F27 — "Favourites" screen is a visible placeholder (*Decision*)
+### F27 — [FIXED - PR #46] "Favourites" screen is a visible placeholder (*Decision*)
+> [!NOTE]
+> **Status: FIXED (PR #46)**
+> - Decision made by owner (Charles): Removed the placeholder "Favourites" button from the buyer sidebar (`BuyerDashboardView.fxml`) and controller (`BuyerDashboardController.java`) as favourites/follow are not part of the 28 required use cases, eliminating placeholder UI ahead of grading.
 - **Owner:** Charles.
 - **Where:** `controllers/buyer/BuyerDashboardController.java:2149` `showFavourites()` shows "This section is a UI
   placeholder for students to implement."; sidebar button `fxml/buyer/BuyerDashboardView.fxml` (`btnFavourites`).
 - **Note:** favourites/follow are mentioned in the brief's overview but are not among the 28 use cases. Either
   implement them or remove the button before the demo.
 
-### F28 — Dead or legacy code in `DummyDataService`
+### F28 — [FIXED - PR #48] Dead or legacy code in `DummyDataService`
+> [!NOTE]
+> **Status: FIXED (PR #48)**
+> - Removed unused legacy constants `HKUST_LOCATIONS`, `CATEGORIES`, and `CONDITIONS` from `DummyDataService`.
+> - Removed duplicate method `resetToSeedData()` and migrated all 8 calling test files to standard `resetData()`.
+> - Removed legacy `claimListing(...)` helper that bypassed the offer flow and updated `DummyDataServiceTest` to use proper `submitClaim(...)`.
+> - Removed deprecated `checkPasswordStrength(...)` in `DummyDataService` and connected `registerBuyer` directly to `PasswordPolicy.findViolations`.
 - **Owner:** Team.
 - **Where (`utils/DummyDataService.java`):** `HKUST_LOCATIONS` (line 77), `CATEGORIES` (99), `CONDITIONS` (104) —
   unused strings that do not match the enums; `resetToSeedData()` (722) duplicates `resetData()` and does not reset
@@ -703,7 +712,11 @@ After F03/F04 (session checks for buyers and admins) the snippets must log in th
   when packaged. An option is to copy sample images from `src/main/resources/images` to a temp folder at startup and
   seed their paths. Otherwise, document it as a known demo limitation.
 
-### F32 — My Deals cannot rate a returned loan (Deal History can)
+### F32 — [FIXED - PR #47] My Deals cannot rate a returned loan (Deal History can)
+> [!NOTE]
+> **Status: FIXED (PR #47)**
+> - Updated `MyDealsItem.canRate()` to `(deal.getStatus() == DealStatus.COMPLETED || deal.getStatus() == DealStatus.RETURNED) && !deal.isRated()`, matching `DealHistoryItem.canRate()` and `BuyerReviewService.canRateDeal`.
+> - Updated `DealModelsTest` to assert that unrated returned loans can be rated in My Deals and already rated loans cannot.
 - **Owner:** Charles.
 - **Where:** `models/MyDealsItem.java:244` `canRate()` accepts only `COMPLETED`; `models/DealHistoryItem.java:165`
   and `BuyerReviewService.canRateDeal` accept `COMPLETED` or `RETURNED`.

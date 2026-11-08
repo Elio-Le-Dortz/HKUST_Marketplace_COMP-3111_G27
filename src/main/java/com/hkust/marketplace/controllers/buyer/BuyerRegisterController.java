@@ -1,6 +1,6 @@
 package com.hkust.marketplace.controllers.buyer;
 
-import com.hkust.marketplace.models.RegistrationResult;
+import com.hkust.marketplace.models.BuyerRegistrationResult;
 import com.hkust.marketplace.utils.DummyDataService;
 import com.hkust.marketplace.utils.SceneManager;
 import javafx.collections.FXCollections;
@@ -46,7 +46,7 @@ public class BuyerRegisterController {
         String confirm = confirmPasswordField.getText();
         String residence = residenceCombo.getValue();
 
-        RegistrationResult result = DummyDataService.getInstance()
+        BuyerRegistrationResult result = DummyDataService.getInstance()
                 .registerBuyer(username, fullName, password, confirm, residence);
 
         if (!result.isSuccess()) {

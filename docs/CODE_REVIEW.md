@@ -142,7 +142,7 @@ After F03/F04 (session checks for buyers and admins) the snippets must log in th
 | F27 | P4 | Charles — *Decision* | ~~"Favourites" screen is a visible placeholder~~ **[FIXED - PR #46]** | Brief (favourites/follow mentioned) |
 | F28 | P4 | Team | Dead / legacy code in `DummyDataService` | Brief "best coding practices" |
 | F29 | P4 | Elio | Report does not record the handling admin; resolution logged as "User Accounts" | CLASS_DIAGRAM `Admin 1 --> * Report : Handles`; UC 3.6 categories |
-| F30 | P4 | *Decision* | Seeded admin is `admin`, specs say `admin@ust.hk` | UC 3.1; CLASS_DIAGRAM §3.1 |
+| F30 | P4 | *Decision* | ~~Seeded admin is `admin`, specs say `admin@ust.hk`~~ **[DECIDED - Keep `admin`]** | UC 3.1; CLASS_DIAGRAM §3.1 |
 | F31 | P4 | *Decision* | Seeded listings have no photos | CLASS_DIAGRAM `Listing 1 *-- 1..6 Photo` |
 | F32 | P4 | Charles | ~~My Deals cannot rate a returned loan (Deal History can)~~ **[FIXED - PR #47]** | Consistency (UC 1.10) |
 | F33 | P4 | Elio | All Deals matches a deal's review by users + listing, not by deal | UC 3.5 step 4 |
@@ -693,7 +693,10 @@ After F03/F04 (session checks for buyers and admins) the snippets must log in th
 - **Suggested fix:** add `handledBy` (admin username, and optionally a resolved date) set in `resolveReport`; log
   the audit entry under `REPORTS`.
 
-### F30 — Seeded admin username `admin` vs `admin@ust.hk` (*Decision*)
+### F30 — [DECIDED - Keep `admin`] Seeded admin username `admin` vs `admin@ust.hk` (*Decision*)
+> [!NOTE]
+> **Status: DECIDED (No code change needed)**
+> Decision made by team / owner: Kept `admin` as the seeded administrator username (`DummyDataService.SEEDED_ADMIN_USERNAME = "admin"` with credentials `admin` / `admin123`). The assignment brief (`assignment.txt`) and domain model (`CLASS_DIAGRAM.md §3.1`) specify `admin@ust.hk` as an illustrative example (`"e.g., admin@ust.hk"`). Keeping `admin` avoids widespread breaking changes across admin controllers, views, database persistence, and test suites. Documented explicitly in `README.md` under Demo Credentials.
 - **Where:** `DummyDataService.SEEDED_ADMIN_USERNAME = "admin"` (line 33); README demo credentials use `admin`;
   `specs_admin.tex` UC 3.1 and CLASS_DIAGRAM §3.1 say `admin@ust.hk`.
 - **Note:** either rename the seeded account (update README and tests) or state in the README that the seeded

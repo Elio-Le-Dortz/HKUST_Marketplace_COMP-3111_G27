@@ -6,6 +6,7 @@ import com.hkust.marketplace.models.ProfileUpdateResult;
 import com.hkust.marketplace.models.ProfileUpdateStatus;
 import com.hkust.marketplace.models.User;
 import com.hkust.marketplace.utils.DummyDataService;
+import com.hkust.marketplace.utils.PasswordHasher;
 import com.hkust.marketplace.utils.PasswordPolicy;
 import com.hkust.marketplace.utils.PasswordUtil;
 
@@ -142,8 +143,8 @@ public class BuyerProfileService {
                 return ProfileUpdateResult.weakPassword(violations, message);
             }
 
-            // Basic Flow step 7: Store new password in hashed form
-            String newHashedPassword = PasswordUtil.hashPassword(newPassword);
+            // Basic Flow step 7: Store new password in hashed form (PBKDF2)
+            String newHashedPassword = PasswordHasher.hash(newPassword);
             buyer.setPasswordHash(newHashedPassword);
         }
 

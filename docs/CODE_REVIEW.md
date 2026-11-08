@@ -132,9 +132,9 @@ After F03/F04 (session checks for buyers and admins) the snippets must log in th
 | F17 | P3 | Elio | Take-down is not atomic with offer acceptance | UC 3.7 special req.; CLASS_DIAGRAM rule 1 |
 | F18 | P3 | Charles | ~~Accepting a counter offer leaves other countered offers stuck~~ **[FIXED - PR #38]** | CLASS_DIAGRAM rule 1; UC 1.6 S2 |
 | F19 | P3 | Charles | ~~Buyer registration: generic weak-password message; extra username rules~~ **[FIXED - PR #39]** | UC 1.1 A3; README password rules |
-| F20 | P3 | Charles | Buyer-flow notifications have no link (seller deep links fail) | Backlog US-S07 "deep links to relevant offer/deal"; UC 2.7 step 4 |
-| F21 | P3 | Charles | `markDealComplete` accepts a loan (listing becomes Sold) | UC 1.6 S5 |
-| F22 | P3 | Charles | Lock-order inversion between chat formal offers and offers | Brief "support concurrent actions gracefully" |
+| F20 | P3 | Charles | ~~Buyer-flow notifications have no link (seller deep links fail)~~ **[FIXED - PR #40]** | Backlog US-S07 "deep links to relevant offer/deal"; UC 2.7 step 4 |
+| F21 | P3 | Charles | ~~`markDealComplete` accepts a loan (listing becomes Sold)~~ **[FIXED - PR #41]** | UC 1.6 S5 |
+| F22 | P3 | Charles | ~~Lock-order inversion between chat formal offers and offers~~ **[FIXED - PR #42]** | Brief "support concurrent actions gracefully" |
 | F23 | P4 | Shared / Charles / Elio | Lend terms shown in whole days ("up to 0 days") | Task 1.3/1.4 display; 5-second minimum |
 | F24 | P4 | Charles — *Decision* | Borrow request may exceed the listing's lending duration | Consistency with UC 2.5 A4 |
 | F25 | P4 | Charles, Elio, shared | Number formatting depends on the default locale | Brief "consistent interface" |
@@ -562,7 +562,10 @@ After F03/F04 (session checks for buyers and admins) the snippets must log in th
 - **Suggested fix:** use `PasswordPolicy.findViolations` and list the broken rules (as `SellerRegistrationService`);
   decide team-wide username rules, apply them to both registrations, and document them in the README.
 
-### F20 — Notifications from buyer flows have no link (seller deep links fail)
+### F20 — [FIXED - PR #40] Notifications from buyer flows have no link (seller deep links fail)
+> [!NOTE]
+> **Status: FIXED (PR #40)**
+> Updated notification creation in buyer flows (`ActOnListingService` for price offers, borrow requests, and claims; `DealService` for offer withdrawals, counter-offer acceptance/rejection, item returns, deal completions, and auto-returns) to supply `relatedItemId` and `relatedItemType` (`NotificationTargetType.OFFER` / `DEAL`). Added regression tests in `ActOnListingServiceTest` and `DealServiceTest`, and verified seller deep links resolve successfully to the underlying offer or deal via `SellerNotificationService.openNotification`.
 - **Owner:** Charles.
 - **Requirement:** backlog US-S07 acceptance "deep links to relevant offer/deal"; UC 2.7 step 4 "displays the
   related listing, offer, review or deal"; UC 1.8 step 4 for the buyer.
@@ -586,7 +589,10 @@ After F03/F04 (session checks for buyers and admins) the snippets must log in th
   `NotificationTargetType.OFFER.name()` / `DEAL.name()`. Keep the categories ("Offer", "Deal", "Loan"): the seller
   board maps them to its own categories.
 
-### F21 — `markDealComplete` accepts a loan (listing becomes Sold)
+### F21 — [FIXED - PR #41] `markDealComplete` accepts a loan (listing becomes Sold)
+> [!NOTE]
+> **Status: FIXED (PR #41)**
+> Added `DEAL_IS_LOAN` to `DealOperationStatus`. In `DealService.markDealComplete`, reject attempts to mark active loans complete with status `DEAL_IS_LOAN` ("Loan deals cannot be marked complete; borrowed items must be returned."). Added unit regression test verifying that loans remain active and listing remains lent.
 - **Owner:** Charles.
 - **Requirement:** UC 1.6 S5 "marks the deal as Completed and updates the listing status to Sold (Sale deal) or
   Given (Giveaway deal)"; loans end by return (S4 / A4).
@@ -595,7 +601,10 @@ After F03/F04 (session checks for buyers and admins) the snippets must log in th
 - **Observed:** completing an active loan through the service → `success = true`, listing `SOLD`, deal `COMPLETED`.
 - **Suggested fix:** refuse `DealType.LOAN` with a clear failure status (e.g. a new `DEAL_IS_LOAN`, or `INVALID_ACTION`).
 
-### F22 — Lock-order inversion between chat formal offers and offers
+### F22 — [FIXED - PR #42] Lock-order inversion between chat formal offers and offers
+> [!NOTE]
+> **Status: FIXED (PR #42)**
+> Refactored synchronization in both `ActOnListingService` and `ChatService` to synchronize on `dataService` (`synchronized (dataService) { ... }`), matching the seller service architecture. In `ChatService.sendFormalPriceOffer` and `sendFormalBorrowRequest`, delegated offer creation through `dataService.submitPriceOffer` and `submitBorrowRequest`. Added concurrency regression test under `assertTimeoutPreemptively` verifying deadlock-free concurrent execution between formal chat offers and direct offers.
 - **Owner:** Charles.
 - **Requirement:** brief "Support concurrent actions gracefully".
 - **Where:** `services/ChatService.java:169` / `:230` (`synchronized` on `ChatService`) call

@@ -61,7 +61,7 @@ class BuyerLoginTest {
         @Test
         @DisplayName("Newly registered buyer logs in successfully with salted password")
         void testLoginRegisteredBuyer() {
-            RegistrationResult reg = service.registerBuyer(
+            BuyerRegistrationResult reg = service.registerBuyer(
                     "newbuyer", "New Buyer", "ValidPass123", "ValidPass123", "Hall 1");
             assertTrue(reg.isSuccess());
 

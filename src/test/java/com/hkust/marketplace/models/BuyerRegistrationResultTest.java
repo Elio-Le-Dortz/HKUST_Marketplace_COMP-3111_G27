@@ -7,14 +7,14 @@ import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-@DisplayName("RegistrationResult Model Tests")
-class RegistrationResultTest {
+@DisplayName("BuyerRegistrationResult Model Tests")
+class BuyerRegistrationResultTest {
 
     @Test
     @DisplayName("Verify success result creation and getters")
     void testSuccessResult() {
         Buyer buyer = new Buyer("testbuyer", "Test Buyer", "hashedPassword", "Hall 1");
-        RegistrationResult result = RegistrationResult.success(buyer);
+        BuyerRegistrationResult result = BuyerRegistrationResult.success(buyer);
 
         assertTrue(result.isSuccess());
         assertEquals("Registration successful!", result.getMessage());
@@ -30,7 +30,7 @@ class RegistrationResultTest {
     @DisplayName("Verify failure result with multiple fields")
     void testFailureResultMultipleFields() {
         Set<String> fields = Set.of("username", "password");
-        RegistrationResult result = RegistrationResult.failure("Fields missing", fields);
+        BuyerRegistrationResult result = BuyerRegistrationResult.failure("Fields missing", fields);
 
         assertFalse(result.isSuccess());
         assertEquals("Fields missing", result.getMessage());
@@ -45,7 +45,7 @@ class RegistrationResultTest {
     @Test
     @DisplayName("Verify failure result with single field")
     void testFailureResultSingleField() {
-        RegistrationResult result = RegistrationResult.failure("Username taken", "username");
+        BuyerRegistrationResult result = BuyerRegistrationResult.failure("Username taken", "username");
 
         assertFalse(result.isSuccess());
         assertEquals("Username taken", result.getMessage());
@@ -57,7 +57,7 @@ class RegistrationResultTest {
     @Test
     @DisplayName("Handle null error fields gracefully")
     void testNullErrorFields() {
-        RegistrationResult result = new RegistrationResult(false, "Unknown error", null, null);
+        BuyerRegistrationResult result = new BuyerRegistrationResult(false, "Unknown error", null, null);
 
         assertFalse(result.isSuccess());
         assertNotNull(result.getErrorFields());

@@ -155,25 +155,31 @@ class SellerStatisticsServiceTest {
 
     /** A buyer makes a price offer through use case 1.5. */
     private static Offer priceOffer(Listing listing, Buyer buyer, double price) {
-        ActOnListingResult result = DATA.submitPriceOffer(listing.getId(), buyer.getUsername(), price);
-        assertTrue(result.isSuccess(), result.getMessage());
-        return result.getOffer();
+        return SessionManager.withSession(buyer, () -> {
+            ActOnListingResult result = DATA.submitPriceOffer(listing.getId(), buyer.getUsername(), price);
+            assertTrue(result.isSuccess(), result.getMessage());
+            return result.getOffer();
+        });
     }
 
     /** A buyer asks to borrow a Lend listing through use case 1.5. */
     private static Offer borrowRequest(Listing listing, Buyer buyer) {
-        LocalDateTime start = LocalDateTime.now().plusSeconds(2);
-        ActOnListingResult result = DATA.submitBorrowRequest(listing.getId(), buyer.getUsername(), start,
-                start.plusMinutes(10));
-        assertTrue(result.isSuccess(), result.getMessage());
-        return result.getOffer();
+        return SessionManager.withSession(buyer, () -> {
+            LocalDateTime start = LocalDateTime.now().plusSeconds(2);
+            ActOnListingResult result = DATA.submitBorrowRequest(listing.getId(), buyer.getUsername(), start,
+                    start.plusMinutes(10));
+            assertTrue(result.isSuccess(), result.getMessage());
+            return result.getOffer();
+        });
     }
 
     /** A buyer claims a Give Away listing through use case 1.5. */
     private static Offer claim(Listing listing, Buyer buyer) {
-        ActOnListingResult result = DATA.submitClaim(listing.getId(), buyer.getUsername());
-        assertTrue(result.isSuccess(), result.getMessage());
-        return result.getOffer();
+        return SessionManager.withSession(buyer, () -> {
+            ActOnListingResult result = DATA.submitClaim(listing.getId(), buyer.getUsername());
+            assertTrue(result.isSuccess(), result.getMessage());
+            return result.getOffer();
+        });
     }
 
     /** The logged-in Seller accepts an offer through use case 2.5. */
@@ -185,14 +191,18 @@ class SellerStatisticsServiceTest {
 
     /** The buyer marks a deal complete through use case 1.6. */
     private static void complete(Deal deal, Buyer buyer) {
-        DealOperationResult result = DATA.markDealComplete(deal.getId(), buyer.getUsername());
-        assertTrue(result.isSuccess(), result.getMessage());
+        SessionManager.withSession(buyer, () -> {
+            DealOperationResult result = DATA.markDealComplete(deal.getId(), buyer.getUsername());
+            assertTrue(result.isSuccess(), result.getMessage());
+        });
     }
 
     /** The buyer returns a borrowed item through use case 1.6. */
     private static void giveBack(Deal deal, Buyer buyer) {
-        DealOperationResult result = DATA.selfReturnItem(deal.getId(), buyer.getUsername());
-        assertTrue(result.isSuccess(), result.getMessage());
+        SessionManager.withSession(buyer, () -> {
+            DealOperationResult result = DATA.selfReturnItem(deal.getId(), buyer.getUsername());
+            assertTrue(result.isSuccess(), result.getMessage());
+        });
     }
 
     /** A Sell listing is sold: offer, acceptance and completion. */
@@ -219,8 +229,8 @@ class SellerStatisticsServiceTest {
     /** Writes a review through the real buyer flow: a sale completed then rated (use case 1.10). */
     private Review review(Buyer buyer, int rating) {
         Deal deal = sell(liveListing("Rated item " + rating + " by " + buyer.getUsername(), ListingType.SELL), buyer);
-        RateSellerResult rated = DATA.getBuyerReviewService()
-                .submitRating(deal.getId(), buyer.getUsername(), rating, "Smooth deal.");
+        RateSellerResult rated = SessionManager.withSession(buyer, () -> DATA.getBuyerReviewService()
+                .submitRating(deal.getId(), buyer.getUsername(), rating, "Smooth deal."));
         assertTrue(rated.isSuccess(), rated.getMessage());
         return rated.getReview();
     }
@@ -486,7 +496,8 @@ class SellerStatisticsServiceTest {
             Offer countered = priceOffer(listing, buyer2, 120.0);
             assertTrue(offerService.counterWithPrice(countered.getId(), 150.0).isSuccess());
             Offer withdrawn = priceOffer(listing, buyer3, 130.0);
-            assertTrue(DATA.withdrawOffer(withdrawn.getId(), buyer3.getUsername()).isSuccess());
+            assertTrue(SessionManager.withSession(buyer3, () ->
+                    DATA.withdrawOffer(withdrawn.getId(), buyer3.getUsername()).isSuccess()));
             Offer accepted = priceOffer(listing, buyer1, 140.0);
             accept(accepted);
 
@@ -511,7 +522,8 @@ class SellerStatisticsServiceTest {
         void formalOfferFromChat() {
             Listing listing = liveListing("Camera", ListingType.SELL);
             String threadId = DATA.getChatService().getOrCreateThread(listing.getId(), buyer1.getUsername()).getId();
-            assertTrue(DATA.getChatService().sendFormalPriceOffer(threadId, buyer1.getUsername(), 500.0).isSuccess());
+            assertTrue(SessionManager.withSession(buyer1, () ->
+                    DATA.getChatService().sendFormalPriceOffer(threadId, buyer1.getUsername(), 500.0).isSuccess()));
 
             assertEquals(1, service.getMyStatistics().getOffersReceived());
         }
@@ -1098,9 +1110,11 @@ class SellerStatisticsServiceTest {
             List<Callable<Void>> tasks = new ArrayList<>();
             for (Buyer buyer : buyers) {
                 tasks.add(() -> {
-                    for (int i = 0; i < offersEach; i++) {
-                        DATA.submitPriceOffer(listing.getId(), buyer.getUsername(), 100.0 + i);
-                    }
+                    SessionManager.withSession(buyer, () -> {
+                        for (int i = 0; i < offersEach; i++) {
+                            DATA.submitPriceOffer(listing.getId(), buyer.getUsername(), 100.0 + i);
+                        }
+                    });
                     return null;
                 });
             }
@@ -1134,7 +1148,9 @@ class SellerStatisticsServiceTest {
             List<Callable<Void>> tasks = new ArrayList<>();
             for (Deal deal : deals) {
                 tasks.add(() -> {
-                    DATA.markDealComplete(deal.getId(), buyer1.getUsername());
+                    SessionManager.withSession(buyer1, () -> {
+                        DATA.markDealComplete(deal.getId(), buyer1.getUsername());
+                    });
                     return null;
                 });
             }

@@ -2,6 +2,8 @@ package com.hkust.marketplace.services;
 
 import com.hkust.marketplace.models.*;
 import com.hkust.marketplace.utils.DummyDataService;
+import com.hkust.marketplace.utils.SessionManager;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -29,6 +31,12 @@ class ActOnListingServiceTest {
         dataService = DummyDataService.getInstance();
         dataService.resetData();
         actService = new ActOnListingService(dataService);
+        SessionManager.login(dataService.findUser("alice"));
+    }
+
+    @AfterEach
+    void tearDown() {
+        SessionManager.logout();
     }
 
     @Nested
@@ -407,6 +415,7 @@ class ActOnListingServiceTest {
             ActOnListingResult firstClaim = actService.submitClaim(giveaway.getId(), "alice");
             assertTrue(firstClaim.isSuccess());
 
+            SessionManager.login(dataService.findUser("bob"));
             ActOnListingResult secondClaim = actService.submitClaim(giveaway.getId(), "bob");
             assertFalse(secondClaim.isSuccess());
             assertEquals(ActOnListingStatus.ALREADY_CLAIMED, secondClaim.getStatus());
@@ -435,7 +444,10 @@ class ActOnListingServiceTest {
 
             for (int i = 0; i < threadCount; i++) {
                 final String buyer = "buyer_" + i;
+                Buyer b = new Buyer(buyer, buyer, "h");
+                dataService.registerUserIfAbsent(b);
                 executor.submit(() -> {
+                    SessionManager.login(b);
                     readyLatch.countDown();
                     try {
                         startLatch.await();
@@ -548,9 +560,10 @@ class ActOnListingServiceTest {
                     .filter(l -> l.getType() == ListingType.SELL)
                     .findFirst()
                     .orElseThrow();
+            sellListing.setSellerUsername("alice");
 
             ActOnListingResult rOffer = actService.submitPriceOffer(sellListing.getId(),
-                    sellListing.getSellerUsername(), 100.0);
+                    "alice", 100.0);
             assertFalse(rOffer.isSuccess());
             assertEquals(ActOnListingStatus.SELF_ACTION_NOT_ALLOWED, rOffer.getStatus());
 
@@ -558,9 +571,10 @@ class ActOnListingServiceTest {
                     .filter(l -> l.getType() == ListingType.LEND)
                     .findFirst()
                     .orElseThrow();
+            lendListing.setSellerUsername("alice");
 
             ActOnListingResult rBorrow = actService.submitBorrowRequest(lendListing.getId(),
-                    lendListing.getSellerUsername(), LocalDateTime.now(), LocalDateTime.now().plusDays(1));
+                    "alice", LocalDateTime.now(), LocalDateTime.now().plusDays(1));
             assertFalse(rBorrow.isSuccess());
             assertEquals(ActOnListingStatus.SELF_ACTION_NOT_ALLOWED, rBorrow.getStatus());
 
@@ -568,11 +582,21 @@ class ActOnListingServiceTest {
                     .filter(l -> l.getType() == ListingType.GIVEAWAY)
                     .findFirst()
                     .orElseThrow();
+            giveawayListing.setSellerUsername("alice");
 
             ActOnListingResult rClaim = actService.submitClaim(giveawayListing.getId(),
-                    giveawayListing.getSellerUsername());
+                    "alice");
             assertFalse(rClaim.isSuccess());
             assertEquals(ActOnListingStatus.SELF_ACTION_NOT_ALLOWED, rClaim.getStatus());
+        }
+
+        @Test
+        @DisplayName("F03 regression: submitting offer enforces active buyer session")
+        void testSubmitOfferEnforcesBuyerSession() {
+            SessionManager.login(dataService.findUser("diana")); // a Seller session
+            assertThrows(SecurityException.class, () -> actService.submitPriceOffer("L105", "alice", 10.0));
+            SessionManager.logout();
+            assertThrows(SecurityException.class, () -> actService.submitPriceOffer("L105", "alice", 10.0));
         }
 
         @Test

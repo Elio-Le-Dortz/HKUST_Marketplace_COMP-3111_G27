@@ -1,6 +1,7 @@
 package com.hkust.marketplace.services;
 
 import com.hkust.marketplace.models.Category;
+import com.hkust.marketplace.models.Buyer;
 import com.hkust.marketplace.models.Deal;
 import com.hkust.marketplace.models.DealHistoryFilterCriteria;
 import com.hkust.marketplace.models.DealHistoryItem;
@@ -9,6 +10,7 @@ import com.hkust.marketplace.models.DealStatus;
 import com.hkust.marketplace.models.Listing;
 import com.hkust.marketplace.models.User;
 import com.hkust.marketplace.utils.DummyDataService;
+import com.hkust.marketplace.utils.SessionManager;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -44,6 +46,7 @@ public class DealHistoryService {
      * @return a list of matching {@link DealHistoryItem} instances sorted chronologically descending
      */
     public synchronized List<DealHistoryItem> getDealHistory(String buyerUsername, DealHistoryFilterCriteria criteria) {
+        checkSessionBuyer(buyerUsername);
         if (buyerUsername == null || buyerUsername.trim().isEmpty()) {
             return new ArrayList<>();
         }
@@ -156,5 +159,19 @@ public class DealHistoryService {
                 .filter(item -> dealId.trim().equalsIgnoreCase(item.getDealId()))
                 .findFirst()
                 .orElse(null);
+    }
+
+    /**
+     * Enforces that an active Buyer session is present and matches the requested username.
+     *
+     * @param buyerUsername requested buyer username
+     * @throws SecurityException if no buyer session is active or usernames mismatch
+     */
+    private void checkSessionBuyer(String buyerUsername) {
+        Buyer buyer = SessionManager.requireBuyer();
+        if (buyerUsername != null && !buyerUsername.trim().isEmpty()
+                && !buyer.getUsername().equalsIgnoreCase(buyerUsername.trim())) {
+            throw new SecurityException("Unauthorized: Session buyer does not match requested username.");
+        }
     }
 }

@@ -2,6 +2,7 @@ package com.hkust.marketplace.services;
 
 import com.hkust.marketplace.models.*;
 import com.hkust.marketplace.utils.DummyDataService;
+import com.hkust.marketplace.utils.SessionManager;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -38,6 +39,7 @@ public class DealService {
      * @return list of {@link MyDealsItem} representing the buyer's deals and offers
      */
     public synchronized List<MyDealsItem> getMyDealsForBuyer(String buyerUsername) {
+        checkSessionBuyer(buyerUsername);
         if (buyerUsername == null || buyerUsername.trim().isEmpty()) {
             return new ArrayList<>();
         }
@@ -82,6 +84,7 @@ public class DealService {
      * @return a {@link DealOperationResult} describing the outcome
      */
     public synchronized DealOperationResult withdrawOffer(String offerId, String buyerUsername) {
+        checkSessionBuyer(buyerUsername);
         if (offerId == null || offerId.trim().isEmpty() || buyerUsername == null || buyerUsername.trim().isEmpty()) {
             return DealOperationResult.failure(DealOperationStatus.INVALID_ACTION, "Offer ID and buyer username are required.");
         }
@@ -125,6 +128,7 @@ public class DealService {
      * @return a {@link DealOperationResult} describing the outcome
      */
     public synchronized DealOperationResult acceptCounterOffer(String offerId, String buyerUsername) {
+        checkSessionBuyer(buyerUsername);
         if (offerId == null || offerId.trim().isEmpty() || buyerUsername == null || buyerUsername.trim().isEmpty()) {
             return DealOperationResult.failure(DealOperationStatus.INVALID_ACTION, "Offer ID and buyer username are required.");
         }
@@ -223,6 +227,7 @@ public class DealService {
      * @return a {@link DealOperationResult} describing the outcome
      */
     public synchronized DealOperationResult declineCounterOffer(String offerId, String buyerUsername) {
+        checkSessionBuyer(buyerUsername);
         if (offerId == null || offerId.trim().isEmpty() || buyerUsername == null || buyerUsername.trim().isEmpty()) {
             return DealOperationResult.failure(DealOperationStatus.INVALID_ACTION, "Offer ID and buyer username are required.");
         }
@@ -269,6 +274,7 @@ public class DealService {
      * @return a {@link DealOperationResult} describing the outcome
      */
     public synchronized DealOperationResult selfReturnItem(String dealId, String buyerUsername) {
+        checkSessionBuyer(buyerUsername);
         if (dealId == null || dealId.trim().isEmpty() || buyerUsername == null || buyerUsername.trim().isEmpty()) {
             return DealOperationResult.failure(DealOperationStatus.INVALID_ACTION, "Deal ID and buyer username are required.");
         }
@@ -325,6 +331,7 @@ public class DealService {
      * @return a {@link DealOperationResult} with promptRating enabled
      */
     public synchronized DealOperationResult markDealComplete(String dealId, String buyerUsername) {
+        checkSessionBuyer(buyerUsername);
         if (dealId == null || dealId.trim().isEmpty() || buyerUsername == null || buyerUsername.trim().isEmpty()) {
             return DealOperationResult.failure(DealOperationStatus.INVALID_ACTION, "Deal ID and buyer username are required.");
         }
@@ -423,6 +430,7 @@ public class DealService {
      * @return a {@link DealOperationResult} describing the outcome
      */
     public synchronized DealOperationResult submitRating(String dealId, String buyerUsername, int rating, String comment) {
+        checkSessionBuyer(buyerUsername);
         RateSellerResult res = dataService.getBuyerReviewService().submitRating(dealId, buyerUsername, rating, comment);
         if (res.isSuccess()) {
             return DealOperationResult.success(res.getDeal(), res.getMessage());
@@ -436,5 +444,19 @@ public class DealService {
             default -> DealOperationStatus.INVALID_ACTION;
         };
         return DealOperationResult.failure(opStatus, res.getMessage());
+    }
+
+    /**
+     * Enforces that an active Buyer session is present and matches the requested username.
+     *
+     * @param buyerUsername requested buyer username
+     * @throws SecurityException if no buyer session is active or usernames mismatch
+     */
+    private void checkSessionBuyer(String buyerUsername) {
+        Buyer buyer = SessionManager.requireBuyer();
+        if (buyerUsername != null && !buyerUsername.trim().isEmpty()
+                && !buyer.getUsername().equalsIgnoreCase(buyerUsername.trim())) {
+            throw new SecurityException("Unauthorized: Session buyer does not match requested username.");
+        }
     }
 }

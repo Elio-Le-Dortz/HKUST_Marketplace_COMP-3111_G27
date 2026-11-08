@@ -9,6 +9,7 @@ import com.hkust.marketplace.utils.DummyDataService;
 import com.hkust.marketplace.utils.PasswordHasher;
 import com.hkust.marketplace.utils.PasswordPolicy;
 import com.hkust.marketplace.utils.PasswordUtil;
+import com.hkust.marketplace.utils.SessionManager;
 
 import java.util.Collections;
 import java.util.List;
@@ -34,6 +35,7 @@ public class BuyerProfileService {
      * @return Buyer instance if found and active, null otherwise
      */
     public synchronized Buyer getProfile(String username) {
+        SessionManager.requireBuyer();
         if (username == null || username.trim().isEmpty()) {
             return null;
         }
@@ -52,6 +54,7 @@ public class BuyerProfileService {
      * @return ProfileUpdateResult indicating success or specific validation failure
      */
     public synchronized ProfileUpdateResult updateProfile(String username, ProfileUpdateRequest request) {
+        Buyer sessionBuyer = SessionManager.requireBuyer();
         if (username == null || username.trim().isEmpty()) {
             return ProfileUpdateResult.failure(ProfileUpdateStatus.USER_NOT_FOUND,
                     "Username is required.", Collections.emptySet());
@@ -71,6 +74,11 @@ public class BuyerProfileService {
         if (!user.isActive()) {
             return ProfileUpdateResult.failure(ProfileUpdateStatus.UNAUTHORIZED,
                     "Buyer account is not active.", Collections.emptySet());
+        }
+
+        if (!user.getUsername().equalsIgnoreCase(sessionBuyer.getUsername())) {
+            return ProfileUpdateResult.failure(ProfileUpdateStatus.UNAUTHORIZED,
+                    "Unauthorized: You cannot update another buyer's profile.", Collections.emptySet());
         }
 
         return updateProfile((Buyer) user, request);

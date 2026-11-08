@@ -142,14 +142,16 @@ class ReviewHandlingServiceTest {
         listing.setStatus(ListingStatus.LIVE);
         DATA.addListing(listing);
 
-        ActOnListingResult offer = DATA.submitPriceOffer(listing.getId(), buyer.getUsername(), 280.0);
+        ActOnListingResult offer = SessionManager.withSession(buyer, () ->
+                DATA.submitPriceOffer(listing.getId(), buyer.getUsername(), 280.0));
         assertTrue(offer.isSuccess(), offer.getMessage());
         OfferManagementResult accepted = new OfferManagementService(DATA).acceptOffer(offer.getOffer().getId());
         assertTrue(accepted.isSuccess(), accepted.getMessage());
-        DealOperationResult completed = DATA.markDealComplete(accepted.getDeal().getId(), buyer.getUsername());
+        DealOperationResult completed = SessionManager.withSession(buyer, () ->
+                DATA.markDealComplete(accepted.getDeal().getId(), buyer.getUsername()));
         assertTrue(completed.isSuccess(), completed.getMessage());
-        RateSellerResult rated = DATA.getBuyerReviewService()
-                .submitRating(accepted.getDeal().getId(), buyer.getUsername(), rating, comment);
+        RateSellerResult rated = SessionManager.withSession(buyer, () -> DATA.getBuyerReviewService()
+                .submitRating(accepted.getDeal().getId(), buyer.getUsername(), rating, comment));
         assertTrue(rated.isSuccess(), rated.getMessage());
         return rated.getReview();
     }
@@ -421,8 +423,9 @@ class ReviewHandlingServiceTest {
             service.replyToReview(review.getId(), "Thanks for buying!");
             Notification notification = replyNotifications(buyer1, review).get(0);
 
-            NotificationTargetResult target = DATA.getBuyerNotificationService()
-                    .resolveNotificationTarget(buyer1.getUsername(), notification.getId());
+            NotificationTargetResult target = SessionManager.withSession(buyer1, () ->
+                    DATA.getBuyerNotificationService()
+                            .resolveNotificationTarget(buyer1.getUsername(), notification.getId()));
 
             assertTrue(target.isSuccess(), target.getMessage());
             assertEquals(NotificationTargetType.REVIEW, target.getTargetType());

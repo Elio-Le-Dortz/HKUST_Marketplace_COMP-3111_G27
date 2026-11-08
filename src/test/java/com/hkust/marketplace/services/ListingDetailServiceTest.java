@@ -2,6 +2,8 @@ package com.hkust.marketplace.services;
 
 import com.hkust.marketplace.models.*;
 import com.hkust.marketplace.utils.DummyDataService;
+import com.hkust.marketplace.utils.SessionManager;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -28,6 +30,12 @@ class ListingDetailServiceTest {
         dataService = DummyDataService.getInstance();
         dataService.resetData();
         detailService = new ListingDetailService(dataService);
+        SessionManager.login(dataService.findUser("alice"));
+    }
+
+    @AfterEach
+    void tearDown() {
+        SessionManager.logout();
     }
 
     @Nested
@@ -420,6 +428,7 @@ class ListingDetailServiceTest {
             dataService.registerUserIfAbsent(admin2);
 
             Listing listing = dataService.getLiveListings().get(0);
+            SessionManager.login(dataService.findUser("bob"));
             ReportResult result = detailService.submitReport(listing.getId(), "bob", "Inappropriate images");
             assertTrue(result.isSuccess());
 
@@ -428,6 +437,26 @@ class ListingDetailServiceTest {
 
             assertFalse(admin1Notifs.isEmpty());
             assertFalse(admin2Notifs.isEmpty());
+        }
+
+        @Test
+        @DisplayName("Report submission requires active buyer session matching buyerUsername")
+        void testReportRbacEnforcement() {
+            Listing listing = dataService.getLiveListings().get(0);
+
+            // Mismatched username
+            assertThrows(SecurityException.class, () ->
+                    detailService.submitReport(listing.getId(), "bob", "Reason"));
+
+            // Logged out
+            SessionManager.logout();
+            assertThrows(SecurityException.class, () ->
+                    detailService.submitReport(listing.getId(), "alice", "Reason"));
+
+            // Non-buyer
+            SessionManager.login(dataService.findUser("admin"));
+            assertThrows(SecurityException.class, () ->
+                    detailService.submitReport(listing.getId(), "alice", "Reason"));
         }
 
         @Test
@@ -521,27 +550,36 @@ class ListingDetailServiceTest {
             Listing listing = dataService.getLiveListings().get(0);
             int threadCount = 20;
             ExecutorService executor = Executors.newFixedThreadPool(8);
+            CountDownLatch startLatch = new CountDownLatch(1);
             CountDownLatch latch = new CountDownLatch(threadCount);
             AtomicInteger successCount = new AtomicInteger(0);
 
             for (int i = 0; i < threadCount; i++) {
                 final int idx = i;
+                Buyer b = new Buyer("buyer_" + idx, "Buyer " + idx, "h");
+                dataService.registerUserIfAbsent(b);
                 executor.submit(() -> {
                     try {
-                        ReportResult res = detailService.submitReport(
-                                listing.getId(),
-                                "buyer_" + idx,
-                                "Concurrent report reason #" + idx
+                        startLatch.await();
+                        ReportResult res = SessionManager.withSession(b, () ->
+                                detailService.submitReport(
+                                        listing.getId(),
+                                        "buyer_" + idx,
+                                        "Concurrent report reason #" + idx
+                                )
                         );
                         if (res.isSuccess()) {
                             successCount.incrementAndGet();
                         }
+                    } catch (Exception e) {
+                        e.printStackTrace();
                     } finally {
                         latch.countDown();
                     }
                 });
             }
 
+            startLatch.countDown();
             boolean completed = latch.await(10, TimeUnit.SECONDS);
             executor.shutdown();
 

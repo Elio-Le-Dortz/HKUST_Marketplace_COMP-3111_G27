@@ -1,6 +1,7 @@
 package com.hkust.marketplace.utils;
 
 import com.hkust.marketplace.models.*;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -19,6 +20,12 @@ class DummyDataServiceActOnListingTest {
     void setUp() {
         service = DummyDataService.getInstance();
         service.resetData();
+        SessionManager.login(service.findUser("alice"));
+    }
+
+    @AfterEach
+    void tearDown() {
+        SessionManager.logout();
     }
 
     @Test
@@ -79,6 +86,7 @@ class DummyDataServiceActOnListingTest {
         assertTrue(service.isGiveawayClaimed(giveaway.getId()));
 
         // Second claim rejected
+        SessionManager.login(service.findUser("bob"));
         ActOnListingResult secondResult = service.submitClaim(giveaway.getId(), "bob");
         assertFalse(secondResult.isSuccess());
         assertEquals(ActOnListingStatus.ALREADY_CLAIMED, secondResult.getStatus());

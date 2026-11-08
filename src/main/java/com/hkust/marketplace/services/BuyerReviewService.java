@@ -2,6 +2,7 @@ package com.hkust.marketplace.services;
 
 import com.hkust.marketplace.models.*;
 import com.hkust.marketplace.utils.DummyDataService;
+import com.hkust.marketplace.utils.SessionManager;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -45,6 +46,11 @@ public class BuyerReviewService {
      * @return a {@link RateSellerResult} detailing the outcome
      */
     public synchronized RateSellerResult submitRating(RateSellerRequest request) {
+        if (request != null) {
+            checkSessionBuyer(request.getBuyerUsername());
+        } else {
+            SessionManager.requireBuyer();
+        }
         if (request == null) {
             return RateSellerResult.failure(RateSellerStatus.INVALID_INPUT, "Rating request cannot be null.");
         }
@@ -133,6 +139,7 @@ public class BuyerReviewService {
      * @return a {@link RateSellerResult} in SKIPPED status
      */
     public synchronized RateSellerResult skipRating(String dealId, String buyerUsername) {
+        checkSessionBuyer(buyerUsername);
         if (dealId == null || dealId.trim().isEmpty() || buyerUsername == null || buyerUsername.trim().isEmpty()) {
             return RateSellerResult.failure(RateSellerStatus.INVALID_INPUT, "Deal ID and buyer username are required.");
         }
@@ -158,6 +165,7 @@ public class BuyerReviewService {
      * @return a {@link RateSellerResult} in CANCELLED status
      */
     public synchronized RateSellerResult cancelRating(String dealId, String buyerUsername) {
+        checkSessionBuyer(buyerUsername);
         if (dealId == null || dealId.trim().isEmpty() || buyerUsername == null || buyerUsername.trim().isEmpty()) {
             return RateSellerResult.failure(RateSellerStatus.INVALID_INPUT, "Deal ID and buyer username are required.");
         }
@@ -273,5 +281,19 @@ public class BuyerReviewService {
      */
     public synchronized SellerRatingInfo getSellerRating(String sellerUsername) {
         return dataService.getSellerRatingInfo(sellerUsername);
+    }
+
+    /**
+     * Enforces that an active Buyer session is present and matches the requested username.
+     *
+     * @param buyerUsername requested buyer username
+     * @throws SecurityException if no buyer session is active or usernames mismatch
+     */
+    private void checkSessionBuyer(String buyerUsername) {
+        Buyer buyer = SessionManager.requireBuyer();
+        if (buyerUsername != null && !buyerUsername.trim().isEmpty()
+                && !buyer.getUsername().equalsIgnoreCase(buyerUsername.trim())) {
+            throw new SecurityException("Unauthorized: Session buyer does not match requested username.");
+        }
     }
 }

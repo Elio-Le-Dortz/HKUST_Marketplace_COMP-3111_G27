@@ -2,6 +2,8 @@ package com.hkust.marketplace.services;
 
 import com.hkust.marketplace.models.*;
 import com.hkust.marketplace.utils.DummyDataService;
+import com.hkust.marketplace.utils.SessionManager;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -29,6 +31,12 @@ public class BuyerNotificationServiceTest {
         dataService = DummyDataService.getInstance();
         dataService.resetData();
         service = dataService.getBuyerNotificationService();
+        SessionManager.login(dataService.findUser("alice"));
+    }
+
+    @AfterEach
+    void tearDown() {
+        SessionManager.logout();
     }
 
     @Nested
@@ -107,9 +115,13 @@ public class BuyerNotificationServiceTest {
         @DisplayName("User with no notifications returns empty list")
         void testUserWithoutNotifications() {
             String unusedUser = "user_without_notifs";
-            List<Notification> notifs = service.getNotifications(unusedUser);
-            assertTrue(notifs.isEmpty());
-            assertEquals(0, service.getUnreadCount(unusedUser));
+            Buyer unused = new Buyer(unusedUser, "No Notif", "h");
+            dataService.registerUserIfAbsent(unused);
+            SessionManager.withSession(unused, () -> {
+                List<Notification> notifs = service.getNotifications(unusedUser);
+                assertTrue(notifs.isEmpty());
+                assertEquals(0, service.getUnreadCount(unusedUser));
+            });
         }
     }
 
@@ -370,29 +382,33 @@ public class BuyerNotificationServiceTest {
             Notification n = new Notification("bob", "Test", "Msg", "Announcements");
             dataService.addNotification(n);
 
-            assertTrue(service.markAsRead("bob", n.getId()));
-            assertTrue(n.isRead());
+            SessionManager.withSession(dataService.findUser("bob"), () -> {
+                assertTrue(service.markAsRead("bob", n.getId()));
+                assertTrue(n.isRead());
 
-            assertTrue(service.markAsUnread("bob", n.getId()));
-            assertFalse(n.isRead());
+                assertTrue(service.markAsUnread("bob", n.getId()));
+                assertFalse(n.isRead());
 
-            assertFalse(service.markAsRead("bob", "INVALID_ID"));
-            assertFalse(service.markAsUnread("bob", "INVALID_ID"));
+                assertFalse(service.markAsRead("bob", "INVALID_ID"));
+                assertFalse(service.markAsUnread("bob", "INVALID_ID"));
+            });
         }
 
         @Test
         @DisplayName("markAllAsRead marks all unread notifications")
         void testMarkAllAsRead() {
-            Notification n1 = new Notification("charlie", "T1", "M1", "Offers");
+            Notification n1 = new Notification("bob", "T1", "M1", "Offers");
             n1.setRead(false);
-            Notification n2 = new Notification("charlie", "T2", "M2", "Offers");
+            Notification n2 = new Notification("bob", "T2", "M2", "Offers");
             n2.setRead(false);
             dataService.addNotification(n1);
             dataService.addNotification(n2);
 
-            int marked = service.markAllAsRead("charlie");
-            assertTrue(marked >= 2);
-            assertEquals(0, service.getUnreadCount("charlie"));
+            SessionManager.withSession(dataService.findUser("bob"), () -> {
+                int marked = service.markAllAsRead("bob");
+                assertTrue(marked >= 2);
+                assertEquals(0, service.getUnreadCount("bob"));
+            });
         }
 
         @Test
@@ -401,19 +417,23 @@ public class BuyerNotificationServiceTest {
             Notification n = new Notification("bob", "To Delete", "Msg", "Announcements");
             dataService.addNotification(n);
 
-            assertTrue(service.deleteNotification("bob", n.getId()));
-            assertFalse(service.deleteNotification("bob", n.getId()));
+            SessionManager.withSession(dataService.findUser("bob"), () -> {
+                assertTrue(service.deleteNotification("bob", n.getId()));
+                assertFalse(service.deleteNotification("bob", n.getId()));
+            });
         }
 
         @Test
         @DisplayName("clearAllNotifications removes all notifications for user")
         void testClearAllNotifications() {
-            Notification n = new Notification("diana", "T", "M", "Announcements");
+            Notification n = new Notification("bob", "T", "M", "Announcements");
             dataService.addNotification(n);
 
-            int cleared = service.clearAllNotifications("diana");
-            assertTrue(cleared >= 1);
-            assertEquals(0, service.getNotifications("diana").size());
+            SessionManager.withSession(dataService.findUser("bob"), () -> {
+                int cleared = service.clearAllNotifications("bob");
+                assertTrue(cleared >= 1);
+                assertEquals(0, service.getNotifications("bob").size());
+            });
         }
     }
 
@@ -520,23 +540,31 @@ public class BuyerNotificationServiceTest {
             o2.setBuyerUsername("buyer_two");
             o2.setStatus(OfferStatus.DECLINED); // Inactive offer, should not be notified
             dataService.addOffer(o2);
+            Buyer b1 = new Buyer("buyer_one", "B1", "h");
+            Buyer b2 = new Buyer("buyer_two", "B2", "h");
+            dataService.registerUserIfAbsent(b1);
+            dataService.registerUserIfAbsent(b2);
 
             service.notifyBuyersOfListingRemoval(listing, "Violated marketplace terms");
 
-            List<Notification> buyerOneNotifs = service.getNotifications("buyer_one", NotificationCategory.LISTINGS);
+            List<Notification> buyerOneNotifs = SessionManager.withSession(b1,
+                    () -> service.getNotifications("buyer_one", NotificationCategory.LISTINGS));
             assertFalse(buyerOneNotifs.isEmpty());
             Notification notif = buyerOneNotifs.get(0);
             assertEquals("Listing Removed by Admin", notif.getTitle());
             assertTrue(notif.getMessage().contains("Removed Keyboard"));
             assertTrue(notif.getMessage().contains("Violated marketplace terms"));
 
-            List<Notification> buyerTwoNotifs = service.getNotifications("buyer_two", NotificationCategory.LISTINGS);
+            List<Notification> buyerTwoNotifs = SessionManager.withSession(b2,
+                    () -> service.getNotifications("buyer_two", NotificationCategory.LISTINGS));
             assertTrue(buyerTwoNotifs.isEmpty());
         }
 
         @Test
         @DisplayName("Seller review reply notifies the buyer with seller reply text")
         void testNotifyReviewReply() {
+            Buyer rb = new Buyer("review_buyer", "RB", "h");
+            dataService.registerUserIfAbsent(rb);
             Review review = new Review();
             review.setId("R_REPLY_TEST");
             review.setBuyerUsername("review_buyer");
@@ -546,7 +574,8 @@ public class BuyerNotificationServiceTest {
 
             service.notifyReviewReply(review);
 
-            List<Notification> buyerNotifs = service.getNotifications("review_buyer", NotificationCategory.REVIEWS);
+            List<Notification> buyerNotifs = SessionManager.withSession(rb,
+                    () -> service.getNotifications("review_buyer", NotificationCategory.REVIEWS));
             assertFalse(buyerNotifs.isEmpty());
             Notification notif = buyerNotifs.get(0);
             assertEquals("Seller Replied to Review", notif.getTitle());
@@ -574,8 +603,11 @@ public class BuyerNotificationServiceTest {
             oNoReason.setBuyerUsername("buyer_no_reason");
             oNoReason.setStatus(OfferStatus.COUNTERED);
             dataService.addOffer(oNoReason);
+            Buyer bNoReason = new Buyer("buyer_no_reason", "BNR", "h");
+            dataService.registerUserIfAbsent(bNoReason);
             service.notifyBuyersOfListingRemoval(noReasonListing, "   ");
-            List<Notification> noReasonNotifs = service.getNotifications("buyer_no_reason", NotificationCategory.LISTINGS);
+            List<Notification> noReasonNotifs = SessionManager.withSession(bNoReason,
+                    () -> service.getNotifications("buyer_no_reason", NotificationCategory.LISTINGS));
             assertFalse(noReasonNotifs.isEmpty());
         }
 
@@ -644,6 +676,8 @@ public class BuyerNotificationServiceTest {
         @DisplayName("Concurrent reads, writes, and status updates maintain consistency")
         void testConcurrentOperations() throws InterruptedException {
             String testUser = "concurrent_user";
+            Buyer cu = new Buyer(testUser, "CU", "h");
+            dataService.registerUserIfAbsent(cu);
             int threadCount = 8;
             int opsPerThread = 25;
             ExecutorService executor = Executors.newFixedThreadPool(threadCount);
@@ -653,6 +687,7 @@ public class BuyerNotificationServiceTest {
             for (int t = 0; t < threadCount; t++) {
                 final int threadId = t;
                 executor.submit(() -> {
+                    SessionManager.login(cu);
                     try {
                         for (int i = 0; i < opsPerThread; i++) {
                             if (threadId % 2 == 0) {
@@ -673,7 +708,8 @@ public class BuyerNotificationServiceTest {
             assertTrue(latch.await(10, TimeUnit.SECONDS));
             executor.shutdown();
 
-            List<Notification> finalNotifs = service.getNotifications(testUser);
+            List<Notification> finalNotifs = SessionManager.withSession(cu,
+                    () -> service.getNotifications(testUser));
             assertNotNull(finalNotifs);
             assertTrue(finalNotifs.size() > 0);
         }

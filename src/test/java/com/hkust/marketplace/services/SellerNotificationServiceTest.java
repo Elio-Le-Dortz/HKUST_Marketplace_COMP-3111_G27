@@ -165,17 +165,21 @@ class SellerNotificationServiceTest {
 
     /** A buyer makes a price offer through use case 1.5. */
     private static Offer priceOffer(Listing listing, Buyer buyer, double price) {
-        ActOnListingResult result = DATA.submitPriceOffer(listing.getId(), buyer.getUsername(), price);
-        assertTrue(result.isSuccess(), result.getMessage());
-        return result.getOffer();
+        return SessionManager.withSession(buyer, () -> {
+            ActOnListingResult result = DATA.submitPriceOffer(listing.getId(), buyer.getUsername(), price);
+            assertTrue(result.isSuccess(), result.getMessage());
+            return result.getOffer();
+        });
     }
 
     /** A buyer asks to borrow a Lend listing through use case 1.5. */
     private static Offer borrowRequest(Listing listing, Buyer buyer) {
-        LocalDateTime start = LocalDateTime.now().plusMinutes(1);
-        ActOnListingResult result = DATA.submitBorrowRequest(listing.getId(), buyer.getUsername(), start, start.plusDays(1));
-        assertTrue(result.isSuccess(), result.getMessage());
-        return result.getOffer();
+        return SessionManager.withSession(buyer, () -> {
+            LocalDateTime start = LocalDateTime.now().plusMinutes(1);
+            ActOnListingResult result = DATA.submitBorrowRequest(listing.getId(), buyer.getUsername(), start, start.plusDays(1));
+            assertTrue(result.isSuccess(), result.getMessage());
+            return result.getOffer();
+        });
     }
 
     /** The logged-in Seller accepts an offer through use case 2.5. */
@@ -192,10 +196,11 @@ class SellerNotificationServiceTest {
     private Review reviewThroughBuyerFlow(Buyer buyer, int rating) {
         Offer offer = priceOffer(liveSellListing(), buyer, 180.0);
         Deal deal = accept(offer);
-        DealOperationResult completed = DATA.markDealComplete(deal.getId(), buyer.getUsername());
+        DealOperationResult completed = SessionManager.withSession(buyer, () ->
+                DATA.markDealComplete(deal.getId(), buyer.getUsername()));
         assertTrue(completed.isSuccess(), completed.getMessage());
-        RateSellerResult rated = DATA.getBuyerReviewService()
-                .submitRating(deal.getId(), buyer.getUsername(), rating, "Smooth deal.");
+        RateSellerResult rated = SessionManager.withSession(buyer, () -> DATA.getBuyerReviewService()
+                .submitRating(deal.getId(), buyer.getUsername(), rating, "Smooth deal."));
         assertTrue(rated.isSuccess(), rated.getMessage());
         return rated.getReview();
     }
@@ -460,7 +465,8 @@ class SellerNotificationServiceTest {
         @DisplayName("Offers And Requests: a buyer claims a free item (use case 1.5)")
         void newClaim() {
             Listing giveaway = storeListing(seller, "Hoodie", ListingType.GIVEAWAY, ListingStatus.LIVE);
-            ActOnListingResult claim = DATA.submitClaim(giveaway.getId(), buyer1.getUsername());
+            ActOnListingResult claim = SessionManager.withSession(buyer1, () ->
+                    DATA.submitClaim(giveaway.getId(), buyer1.getUsername()));
             assertTrue(claim.isSuccess(), claim.getMessage());
             assertCategory(SellerNotificationCategory.OFFERS_AND_REQUESTS, onlyNotificationTitled("Giveaway Claim Received"));
         }
@@ -469,7 +475,8 @@ class SellerNotificationServiceTest {
         @DisplayName("Offers And Requests: a buyer withdraws an offer (use case 1.6)")
         void offerWithdrawn() {
             Offer offer = priceOffer(liveSellListing(), buyer1, 150.0);
-            DealOperationResult withdrawn = DATA.withdrawOffer(offer.getId(), buyer1.getUsername());
+            DealOperationResult withdrawn = SessionManager.withSession(buyer1, () ->
+                    DATA.withdrawOffer(offer.getId(), buyer1.getUsername()));
             assertTrue(withdrawn.isSuccess(), withdrawn.getMessage());
             assertCategory(SellerNotificationCategory.OFFERS_AND_REQUESTS, onlyNotificationTitled("Offer Withdrawn"));
         }
@@ -514,7 +521,8 @@ class SellerNotificationServiceTest {
         @DisplayName("Deals: the buyer marks the deal complete (use case 1.6)")
         void dealCompleted() {
             Deal deal = accept(priceOffer(liveSellListing(), buyer1, 180.0));
-            DealOperationResult completed = DATA.markDealComplete(deal.getId(), buyer1.getUsername());
+            DealOperationResult completed = SessionManager.withSession(buyer1, () ->
+                    DATA.markDealComplete(deal.getId(), buyer1.getUsername()));
             assertTrue(completed.isSuccess(), completed.getMessage());
             assertCategory(SellerNotificationCategory.DEALS, onlyNotificationTitled("Deal Completed"));
         }
@@ -523,7 +531,8 @@ class SellerNotificationServiceTest {
         @DisplayName("Deals: the buyer returns a borrowed item, or the loan ends and it is auto-returned (use case 1.6)")
         void itemReturned() {
             Deal returned = accept(borrowRequest(storeListing(seller, "Tent", ListingType.LEND, ListingStatus.LIVE), buyer1));
-            assertTrue(DATA.selfReturnItem(returned.getId(), buyer1.getUsername()).isSuccess());
+            assertTrue(SessionManager.withSession(buyer1, () ->
+                    DATA.selfReturnItem(returned.getId(), buyer1.getUsername()).isSuccess()));
             Deal expired = accept(borrowRequest(storeListing(seller, "Drill", ListingType.LEND, ListingStatus.LIVE), buyer2));
             expired.setDueDate(LocalDateTime.now().minusSeconds(1));
             assertTrue(DATA.processAutoReturns() >= 1);

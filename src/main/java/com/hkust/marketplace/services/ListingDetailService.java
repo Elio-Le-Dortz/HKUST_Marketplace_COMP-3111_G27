@@ -2,6 +2,7 @@ package com.hkust.marketplace.services;
 
 import com.hkust.marketplace.models.*;
 import com.hkust.marketplace.utils.DummyDataService;
+import com.hkust.marketplace.utils.SessionManager;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -106,6 +107,7 @@ public class ListingDetailService {
      * @return a {@link ReportResult} containing success/failure outcome
      */
     public synchronized ReportResult submitReport(String listingId, String buyerUsername, String reason) {
+        checkSessionBuyer(buyerUsername);
         if (listingId == null || listingId.trim().isEmpty()) {
             return ReportResult.failure("Listing ID cannot be null or empty.");
         }
@@ -148,5 +150,19 @@ public class ListingDetailService {
         }
 
         return ReportResult.success(report);
+    }
+
+    /**
+     * Enforces that an active Buyer session is present and matches the requested username.
+     *
+     * @param buyerUsername requested buyer username
+     * @throws SecurityException if no buyer session is active or usernames mismatch
+     */
+    private void checkSessionBuyer(String buyerUsername) {
+        Buyer buyer = SessionManager.requireBuyer();
+        if (buyerUsername != null && !buyerUsername.trim().isEmpty()
+                && !buyer.getUsername().equalsIgnoreCase(buyerUsername.trim())) {
+            throw new SecurityException("Unauthorized: Session buyer does not match requested username.");
+        }
     }
 }

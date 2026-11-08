@@ -147,7 +147,7 @@ After F03/F04 (session checks for buyers and admins) the snippets must log in th
 | F32 | P4 | Charles | ~~My Deals cannot rate a returned loan (Deal History can)~~ **[FIXED - PR #47]** | Consistency (UC 1.10) |
 | F33 | P4 | Elio | All Deals matches a deal's review by users + listing, not by deal | UC 3.5 step 4 |
 | F34 | P4 | Antoine — *Decision* | Seller cannot cancel or mark sold a Reserved deal | Brief: sellers can "mark as sold" |
-| F35 | P4 | Team | Documentation out of date or inconsistent | Brief submission guidelines (README) |
+| F35 | P4 | Team | ~~Documentation out of date or inconsistent~~ **[FIXED - PR #52]** | Brief submission guidelines (README) |
 
 ---
 
@@ -730,7 +730,19 @@ After F03/F04 (session checks for buyers and admins) the snippets must log in th
   delete, nor cancel it. Options: a seller "Mark as sold" on Reserved listings, and/or a seller "Cancel deal" that
   returns the listing to Live and notifies the buyer.
 
-### F35 — Documentation out of date or inconsistent
+### F35 — [FIXED - PR #52] Documentation out of date or inconsistent
+> [!NOTE]
+> **Status: FIXED (PR #52)**
+> - Fully overhauled `README.md`:
+>   - Removed legacy "UI Only" starter skeleton headers and "Next Steps (Backend)" placeholder text.
+>   - Added comprehensive, professional documentation for all **Buyer Portal (US-B01 to US-B11)** and **Admin Portal (US-A01 to US-A08)** user stories, matching the depth of the Seller stories.
+>   - Clarified password hashing schemes (PBKDF2 for sellers via `PasswordHasher`, SHA-256 with salt for buyers/profiles via `PasswordUtil`), and documented that demo credentials (`password1`, `admin123`) were pre-seeded.
+>   - Fixed VS Code launch instruction to use `Launcher.java`.
+>   - Added complete system architecture summary table mapping all 28 use cases to primary services and test suites.
+> - Corrected `activity1/CLASS_DIAGRAM.md:115` multiplicity: `Buyer "1" --> "*" Review : Rates` (enabling buyers to rate multiple deals over time, matching Task 1.10).
+> - Fixed duplicate task ID `T1.5` in `docs/project_management/sprint_backlog/sprint_2_burndown.csv` (renumbered lines cleanly to `T1.1`–`T1.11`).
+> - Fixed hardcoded machine-specific absolute path in `docs/project_management/sprint_backlog/sprint_2_backlog.md:86` to a relative link (`[sprint_2_burndown.csv](sprint_2_burndown.csv)`).
+> - Updated `docs/project_management/meeting_minutes/meeting_03_minutes.md` to accurately reflect QA coverage goals and Javadoc tasks.
 - **Owner:** Team.
 - **Items:**
   - `README.md`:

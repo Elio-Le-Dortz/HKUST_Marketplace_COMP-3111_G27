@@ -83,4 +83,4 @@ In COMP 3111, the semester is split into phases:
 | **Ideal Remaining Hours** | 226 | 169.5 | 113 | 56.5 | 0 |
 | **Actual Remaining Hours** | **226** | **145** | **39** | **0** | **0** |
 
-The data points above are saved in [`sprint_2_burndown.csv`](file:///home/cdupouy/IdeaProjects/HKUST_Marketplace_COMP-3111_G27/docs/project_management/sprint_backlog/sprint_2_burndown.csv), which you can open in Excel, Google Sheets, or Canva to generate the visual line chart required for your PDF submission.
+The data points above are saved in [`sprint_2_burndown.csv`](sprint_2_burndown.csv), which you can open in Excel, Google Sheets, or Canva to generate the visual line chart required for your PDF submission.

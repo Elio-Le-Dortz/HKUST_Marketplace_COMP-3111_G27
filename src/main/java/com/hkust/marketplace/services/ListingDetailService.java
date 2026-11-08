@@ -88,13 +88,7 @@ public class ListingDetailService {
             return SellerRatingInfo.withRatings(username, fullName, average, count);
         }
 
-        // Fallback to seller entity seeded rating if no individual reviews exist
-        if (user instanceof Seller seller && seller.getRatingCount() > 0) {
-            double avg = Math.round(seller.getAverageRating() * 10.0) / 10.0;
-            return SellerRatingInfo.withRatings(username, fullName, avg, seller.getRatingCount());
-        }
-
-        // Alternative Flow A2: Seller has no ratings yet
+        // Alternative Flow A2: Seller has no ratings yet (or all reviews hidden)
         return SellerRatingInfo.noRatings(username, fullName);
     }
 

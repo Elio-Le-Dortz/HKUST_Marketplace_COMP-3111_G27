@@ -347,8 +347,8 @@ class ListingDetailServiceTest {
         }
 
         @Test
-        @DisplayName("Fallback to seeded Seller ratingCount if no review entities exist")
-        void testFallbackToSeededSellerRating() {
+        @DisplayName("Seller with no review entities returns noRatings with 'No ratings yet' (Rule 4) [F12]")
+        void testNoRatingsWhenNoReviewEntitiesExist() {
             Seller seller = new Seller("seeded_seller", "Seeded Seller", "HashedPass1!");
             seller.setRatingCount(10);
             seller.setAverageRating(4.8);
@@ -356,10 +356,42 @@ class ListingDetailServiceTest {
 
             SellerRatingInfo ratingInfo = detailService.getSellerRatingInfo("seeded_seller");
 
-            assertTrue(ratingInfo.hasRatings());
-            assertEquals(4.8, ratingInfo.getAverageRating(), 0.01);
-            assertEquals(10, ratingInfo.getRatingCount());
-            assertEquals("★ 4.8 / 5.0 (10 reviews)", ratingInfo.getDisplayText());
+            assertFalse(ratingInfo.hasRatings());
+            assertEquals(0.0, ratingInfo.getAverageRating());
+            assertEquals(0, ratingInfo.getRatingCount());
+            assertEquals("No ratings yet", ratingInfo.getDisplayText());
+        }
+
+        @Test
+        @DisplayName("Hiding a seller's reviews immediately updates buyer-facing rating to 'No ratings yet' (Rule 4) [F12]")
+        void testHidingReviewExcludesFromBuyerRating() {
+            Seller rs = new Seller("rs", "Rae Seller", "h");
+            dataService.registerUser(rs);
+            Review rev = new Review();
+            rev.setId("R_TEST_F12");
+            rev.setSellerUsername("rs");
+            rev.setBuyerUsername("alice");
+            rev.setRating(1);
+            rev.setComment("bad");
+            dataService.addReview(rev);
+
+            // Initially visible, 1 star
+            SellerRatingInfo before = detailService.getSellerRatingInfo("rs");
+            assertTrue(before.hasRatings());
+            assertEquals(1.0, before.getAverageRating());
+            assertEquals(1, before.getRatingCount());
+
+            // Admin hides the review
+            dataService.getAdminRatingService().hideReview(rev.getId(), "admin");
+
+            // Buyer view must immediately reflect no ratings
+            assertFalse(detailService.getSellerRatingInfo("rs").hasRatings());
+            assertEquals("No ratings yet", detailService.getSellerRatingInfo("rs").getDisplayText());
+            assertFalse(dataService.getSellerRatingInfo("rs").hasRatings());
+
+            // Diana has no reviews in seed data, so Diana must have no ratings
+            assertFalse(dataService.getSellerRatingInfo("diana").hasRatings());
+            assertEquals("No ratings yet", dataService.getSellerRatingInfo("diana").getDisplayText());
         }
 
         @Test

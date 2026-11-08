@@ -306,15 +306,11 @@ public class DummyDataService {
         Seller seller1 = new Seller("charlie", "Charlie Lee", SEED_USER_HASH,
                 "Final year CSE student selling textbooks and gadgets.");
         seller1.setPreferredMeetup("Library");
-        seller1.setAverageRating(4.7);
-        seller1.setRatingCount(12);
         users.put("charlie", seller1);
 
         Seller seller2 = new Seller("diana", "Diana Ng", SEED_USER_HASH,
                 "Selling furniture and kitchen items before graduation.");
         seller2.setPreferredMeetup("Hall 5 Lobby");
-        seller2.setAverageRating(4.3);
-        seller2.setRatingCount(8);
         users.put("diana", seller2);
 
         // Sample listings
@@ -536,6 +532,9 @@ public class DummyDataService {
         r2.setComment("Great seller, very responsive!");
         r2.setReply("Thanks Alice, enjoy the book!");
         reviews.add(r2);
+
+        recalculateSellerRating("charlie");
+        recalculateSellerRating("diana");
 
 
         Report rep1 = new Report("REP" + reportIdCounter.getAndIncrement(), l2.getId(), l2.getTitle(), "alice",
@@ -1523,15 +1522,12 @@ public class DummyDataService {
             return SellerRatingInfo.withRatings(username, fullName, average, count);
         }
 
-        // Fallback to seller entity seeded rating if no individual reviews exist
-        if (user instanceof Seller seller && seller.getRatingCount() > 0) {
-            double avg = Math.round(seller.getAverageRating() * 10.0) / 10.0;
-            return SellerRatingInfo.withRatings(username, fullName, avg, seller.getRatingCount());
-        }
-
         if (user instanceof Seller seller) {
             seller.setAverageRating(0.0);
             seller.setRatingCount(0);
+            if (databaseManager != null && persistenceEnabled) {
+                databaseManager.saveUser(seller);
+            }
         }
         return SellerRatingInfo.noRatings(username, fullName);
     }

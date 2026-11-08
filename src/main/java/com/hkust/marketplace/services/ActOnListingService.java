@@ -37,40 +37,42 @@ public class ActOnListingService {
      * @param price         the proposed offer price in HKD
      * @return an {@link ActOnListingResult} containing the outcome
      */
-    public synchronized ActOnListingResult submitPriceOffer(String listingId, String buyerUsername, Double price) {
+    public ActOnListingResult submitPriceOffer(String listingId, String buyerUsername, Double price) {
         checkSessionBuyer(buyerUsername);
-        ActOnListingResult preCheck = validateCommonPreconditions(listingId, buyerUsername, ListingType.SELL);
-        if (preCheck != null) {
-            return preCheck;
+        synchronized (dataService) {
+            ActOnListingResult preCheck = validateCommonPreconditions(listingId, buyerUsername, ListingType.SELL);
+            if (preCheck != null) {
+                return preCheck;
+            }
+
+            String priceError = validatePrice(price);
+            if (priceError != null) {
+                return ActOnListingResult.invalidPrice(priceError);
+            }
+
+            Listing listing = dataService.findListing(listingId.trim());
+
+            // Create and store Offer with status PENDING (Subflow S1 Step 4)
+            Offer offer = new Offer();
+            offer.setType(OfferType.PRICE_OFFER);
+            offer.setListingId(listing.getId());
+            offer.setListingTitle(listing.getTitle());
+            offer.setBuyerUsername(buyerUsername.trim());
+            offer.setSellerUsername(listing.getSellerUsername());
+            offer.setPrice(price);
+            offer.setStatus(OfferStatus.PENDING);
+            offer.setCreatedDate(LocalDateTime.now());
+
+            dataService.addOffer(offer);
+
+            // Notify Seller (Subflow S1 Step 4)
+            String notifMsg = buyerUsername.trim() + " offered HK$" + String.format("%.2f", price) + " for '" + listing.getTitle() + "'.";
+            dataService.addNotification(new Notification(listing.getSellerUsername(), "New Offer Received", notifMsg, "Offer"));
+
+            // Confirm to Buyer (Subflow S1 Step 5)
+            String confirmMsg = "Your offer of HK$" + String.format("%.2f", price) + " has been submitted to " + listing.getSellerFullName() + ".";
+            return ActOnListingResult.success(offer, confirmMsg);
         }
-
-        String priceError = validatePrice(price);
-        if (priceError != null) {
-            return ActOnListingResult.invalidPrice(priceError);
-        }
-
-        Listing listing = dataService.findListing(listingId.trim());
-
-        // Create and store Offer with status PENDING (Subflow S1 Step 4)
-        Offer offer = new Offer();
-        offer.setType(OfferType.PRICE_OFFER);
-        offer.setListingId(listing.getId());
-        offer.setListingTitle(listing.getTitle());
-        offer.setBuyerUsername(buyerUsername.trim());
-        offer.setSellerUsername(listing.getSellerUsername());
-        offer.setPrice(price);
-        offer.setStatus(OfferStatus.PENDING);
-        offer.setCreatedDate(LocalDateTime.now());
-
-        dataService.addOffer(offer);
-
-        // Notify Seller (Subflow S1 Step 4)
-        String notifMsg = buyerUsername.trim() + " offered HK$" + String.format("%.2f", price) + " for '" + listing.getTitle() + "'.";
-        dataService.addNotification(new Notification(listing.getSellerUsername(), "New Offer Received", notifMsg, "Offer"));
-
-        // Confirm to Buyer (Subflow S1 Step 5)
-        String confirmMsg = "Your offer of HK$" + String.format("%.2f", price) + " has been submitted to " + listing.getSellerFullName() + ".";
-        return ActOnListingResult.success(offer, confirmMsg);
     }
 
     /**
@@ -83,43 +85,45 @@ public class ActOnListingService {
      * @param endDate       proposed borrow end date/time
      * @return an {@link ActOnListingResult} containing the outcome
      */
-    public synchronized ActOnListingResult submitBorrowRequest(String listingId, String buyerUsername,
+    public ActOnListingResult submitBorrowRequest(String listingId, String buyerUsername,
                                                                LocalDateTime startDate, LocalDateTime endDate) {
         checkSessionBuyer(buyerUsername);
-        ActOnListingResult preCheck = validateCommonPreconditions(listingId, buyerUsername, ListingType.LEND);
-        if (preCheck != null) {
-            return preCheck;
+        synchronized (dataService) {
+            ActOnListingResult preCheck = validateCommonPreconditions(listingId, buyerUsername, ListingType.LEND);
+            if (preCheck != null) {
+                return preCheck;
+            }
+
+            String dateError = validateBorrowDates(startDate, endDate, LocalDateTime.now());
+            if (dateError != null) {
+                return ActOnListingResult.invalidBorrowDates(dateError);
+            }
+
+            Listing listing = dataService.findListing(listingId.trim());
+
+            // Create and store borrow request as Offer with status PENDING (Subflow S2 Step 4)
+            Offer offer = new Offer();
+            offer.setType(OfferType.BORROW_REQUEST);
+            offer.setListingId(listing.getId());
+            offer.setListingTitle(listing.getTitle());
+            offer.setBuyerUsername(buyerUsername.trim());
+            offer.setSellerUsername(listing.getSellerUsername());
+            offer.setStartDate(startDate);
+            offer.setEndDate(endDate);
+            offer.setStatus(OfferStatus.PENDING);
+            offer.setCreatedDate(LocalDateTime.now());
+
+            dataService.addOffer(offer);
+
+            // Notify Seller (Subflow S2 Step 4)
+            String notifMsg = buyerUsername.trim() + " requested to borrow '" + listing.getTitle() + "' from "
+                    + startDate.toLocalDate() + " to " + endDate.toLocalDate() + ".";
+            dataService.addNotification(new Notification(listing.getSellerUsername(), "Borrow Request Received", notifMsg, "Offer"));
+
+            // Confirm to Buyer (Subflow S2 Step 5)
+            String confirmMsg = "Your borrow request for '" + listing.getTitle() + "' has been submitted to " + listing.getSellerFullName() + ".";
+            return ActOnListingResult.success(offer, confirmMsg);
         }
-
-        String dateError = validateBorrowDates(startDate, endDate, LocalDateTime.now());
-        if (dateError != null) {
-            return ActOnListingResult.invalidBorrowDates(dateError);
-        }
-
-        Listing listing = dataService.findListing(listingId.trim());
-
-        // Create and store borrow request as Offer with status PENDING (Subflow S2 Step 4)
-        Offer offer = new Offer();
-        offer.setType(OfferType.BORROW_REQUEST);
-        offer.setListingId(listing.getId());
-        offer.setListingTitle(listing.getTitle());
-        offer.setBuyerUsername(buyerUsername.trim());
-        offer.setSellerUsername(listing.getSellerUsername());
-        offer.setStartDate(startDate);
-        offer.setEndDate(endDate);
-        offer.setStatus(OfferStatus.PENDING);
-        offer.setCreatedDate(LocalDateTime.now());
-
-        dataService.addOffer(offer);
-
-        // Notify Seller (Subflow S2 Step 4)
-        String notifMsg = buyerUsername.trim() + " requested to borrow '" + listing.getTitle() + "' from "
-                + startDate.toLocalDate() + " to " + endDate.toLocalDate() + ".";
-        dataService.addNotification(new Notification(listing.getSellerUsername(), "Borrow Request Received", notifMsg, "Offer"));
-
-        // Confirm to Buyer (Subflow S2 Step 5)
-        String confirmMsg = "Your borrow request for '" + listing.getTitle() + "' has been submitted to " + listing.getSellerFullName() + ".";
-        return ActOnListingResult.success(offer, confirmMsg);
     }
 
     /**
@@ -130,39 +134,41 @@ public class ActOnListingService {
      * @param buyerUsername the buyer's username
      * @return an {@link ActOnListingResult} containing the outcome
      */
-    public synchronized ActOnListingResult submitClaim(String listingId, String buyerUsername) {
+    public ActOnListingResult submitClaim(String listingId, String buyerUsername) {
         checkSessionBuyer(buyerUsername);
-        ActOnListingResult preCheck = validateCommonPreconditions(listingId, buyerUsername, ListingType.GIVEAWAY);
-        if (preCheck != null) {
-            return preCheck;
+        synchronized (dataService) {
+            ActOnListingResult preCheck = validateCommonPreconditions(listingId, buyerUsername, ListingType.GIVEAWAY);
+            if (preCheck != null) {
+                return preCheck;
+            }
+
+            Listing listing = dataService.findListing(listingId.trim());
+
+            // Concurrency Check: Alternative Flow A4 (Giveaway Already Claimed)
+            if (isGiveawayClaimed(listing.getId())) {
+                return ActOnListingResult.alreadyClaimed("This giveaway item has already been claimed.");
+            }
+
+            // Store the claim as an Offer with status PENDING (Subflow S3 Step 3)
+            Offer offer = new Offer();
+            offer.setType(OfferType.CLAIM);
+            offer.setListingId(listing.getId());
+            offer.setListingTitle(listing.getTitle());
+            offer.setBuyerUsername(buyerUsername.trim());
+            offer.setSellerUsername(listing.getSellerUsername());
+            offer.setStatus(OfferStatus.PENDING);
+            offer.setCreatedDate(LocalDateTime.now());
+
+            dataService.addOffer(offer);
+
+            // Notify Seller (Subflow S3 Step 3)
+            String notifMsg = buyerUsername.trim() + " claimed your giveaway item: '" + listing.getTitle() + "'.";
+            dataService.addNotification(new Notification(listing.getSellerUsername(), "Giveaway Claim Received", notifMsg, "Offer"));
+
+            // Confirm to Buyer (Subflow S3 Step 4)
+            String confirmMsg = "Your claim for '" + listing.getTitle() + "' has been submitted to " + listing.getSellerFullName() + ".";
+            return ActOnListingResult.success(offer, confirmMsg);
         }
-
-        Listing listing = dataService.findListing(listingId.trim());
-
-        // Concurrency Check: Alternative Flow A4 (Giveaway Already Claimed)
-        if (isGiveawayClaimed(listing.getId())) {
-            return ActOnListingResult.alreadyClaimed("This giveaway item has already been claimed.");
-        }
-
-        // Store the claim as an Offer with status PENDING (Subflow S3 Step 3)
-        Offer offer = new Offer();
-        offer.setType(OfferType.CLAIM);
-        offer.setListingId(listing.getId());
-        offer.setListingTitle(listing.getTitle());
-        offer.setBuyerUsername(buyerUsername.trim());
-        offer.setSellerUsername(listing.getSellerUsername());
-        offer.setStatus(OfferStatus.PENDING);
-        offer.setCreatedDate(LocalDateTime.now());
-
-        dataService.addOffer(offer);
-
-        // Notify Seller (Subflow S3 Step 3)
-        String notifMsg = buyerUsername.trim() + " claimed your giveaway item: '" + listing.getTitle() + "'.";
-        dataService.addNotification(new Notification(listing.getSellerUsername(), "Giveaway Claim Received", notifMsg, "Offer"));
-
-        // Confirm to Buyer (Subflow S3 Step 4)
-        String confirmMsg = "Your claim for '" + listing.getTitle() + "' has been submitted to " + listing.getSellerFullName() + ".";
-        return ActOnListingResult.success(offer, confirmMsg);
     }
 
     /**
@@ -171,20 +177,22 @@ public class ActOnListingService {
      * @param listingId the listing ID
      * @return true if already claimed or an active claim offer exists
      */
-    public synchronized boolean isGiveawayClaimed(String listingId) {
-        if (listingId == null) return false;
-        Listing listing = dataService.findListing(listingId.trim());
-        if (listing == null) return false;
+    public boolean isGiveawayClaimed(String listingId) {
+        synchronized (dataService) {
+            if (listingId == null) return false;
+            Listing listing = dataService.findListing(listingId.trim());
+            if (listing == null) return false;
 
-        // If listing is marked GIVEN or not LIVE, it is already claimed
-        if (listing.getStatus() != ListingStatus.LIVE) {
-            return true;
+            // If listing is marked GIVEN or not LIVE, it is already claimed
+            if (listing.getStatus() != ListingStatus.LIVE) {
+                return true;
+            }
+
+            // Check if any claim offer is already pending or accepted
+            return dataService.getOffersForListing(listing.getId()).stream()
+                    .anyMatch(o -> o.getType() == OfferType.CLAIM &&
+                            (o.getStatus() == OfferStatus.PENDING || o.getStatus() == OfferStatus.ACCEPTED));
         }
-
-        // Check if any claim offer is already pending or accepted
-        return dataService.getOffersForListing(listing.getId()).stream()
-                .anyMatch(o -> o.getType() == OfferType.CLAIM &&
-                        (o.getStatus() == OfferStatus.PENDING || o.getStatus() == OfferStatus.ACCEPTED));
     }
 
     /**

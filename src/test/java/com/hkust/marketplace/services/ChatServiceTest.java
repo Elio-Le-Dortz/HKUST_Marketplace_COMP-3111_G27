@@ -9,6 +9,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -489,6 +490,46 @@ class ChatServiceTest {
             assertTrue(executor.awaitTermination(5, TimeUnit.SECONDS));
 
             assertEquals(threadsCount * messagesPerThread, thread.getMessages().size());
+        }
+
+        @Test
+        @DisplayName("F22: Concurrent formal chat offers and direct offers execute without lock inversion deadlock")
+        void testConcurrentFormalOffersAndDirectOffersNoDeadlock() {
+            assertTimeoutPreemptively(Duration.ofSeconds(10), () -> {
+                ChatThread thread = chatService.getOrCreateThread("L100", "bob");
+                int threadCount = 8;
+                int iterations = 15;
+                ExecutorService executor = Executors.newFixedThreadPool(threadCount);
+                CountDownLatch startLatch = new CountDownLatch(1);
+                List<Future<?>> futures = new ArrayList<>();
+
+                for (int i = 0; i < threadCount; i++) {
+                    final int idx = i;
+                    futures.add(executor.submit(() -> {
+                        startLatch.await();
+                        for (int j = 0; j < iterations; j++) {
+                            final double offerPrice = 100.0 + j;
+                            if (idx % 2 == 0) {
+                                // Formal chat offer
+                                SessionManager.withSession(dataService.findUser("bob"), () ->
+                                        chatService.sendFormalPriceOffer(thread.getId(), "bob", offerPrice));
+                            } else {
+                                // Direct offer
+                                SessionManager.withSession(dataService.findUser("bob"), () ->
+                                        dataService.submitPriceOffer("L100", "bob", offerPrice + 100.0));
+                            }
+                        }
+                        return null;
+                    }));
+                }
+
+                startLatch.countDown();
+                for (Future<?> f : futures) {
+                    f.get();
+                }
+                executor.shutdown();
+                assertTrue(executor.awaitTermination(5, TimeUnit.SECONDS));
+            });
         }
     }
 }

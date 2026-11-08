@@ -912,6 +912,7 @@ public class DummyDataService {
     }
 
     public synchronized List<Listing> getLiveListings() {
+        processAutoReturns();
         return listings.values().stream()
                 .filter(l -> l.getStatus() == ListingStatus.LIVE)
                 .collect(Collectors.toList());
@@ -925,6 +926,7 @@ public class DummyDataService {
      * @return filtered and sorted list of live listings
      */
     public synchronized List<Listing> getFilteredLiveListings(ListingFilterCriteria criteria) {
+        processAutoReturns();
         return listingFilterService.filterAndSort(new ArrayList<>(listings.values()), criteria);
     }
 

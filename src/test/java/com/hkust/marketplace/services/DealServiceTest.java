@@ -524,6 +524,34 @@ class DealServiceTest {
             assertEquals(0, processed);
             assertEquals(DealStatus.ACTIVE, futureLoan.getStatus());
         }
+
+        @Test
+        @DisplayName("Browse and getFilteredLiveListings automatically returns expired loans and shows listing as Live [F07]")
+        void testBrowseAutoReturnsExpiredLoan() {
+            Listing lend = new Listing();
+            lend.setTitle("Tent for loan");
+            lend.setType(ListingType.LEND);
+            lend.setSellerUsername("charlie");
+            lend.setStatus(ListingStatus.LIVE);
+            dataService.addListing(lend);
+
+            Deal loan = new Deal();
+            loan.setListingId(lend.getId());
+            loan.setListingTitle(lend.getTitle());
+            loan.setBuyerUsername("alice");
+            loan.setSellerUsername("charlie");
+            loan.setType(DealType.LOAN);
+            loan.setStatus(DealStatus.ACTIVE);
+            loan.setDueDate(LocalDateTime.now().minusMinutes(5));
+            dataService.addDeal(loan);
+            lend.setStatus(ListingStatus.LENT);
+            dataService.updateListing(lend);
+
+            // Accessing live listings triggers auto-return without navigating to My Deals
+            List<Listing> live = dataService.getFilteredLiveListings(ListingFilterCriteria.all());
+            assertTrue(live.stream().anyMatch(l -> l.getId().equals(lend.getId())), "Browse must show expired loan listing again as LIVE");
+            assertEquals(DealStatus.RETURNED, loan.getStatus());
+        }
     }
 
     @Nested

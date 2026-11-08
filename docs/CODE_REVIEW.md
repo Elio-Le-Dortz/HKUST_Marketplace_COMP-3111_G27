@@ -140,7 +140,7 @@ After F03/F04 (session checks for buyers and admins) the snippets must log in th
 | F25 | P4 | Charles, Elio, shared | ~~Number formatting depends on the default locale~~ **[FIXED - PR #44]** | Brief "consistent interface" |
 | F26 | P4 | Charles | ~~Two classes named `RegistrationResult`~~ **[FIXED - PR #45]** | Brief "readability and maintainability" |
 | F27 | P4 | Charles — *Decision* | ~~"Favourites" screen is a visible placeholder~~ **[FIXED - PR #46]** | Brief (favourites/follow mentioned) |
-| F28 | P4 | Team | Dead / legacy code in `DummyDataService` | Brief "best coding practices" |
+| F28 | P4 | Team | ~~Dead / legacy code in `DummyDataService`~~ **[FIXED - PR #48]** | Brief "best coding practices" |
 | F29 | P4 | Elio | Report does not record the handling admin; resolution logged as "User Accounts" | CLASS_DIAGRAM `Admin 1 --> * Report : Handles`; UC 3.6 categories |
 | F30 | P4 | *Decision* | Seeded admin is `admin`, specs say `admin@ust.hk` | UC 3.1; CLASS_DIAGRAM §3.1 |
 | F31 | P4 | *Decision* | Seeded listings have no photos | CLASS_DIAGRAM `Listing 1 *-- 1..6 Photo` |
@@ -677,7 +677,13 @@ After F03/F04 (session checks for buyers and admins) the snippets must log in th
 - **Note:** favourites/follow are mentioned in the brief's overview but are not among the 28 use cases. Either
   implement them or remove the button before the demo.
 
-### F28 — Dead or legacy code in `DummyDataService`
+### F28 — [FIXED - PR #48] Dead or legacy code in `DummyDataService`
+> [!NOTE]
+> **Status: FIXED (PR #48)**
+> - Removed unused legacy constants `HKUST_LOCATIONS`, `CATEGORIES`, and `CONDITIONS` from `DummyDataService`.
+> - Removed duplicate method `resetToSeedData()` and migrated all 8 calling test files to standard `resetData()`.
+> - Removed legacy `claimListing(...)` helper that bypassed the offer flow and updated `DummyDataServiceTest` to use proper `submitClaim(...)`.
+> - Removed deprecated `checkPasswordStrength(...)` in `DummyDataService` and connected `registerBuyer` directly to `PasswordPolicy.findViolations`.
 - **Owner:** Team.
 - **Where (`utils/DummyDataService.java`):** `HKUST_LOCATIONS` (line 77), `CATEGORIES` (99), `CONDITIONS` (104) —
   unused strings that do not match the enums; `resetToSeedData()` (722) duplicates `resetData()` and does not reset

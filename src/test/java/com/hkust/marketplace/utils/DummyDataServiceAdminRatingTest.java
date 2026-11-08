@@ -16,7 +16,7 @@ class DummyDataServiceAdminRatingTest {
     @BeforeEach
     void setUp() {
         service = DummyDataService.getInstance();
-        service.resetToSeedData();
+        service.resetData();
     }
 
     @Test

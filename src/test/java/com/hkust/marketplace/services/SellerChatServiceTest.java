@@ -22,7 +22,7 @@ class SellerChatServiceTest {
     @BeforeEach
     void setUp() {
         dataService = DummyDataService.getInstance();
-        dataService.resetToSeedData();
+        dataService.resetData();
         sellerChatService = new SellerChatService(dataService);
         SessionManager.logout();
     }

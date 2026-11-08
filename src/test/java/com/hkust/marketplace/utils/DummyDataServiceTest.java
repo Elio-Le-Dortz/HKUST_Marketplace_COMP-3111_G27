@@ -15,20 +15,12 @@ import static org.junit.jupiter.api.Assertions.*;
 class DummyDataServiceTest {
 
     @Test
-    @DisplayName("Password strength validation edge cases")
+    @DisplayName("Buyer registration password strength validation")
     void testPasswordStrength() {
-        assertEquals("Password cannot be empty.", DummyDataService.checkPasswordStrength(null));
-        assertEquals("Password cannot be empty.", DummyDataService.checkPasswordStrength(""));
-        assertEquals("Password must contain at least 8 characters.", DummyDataService.checkPasswordStrength("Short1!"));
-        assertEquals("Password must contain at least one uppercase letter.",
-                DummyDataService.checkPasswordStrength("alllowercase1"));
-        assertEquals("Password must contain at least one lowercase letter.",
-                DummyDataService.checkPasswordStrength("ALLUPPERCASE1"));
-        assertEquals("Password must contain at least one digit.",
-                DummyDataService.checkPasswordStrength("NoDigitsHere"));
-        assertEquals("Password must contain at least one uppercase letter and at least one digit.",
-                DummyDataService.checkPasswordStrength("abcdefgh"));
-        assertEquals("OK", DummyDataService.checkPasswordStrength("StrongPass123"));
+        DummyDataService service = DummyDataService.getInstance();
+        BuyerRegistrationResult result = service.registerBuyer("newuser", "Short1!", "Short1!", "New User", "Hall 1");
+        assertFalse(result.isSuccess());
+        assertTrue(result.getMessage().contains("at least 8 characters"));
     }
 
     @Test
@@ -45,13 +37,15 @@ class DummyDataServiceTest {
         service.addListing(giveaway);
 
         // First buyer claims
-        boolean firstClaim = service.claimListing(giveaway.getId(), "alice");
-        assertTrue(firstClaim, "First buyer should successfully claim the giveaway");
-        assertEquals(ListingStatus.GIVEN, giveaway.getStatus());
+        SessionManager.login(service.findUser("alice"));
+        ActOnListingResult firstClaim = service.submitClaim(giveaway.getId(), "alice");
+        assertTrue(firstClaim.isSuccess(), "First buyer should successfully claim the giveaway");
 
         // Second buyer tries to claim same item
-        boolean secondClaim = service.claimListing(giveaway.getId(), "bob");
-        assertFalse(secondClaim, "Second buyer cannot claim an already claimed item");
+        SessionManager.login(service.findUser("bob"));
+        ActOnListingResult secondClaim = service.submitClaim(giveaway.getId(), "bob");
+        assertFalse(secondClaim.isSuccess(), "Second buyer cannot claim an already claimed item");
+        SessionManager.logout();
     }
 
     @Test

@@ -135,7 +135,7 @@ After F03/F04 (session checks for buyers and admins) the snippets must log in th
 | F20 | P3 | Charles | ~~Buyer-flow notifications have no link (seller deep links fail)~~ **[FIXED - PR #40]** | Backlog US-S07 "deep links to relevant offer/deal"; UC 2.7 step 4 |
 | F21 | P3 | Charles | ~~`markDealComplete` accepts a loan (listing becomes Sold)~~ **[FIXED - PR #41]** | UC 1.6 S5 |
 | F22 | P3 | Charles | ~~Lock-order inversion between chat formal offers and offers~~ **[FIXED - PR #42]** | Brief "support concurrent actions gracefully" |
-| F23 | P4 | Shared / Charles / Elio | Lend terms shown in whole days ("up to 0 days") | Task 1.3/1.4 display; 5-second minimum |
+| F23 | P4 | Shared / Charles / Elio | ~~Lend terms shown in whole days ("up to 0 days")~~ **[FIXED - PR #43]** | Task 1.3/1.4 display; 5-second minimum |
 | F24 | P4 | Charles — *Decision* | Borrow request may exceed the listing's lending duration | Consistency with UC 2.5 A4 |
 | F25 | P4 | Charles, Elio, shared | Number formatting depends on the default locale | Brief "consistent interface" |
 | F26 | P4 | Charles | Two classes named `RegistrationResult` | Brief "readability and maintainability" |
@@ -620,7 +620,12 @@ After F03/F04 (session checks for buyers and admins) the snippets must log in th
 
 ## P4 — Minor issues and decisions
 
-### F23 — Lend terms shown in whole days ("Lend (up to 0 days)")
+### F23 — [FIXED - PR #43] Lend terms shown in whole days ("Lend (up to 0 days)")
+> [!NOTE]
+> **Status: FIXED (PR #43)**
+> - Updated `Listing.getPriceDisplay()` to format lending duration with `OfferManagementService.formatDuration(lendingDuration)`, properly displaying periods in seconds, hours, and days (e.g., "10 seconds", "36 hours", "7 days", "1 day").
+> - Updated `BuyerDashboardController.showBorrowDialog` and `showChatFormalBorrowRequestDialog` to show human-readable suggested lending durations and initialize proposed default end dates/times based on `listing.getLendingDuration()`.
+> - Added regression tests in `DomainModelTest` covering durations in seconds, minutes, hours, and days.
 - **Owner:** shared model (`Listing`) + Charles (buyer UI) + Elio (admin UI).
 - **Where:** `models/Listing.java:300-309` `getPriceDisplay()` uses `getLendingDays()` (truncated);
   buyer `BuyerDashboardController.java:991, 1007, 3119`; admin `AdminDashboardController.java:560, 828, 1007`.

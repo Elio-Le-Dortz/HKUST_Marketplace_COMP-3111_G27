@@ -343,6 +343,9 @@ and the review by `bob` is already flagged in the seeded data.
 | Seller | `charlie` | `password1`|
 | Seller | `diana`   | `password1`|
 
+> [!NOTE]
+> The seeded administrator account username is `admin` (the assignment brief and domain model gave `admin@ust.hk` as an example: *"e.g., admin@ust.hk"*). Log in to the Admin Portal using `admin` / `admin123`.
+
 ## Features Implemented (UI Only)
 
 ### Shared

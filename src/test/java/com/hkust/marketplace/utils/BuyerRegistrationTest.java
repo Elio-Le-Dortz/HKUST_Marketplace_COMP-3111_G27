@@ -252,7 +252,7 @@ class BuyerRegistrationTest {
                 "validuser", "Valid Name", "Short1A", "Short1A", "Hall 1");
 
         assertFalse(result.isSuccess());
-        assertEquals("Password must be at least 8 characters.", result.getMessage());
+        assertEquals("Password must contain at least 8 characters.", result.getMessage());
         assertTrue(result.hasFieldError("password"));
     }
 
@@ -263,7 +263,7 @@ class BuyerRegistrationTest {
                 "validuser", "Valid Name", "lowercaseonly123", "lowercaseonly123", "Hall 1");
 
         assertFalse(result.isSuccess());
-        assertEquals("Password should contain uppercase, lowercase and a digit.", result.getMessage());
+        assertEquals("Password must contain at least one uppercase letter.", result.getMessage());
         assertTrue(result.hasFieldError("password"));
     }
 
@@ -274,7 +274,7 @@ class BuyerRegistrationTest {
                 "validuser", "Valid Name", "UPPERCASEONLY123", "UPPERCASEONLY123", "Hall 1");
 
         assertFalse(result.isSuccess());
-        assertEquals("Password should contain uppercase, lowercase and a digit.", result.getMessage());
+        assertEquals("Password must contain at least one lowercase letter.", result.getMessage());
         assertTrue(result.hasFieldError("password"));
     }
 
@@ -285,7 +285,18 @@ class BuyerRegistrationTest {
                 "validuser", "Valid Name", "NoDigitsInThisPassword", "NoDigitsInThisPassword", "Hall 1");
 
         assertFalse(result.isSuccess());
-        assertEquals("Password should contain uppercase, lowercase and a digit.", result.getMessage());
+        assertEquals("Password must contain at least one digit.", result.getMessage());
+        assertTrue(result.hasFieldError("password"));
+    }
+
+    @Test
+    @DisplayName("Alternative Flow A3: Weak password (multiple violations: missing uppercase and digit)")
+    void testPasswordMultipleViolations() {
+        RegistrationResult result = service.registerBuyer(
+                "validuser", "Valid Name", "abcdefgh", "abcdefgh", "Hall 1");
+
+        assertFalse(result.isSuccess());
+        assertEquals("Password must contain at least one uppercase letter and at least one digit.", result.getMessage());
         assertTrue(result.hasFieldError("password"));
     }
 

@@ -1581,16 +1581,13 @@ public class DummyDataService {
         return adminRatingService.dismissFlag(reviewId, adminUsername);
     }
 
-    // Password strength helper (demo)
+    // Password strength helper
     public static String checkPasswordStrength(String password) {
         if (password == null || password.isEmpty()) return "Password cannot be empty.";
-        if (password.length() < 8) return "Password must be at least 8 characters.";
-        boolean hasUpper = password.chars().anyMatch(Character::isUpperCase);
-        boolean hasLower = password.chars().anyMatch(Character::isLowerCase);
-        boolean hasDigit = password.chars().anyMatch(Character::isDigit);
-        if (!hasUpper || !hasLower || !hasDigit) {
-            return "Password should contain uppercase, lowercase and a digit.";
+        List<String> violations = PasswordPolicy.findViolations(password);
+        if (violations.isEmpty()) {
+            return "OK";
         }
-        return "OK";
+        return PasswordPolicy.formatViolations(violations);
     }
 }

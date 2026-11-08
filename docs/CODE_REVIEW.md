@@ -131,7 +131,7 @@ After F03/F04 (session checks for buyers and admins) the snippets must log in th
 | F16 | P3 | Elio | Admin listing form stores lend duration in whole days (lossy) | UC 3.7 "same rules as a new listing"; 5-second minimum |
 | F17 | P3 | Elio | Take-down is not atomic with offer acceptance | UC 3.7 special req.; CLASS_DIAGRAM rule 1 |
 | F18 | P3 | Charles | ~~Accepting a counter offer leaves other countered offers stuck~~ **[FIXED - PR #38]** | CLASS_DIAGRAM rule 1; UC 1.6 S2 |
-| F19 | P3 | Charles | Buyer registration: generic weak-password message; extra username rules | UC 1.1 A3; README password rules |
+| F19 | P3 | Charles | ~~Buyer registration: generic weak-password message; extra username rules~~ **[FIXED - PR #39]** | UC 1.1 A3; README password rules |
 | F20 | P3 | Charles | Buyer-flow notifications have no link (seller deep links fail) | Backlog US-S07 "deep links to relevant offer/deal"; UC 2.7 step 4 |
 | F21 | P3 | Charles | `markDealComplete` accepts a loan (listing becomes Sold) | UC 1.6 S5 |
 | F22 | P3 | Charles | Lock-order inversion between chat formal offers and offers | Brief "support concurrent actions gracefully" |
@@ -546,7 +546,10 @@ After F03/F04 (session checks for buyers and admins) the snippets must log in th
 - **Suggested fix:** decline `PENDING` and `COUNTERED` offers (and their `counterOffer`), store a reason, and
   notify each buyer with a link to the offer (as `OfferManagementService.declineCompetingOffers` does).
 
-### F19 — Buyer registration: generic weak-password message; extra username rules
+### F19 — [FIXED - PR #39] Buyer registration: generic weak-password message; extra username rules
+> [!NOTE]
+> **Status: FIXED (PR #39)**
+> Unified password validation across the application using `PasswordPolicy.findViolations` and `PasswordPolicy.formatViolations` so that every specific unmet password rule is reported. Harmonized username rules across both buyer and seller registration (rejecting usernames containing spaces or shorter than 3 characters). Documented username rules in `README.md`.
 - **Owner:** Charles.
 - **Requirement:** UC 1.1 A3 "informs the Buyer which password rules are not met"; UC 1.1 basic flow (only
   uniqueness and non-empty); README "Password Rules" (length counted in code points; every broken rule reported).

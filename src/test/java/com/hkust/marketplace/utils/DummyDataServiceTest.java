@@ -19,13 +19,15 @@ class DummyDataServiceTest {
     void testPasswordStrength() {
         assertEquals("Password cannot be empty.", DummyDataService.checkPasswordStrength(null));
         assertEquals("Password cannot be empty.", DummyDataService.checkPasswordStrength(""));
-        assertEquals("Password must be at least 8 characters.", DummyDataService.checkPasswordStrength("Short1!"));
-        assertEquals("Password should contain uppercase, lowercase and a digit.",
+        assertEquals("Password must contain at least 8 characters.", DummyDataService.checkPasswordStrength("Short1!"));
+        assertEquals("Password must contain at least one uppercase letter.",
                 DummyDataService.checkPasswordStrength("alllowercase1"));
-        assertEquals("Password should contain uppercase, lowercase and a digit.",
+        assertEquals("Password must contain at least one lowercase letter.",
                 DummyDataService.checkPasswordStrength("ALLUPPERCASE1"));
-        assertEquals("Password should contain uppercase, lowercase and a digit.",
+        assertEquals("Password must contain at least one digit.",
                 DummyDataService.checkPasswordStrength("NoDigitsHere"));
+        assertEquals("Password must contain at least one uppercase letter and at least one digit.",
+                DummyDataService.checkPasswordStrength("abcdefgh"));
         assertEquals("OK", DummyDataService.checkPasswordStrength("StrongPass123"));
     }
 

@@ -104,6 +104,14 @@ class ChatServiceTest {
             Notification latestNotif = sellerNotifs.get(0);
             assertEquals("Chat", latestNotif.getCategory());
             assertTrue(latestNotif.getMessage().contains("Is this charger original?"));
+            assertEquals(thread.getId(), latestNotif.getRelatedItemId(), "Notification must link to chat thread [F09]");
+            assertEquals(NotificationTargetType.CHAT_THREAD.name(), latestNotif.getRelatedItemType(), "Notification target must be CHAT_THREAD [F09]");
+
+            // Seller opens notification directly to reach the chat thread (F09 regression test)
+            SessionManager.login(dataService.findUser("charlie"));
+            SellerNotificationResult sellerOpenResult = new SellerNotificationService(dataService).openNotification(latestNotif.getId());
+            assertEquals(SellerNotificationStatus.SUCCESS, sellerOpenResult.getStatus());
+            assertSame(thread, sellerOpenResult.getChatThread());
 
             // Symmetrical: Seller replies to thread (Alternative Flow A4)
             int initialBuyerNotifs = dataService.getNotificationsFor("alice").size();
@@ -114,7 +122,16 @@ class ChatServiceTest {
             // Buyer receives notification
             List<Notification> buyerNotifs = dataService.getNotificationsFor("alice");
             assertEquals(initialBuyerNotifs + 1, buyerNotifs.size());
-            assertEquals("Chat", buyerNotifs.get(0).getCategory());
+            Notification buyerNotif = buyerNotifs.get(0);
+            assertEquals("Chat", buyerNotif.getCategory());
+            assertEquals(thread.getId(), buyerNotif.getRelatedItemId(), "Buyer notification must link to chat thread [F09]");
+            assertEquals(NotificationTargetType.CHAT_THREAD.name(), buyerNotif.getRelatedItemType(), "Buyer notification target must be CHAT_THREAD [F09]");
+
+            // Buyer resolves notification target directly to the chat thread
+            SessionManager.login(dataService.findUser("alice"));
+            NotificationTargetResult buyerTargetResult = dataService.getBuyerNotificationService().resolveNotificationTarget("alice", buyerNotif.getId());
+            assertEquals(NotificationTargetStatus.SUCCESS, buyerTargetResult.getStatus());
+            assertSame(thread, buyerTargetResult.getTargetObject());
         }
 
         @Test

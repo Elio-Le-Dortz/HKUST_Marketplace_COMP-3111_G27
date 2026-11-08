@@ -191,18 +191,24 @@ public class DealService {
             dataService.updateOffer(offer.getCounterOffer());
         }
 
-        // Subflow S2 Step 4: Decline all other pending offers on this listing
+        // Subflow S2 Step 4: Decline all other pending and countered offers on this listing
         List<Offer> allOffersOnListing = dataService.getOffersForListing(listing.getId());
         for (Offer other : allOffersOnListing) {
-            if (!Objects.equals(other.getId(), offer.getId()) && other.getStatus() == OfferStatus.PENDING) {
+            if (!Objects.equals(other.getId(), offer.getId()) && (other.isPending() || other.isCountered())) {
                 other.setStatus(OfferStatus.DECLINED);
                 other.setDeclineReason("Listing was reserved by another accepted offer.");
+                if (other.getCounterOffer() != null) {
+                    other.getCounterOffer().setStatus(OfferStatus.DECLINED);
+                    dataService.updateOffer(other.getCounterOffer());
+                }
                 dataService.updateOffer(other);
                 dataService.addNotification(new Notification(
                         other.getBuyerUsername(),
                         "Offer Declined",
                         "Your offer for '" + listing.getTitle() + "' was declined because the item was reserved.",
-                        "Offer"
+                        "Offer",
+                        other.getId(),
+                        NotificationTargetType.OFFER.name()
                 ));
             }
         }

@@ -144,7 +144,7 @@ After F03/F04 (session checks for buyers and admins) the snippets must log in th
 | F29 | P4 | Elio | Report does not record the handling admin; resolution logged as "User Accounts" | CLASS_DIAGRAM `Admin 1 --> * Report : Handles`; UC 3.6 categories |
 | F30 | P4 | *Decision* | Seeded admin is `admin`, specs say `admin@ust.hk` | UC 3.1; CLASS_DIAGRAM §3.1 |
 | F31 | P4 | *Decision* | Seeded listings have no photos | CLASS_DIAGRAM `Listing 1 *-- 1..6 Photo` |
-| F32 | P4 | Charles | My Deals cannot rate a returned loan (Deal History can) | Consistency (UC 1.10) |
+| F32 | P4 | Charles | ~~My Deals cannot rate a returned loan (Deal History can)~~ **[FIXED - PR #47]** | Consistency (UC 1.10) |
 | F33 | P4 | Elio | All Deals matches a deal's review by users + listing, not by deal | UC 3.5 step 4 |
 | F34 | P4 | Antoine — *Decision* | Seller cannot cancel or mark sold a Reserved deal | Brief: sellers can "mark as sold" |
 | F35 | P4 | Team | Documentation out of date or inconsistent | Brief submission guidelines (README) |
@@ -706,7 +706,11 @@ After F03/F04 (session checks for buyers and admins) the snippets must log in th
   when packaged. An option is to copy sample images from `src/main/resources/images` to a temp folder at startup and
   seed their paths. Otherwise, document it as a known demo limitation.
 
-### F32 — My Deals cannot rate a returned loan (Deal History can)
+### F32 — [FIXED - PR #47] My Deals cannot rate a returned loan (Deal History can)
+> [!NOTE]
+> **Status: FIXED (PR #47)**
+> - Updated `MyDealsItem.canRate()` to `(deal.getStatus() == DealStatus.COMPLETED || deal.getStatus() == DealStatus.RETURNED) && !deal.isRated()`, matching `DealHistoryItem.canRate()` and `BuyerReviewService.canRateDeal`.
+> - Updated `DealModelsTest` to assert that unrated returned loans can be rated in My Deals and already rated loans cannot.
 - **Owner:** Charles.
 - **Where:** `models/MyDealsItem.java:244` `canRate()` accepts only `COMPLETED`; `models/DealHistoryItem.java:165`
   and `BuyerReviewService.canRateDeal` accept `COMPLETED` or `RETURNED`.

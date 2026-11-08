@@ -243,7 +243,7 @@ public class MyDealsItem {
     }
 
     public boolean canRate() {
-        return deal != null && deal.getStatus() == DealStatus.COMPLETED && !deal.isRated();
+        return deal != null && (deal.getStatus() == DealStatus.COMPLETED || deal.getStatus() == DealStatus.RETURNED) && !deal.isRated();
     }
 
     public boolean isRated() {

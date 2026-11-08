@@ -154,6 +154,29 @@ class ListingDetailServiceTest {
         }
 
         @Test
+        @DisplayName("Reopening active and completed deal listings (Reserved, Lent, Given, Sold) succeeds with requireLive=false [F08]")
+        void testViewNonLiveStatusesFromMyDealsAndHistory() {
+            for (ListingStatus status : List.of(ListingStatus.RESERVED, ListingStatus.LENT, ListingStatus.GIVEN, ListingStatus.SOLD)) {
+                Listing item = new Listing();
+                item.setTitle("Item in status " + status);
+                item.setStatus(status);
+                item.setSellerUsername("charlie");
+                dataService.addListing(item);
+
+                // Browsing view with requireLive=true fails with NOT_LIVE
+                ListingViewResult liveResult = detailService.viewListing(item.getId(), true);
+                assertFalse(liveResult.isSuccess(), "Viewing non-live item with requireLive=true must fail");
+                assertEquals(ListingViewStatus.NOT_LIVE, liveResult.getStatus());
+
+                // Deals/History view with requireLive=false succeeds
+                ListingViewResult dealResult = detailService.viewListing(item.getId(), false);
+                assertTrue(dealResult.isSuccess(), "Viewing non-live item from My Deals/History with requireLive=false must succeed for " + status);
+                assertEquals(ListingViewStatus.SUCCESS, dealResult.getStatus());
+                assertEquals(item.getId(), dealResult.getListing().getId());
+            }
+        }
+
+        @Test
         @DisplayName("Viewing non-existent listing ID returns NOT_FOUND")
         void testViewNonExistentListing() {
             ListingViewResult result = detailService.viewListing("NON_EXISTENT_999", true);

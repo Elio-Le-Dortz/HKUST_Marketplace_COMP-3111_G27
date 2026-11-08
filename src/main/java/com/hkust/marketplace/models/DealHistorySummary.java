@@ -1,6 +1,7 @@
 package com.hkust.marketplace.models;
 
 import java.util.List;
+import java.util.Locale;
 
 /**
  * Summary metrics of a buyer's deal history.
@@ -73,6 +74,6 @@ public class DealHistorySummary {
     }
 
     public String getFormattedTotalSpent() {
-        return String.format("HK$ %.2f", totalSpent);
+        return String.format(Locale.ENGLISH, "HK$ %.2f", totalSpent);
     }
 }

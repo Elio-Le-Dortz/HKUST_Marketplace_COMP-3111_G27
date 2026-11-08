@@ -2,7 +2,7 @@ package com.hkust.marketplace.utils;
 
 import com.hkust.marketplace.models.AccountStatus;
 import com.hkust.marketplace.models.Buyer;
-import com.hkust.marketplace.models.RegistrationResult;
+import com.hkust.marketplace.models.BuyerRegistrationResult;
 import com.hkust.marketplace.models.UserRole;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -29,7 +29,7 @@ class BuyerRegistrationTest {
     @Test
     @DisplayName("Basic Flow: Successful buyer registration with residence hall")
     void testRegisterBuyerSuccessWithResidence() {
-        RegistrationResult result = service.registerBuyer(
+        BuyerRegistrationResult result = service.registerBuyer(
                 "john_doe", "John Doe", "ValidPass123", "ValidPass123", "Hall 1");
 
         assertTrue(result.isSuccess(), "Registration should succeed for valid inputs");
@@ -54,7 +54,7 @@ class BuyerRegistrationTest {
     @Test
     @DisplayName("Basic Flow: Successful buyer registration without optional residence")
     void testRegisterBuyerSuccessWithoutResidence() {
-        RegistrationResult result = service.registerBuyer(
+        BuyerRegistrationResult result = service.registerBuyer(
                 "jane_doe", "Jane Doe", "ValidPass123", "ValidPass123", null);
 
         assertTrue(result.isSuccess());
@@ -64,7 +64,7 @@ class BuyerRegistrationTest {
         assertNull(buyer.getResidenceHall());
 
         // Also test empty string residence
-        RegistrationResult result2 = service.registerBuyer(
+        BuyerRegistrationResult result2 = service.registerBuyer(
                 "jack_doe", "Jack Doe", "ValidPass123", "ValidPass123", "   ");
         assertTrue(result2.isSuccess());
         Buyer buyer2 = result2.getUserAs(Buyer.class);
@@ -74,7 +74,7 @@ class BuyerRegistrationTest {
     @Test
     @DisplayName("Basic Flow: Whitespace trimming and case-insensitive lowercasing")
     void testRegisterBuyerTrimsWhitespaceAndLowercases() {
-        RegistrationResult result = service.registerBuyer(
+        BuyerRegistrationResult result = service.registerBuyer(
                 "  NewBuyer  ", "  New Buyer Name  ", "ValidPass123", "ValidPass123", "  Hall 2  ");
 
         assertTrue(result.isSuccess());
@@ -89,7 +89,7 @@ class BuyerRegistrationTest {
     @DisplayName("Special Requirement: Password is stored in cryptographically hashed form")
     void testPasswordIsHashedNotPlaintext() {
         String plainPassword = "SecretPass123";
-        RegistrationResult result = service.registerBuyer(
+        BuyerRegistrationResult result = service.registerBuyer(
                 "secureuser", "Secure User", plainPassword, plainPassword, "Hall 3");
 
         assertTrue(result.isSuccess());
@@ -111,7 +111,7 @@ class BuyerRegistrationTest {
     @Test
     @DisplayName("F02 regression: registered buyer password uses PBKDF2 hash")
     void testRegisteredBuyerUsesPbkdf2Hash() {
-        RegistrationResult r = service.registerBuyer("zed", "Zed", "Abcdefg1", "Abcdefg1", null);
+        BuyerRegistrationResult r = service.registerBuyer("zed", "Zed", "Abcdefg1", "Abcdefg1", null);
         assertTrue(r.isSuccess());
         assertTrue(r.getUser().getPasswordHash().startsWith("pbkdf2_sha256$"));
     }
@@ -120,7 +120,7 @@ class BuyerRegistrationTest {
     @DisplayName("Alternative Flow A1: Rejects duplicate username against existing Buyer")
     void testDuplicateUsernameAgainstBuyer() {
         // "alice" is seeded as a Buyer
-        RegistrationResult result = service.registerBuyer(
+        BuyerRegistrationResult result = service.registerBuyer(
                 "alice", "Alice Copy", "ValidPass123", "ValidPass123", "Hall 1");
 
         assertFalse(result.isSuccess());
@@ -132,7 +132,7 @@ class BuyerRegistrationTest {
     @DisplayName("Alternative Flow A1: Rejects duplicate username against existing Seller")
     void testDuplicateUsernameAgainstSeller() {
         // "charlie" is seeded as a Seller
-        RegistrationResult result = service.registerBuyer(
+        BuyerRegistrationResult result = service.registerBuyer(
                 "charlie", "Charlie As Buyer", "ValidPass123", "ValidPass123", "Hall 1");
 
         assertFalse(result.isSuccess());
@@ -144,7 +144,7 @@ class BuyerRegistrationTest {
     @DisplayName("Alternative Flow A1: Rejects duplicate username against Admin")
     void testDuplicateUsernameAgainstAdmin() {
         // "admin" is seeded as Admin
-        RegistrationResult result = service.registerBuyer(
+        BuyerRegistrationResult result = service.registerBuyer(
                 "admin", "Fake Admin", "ValidPass123", "ValidPass123", "Hall 1");
 
         assertFalse(result.isSuccess());
@@ -155,7 +155,7 @@ class BuyerRegistrationTest {
     @Test
     @DisplayName("Alternative Flow A1: Duplicate username check is strictly case-insensitive")
     void testDuplicateUsernameCaseInsensitive() {
-        RegistrationResult result = service.registerBuyer(
+        BuyerRegistrationResult result = service.registerBuyer(
                 "ALICE", "Alice Upper", "ValidPass123", "ValidPass123", "Hall 1");
 
         assertFalse(result.isSuccess());
@@ -166,7 +166,7 @@ class BuyerRegistrationTest {
     @Test
     @DisplayName("Alternative Flow A2: Multiple empty required fields highlight all missing fields")
     void testEmptyRequiredFieldsMultiple() {
-        RegistrationResult result = service.registerBuyer(
+        BuyerRegistrationResult result = service.registerBuyer(
                 "", "", "", "", "Hall 1");
 
         assertFalse(result.isSuccess());
@@ -180,7 +180,7 @@ class BuyerRegistrationTest {
     @Test
     @DisplayName("Alternative Flow A2: Empty username highlights username field")
     void testEmptyUsernameSingle() {
-        RegistrationResult result = service.registerBuyer(
+        BuyerRegistrationResult result = service.registerBuyer(
                 "   ", "Valid Name", "ValidPass123", "ValidPass123", "Hall 1");
 
         assertFalse(result.isSuccess());
@@ -192,7 +192,7 @@ class BuyerRegistrationTest {
     @Test
     @DisplayName("Alternative Flow A2: Empty full name highlights fullName field")
     void testEmptyFullNameSingle() {
-        RegistrationResult result = service.registerBuyer(
+        BuyerRegistrationResult result = service.registerBuyer(
                 "validuser", "   ", "ValidPass123", "ValidPass123", "Hall 1");
 
         assertFalse(result.isSuccess());
@@ -204,7 +204,7 @@ class BuyerRegistrationTest {
     @Test
     @DisplayName("Alternative Flow A2: Empty password highlights password field")
     void testEmptyPasswordSingle() {
-        RegistrationResult result = service.registerBuyer(
+        BuyerRegistrationResult result = service.registerBuyer(
                 "validuser", "Valid Name", "", "ValidPass123", "Hall 1");
 
         assertFalse(result.isSuccess());
@@ -215,7 +215,7 @@ class BuyerRegistrationTest {
     @Test
     @DisplayName("Alternative Flow A2: Empty confirm password highlights confirmPassword field")
     void testEmptyConfirmPasswordSingle() {
-        RegistrationResult result = service.registerBuyer(
+        BuyerRegistrationResult result = service.registerBuyer(
                 "validuser", "Valid Name", "ValidPass123", "", "Hall 1");
 
         assertFalse(result.isSuccess());
@@ -226,7 +226,7 @@ class BuyerRegistrationTest {
     @Test
     @DisplayName("Username format: rejects spaces in username")
     void testUsernameContainsSpaces() {
-        RegistrationResult result = service.registerBuyer(
+        BuyerRegistrationResult result = service.registerBuyer(
                 "user name with spaces", "Valid Name", "ValidPass123", "ValidPass123", "Hall 1");
 
         assertFalse(result.isSuccess());
@@ -237,7 +237,7 @@ class BuyerRegistrationTest {
     @Test
     @DisplayName("Username format: rejects username shorter than 3 characters")
     void testUsernameTooShort() {
-        RegistrationResult result = service.registerBuyer(
+        BuyerRegistrationResult result = service.registerBuyer(
                 "ab", "Valid Name", "ValidPass123", "ValidPass123", "Hall 1");
 
         assertFalse(result.isSuccess());
@@ -248,7 +248,7 @@ class BuyerRegistrationTest {
     @Test
     @DisplayName("Alternative Flow A3: Weak password (< 8 chars)")
     void testPasswordTooShort() {
-        RegistrationResult result = service.registerBuyer(
+        BuyerRegistrationResult result = service.registerBuyer(
                 "validuser", "Valid Name", "Short1A", "Short1A", "Hall 1");
 
         assertFalse(result.isSuccess());
@@ -259,7 +259,7 @@ class BuyerRegistrationTest {
     @Test
     @DisplayName("Alternative Flow A3: Weak password (missing uppercase)")
     void testPasswordMissingUppercase() {
-        RegistrationResult result = service.registerBuyer(
+        BuyerRegistrationResult result = service.registerBuyer(
                 "validuser", "Valid Name", "lowercaseonly123", "lowercaseonly123", "Hall 1");
 
         assertFalse(result.isSuccess());
@@ -270,7 +270,7 @@ class BuyerRegistrationTest {
     @Test
     @DisplayName("Alternative Flow A3: Weak password (missing lowercase)")
     void testPasswordMissingLowercase() {
-        RegistrationResult result = service.registerBuyer(
+        BuyerRegistrationResult result = service.registerBuyer(
                 "validuser", "Valid Name", "UPPERCASEONLY123", "UPPERCASEONLY123", "Hall 1");
 
         assertFalse(result.isSuccess());
@@ -281,7 +281,7 @@ class BuyerRegistrationTest {
     @Test
     @DisplayName("Alternative Flow A3: Weak password (missing digit)")
     void testPasswordMissingDigit() {
-        RegistrationResult result = service.registerBuyer(
+        BuyerRegistrationResult result = service.registerBuyer(
                 "validuser", "Valid Name", "NoDigitsInThisPassword", "NoDigitsInThisPassword", "Hall 1");
 
         assertFalse(result.isSuccess());
@@ -292,7 +292,7 @@ class BuyerRegistrationTest {
     @Test
     @DisplayName("Alternative Flow A3: Weak password (multiple violations: missing uppercase and digit)")
     void testPasswordMultipleViolations() {
-        RegistrationResult result = service.registerBuyer(
+        BuyerRegistrationResult result = service.registerBuyer(
                 "validuser", "Valid Name", "abcdefgh", "abcdefgh", "Hall 1");
 
         assertFalse(result.isSuccess());
@@ -303,7 +303,7 @@ class BuyerRegistrationTest {
     @Test
     @DisplayName("Alternative Flow A4: Passwords do not match")
     void testPasswordsDoNotMatch() {
-        RegistrationResult result = service.registerBuyer(
+        BuyerRegistrationResult result = service.registerBuyer(
                 "validuser", "Valid Name", "ValidPass123", "DifferentPass456", "Hall 1");
 
         assertFalse(result.isSuccess());
@@ -314,23 +314,23 @@ class BuyerRegistrationTest {
     @Test
     @DisplayName("Alternative Flow A2: Null required fields handled safely")
     void testNullRequiredFields() {
-        RegistrationResult res1 = service.registerBuyer(null, "Valid Name", "ValidPass123", "ValidPass123", "Hall 1");
+        BuyerRegistrationResult res1 = service.registerBuyer(null, "Valid Name", "ValidPass123", "ValidPass123", "Hall 1");
         assertFalse(res1.isSuccess());
         assertTrue(res1.hasFieldError("username"));
 
-        RegistrationResult res2 = service.registerBuyer("validuser", null, "ValidPass123", "ValidPass123", "Hall 1");
+        BuyerRegistrationResult res2 = service.registerBuyer("validuser", null, "ValidPass123", "ValidPass123", "Hall 1");
         assertFalse(res2.isSuccess());
         assertTrue(res2.hasFieldError("fullName"));
 
-        RegistrationResult res3 = service.registerBuyer("validuser", "Valid Name", null, "ValidPass123", "Hall 1");
+        BuyerRegistrationResult res3 = service.registerBuyer("validuser", "Valid Name", null, "ValidPass123", "Hall 1");
         assertFalse(res3.isSuccess());
         assertTrue(res3.hasFieldError("password"));
 
-        RegistrationResult res4 = service.registerBuyer("validuser", "Valid Name", "ValidPass123", null, "Hall 1");
+        BuyerRegistrationResult res4 = service.registerBuyer("validuser", "Valid Name", "ValidPass123", null, "Hall 1");
         assertFalse(res4.isSuccess());
         assertTrue(res4.hasFieldError("confirmPassword"));
 
-        RegistrationResult resAllNull = service.registerBuyer(null, null, null, null, null);
+        BuyerRegistrationResult resAllNull = service.registerBuyer(null, null, null, null, null);
         assertFalse(resAllNull.isSuccess());
         assertEquals("Please fill in all required fields.", resAllNull.getMessage());
         assertEquals(4, resAllNull.getErrorFields().size());
@@ -354,7 +354,7 @@ class BuyerRegistrationTest {
                 readyLatch.countDown();
                 try {
                     startLatch.await();
-                    RegistrationResult result = service.registerBuyer(
+                    BuyerRegistrationResult result = service.registerBuyer(
                             "concurrent_user", "Buyer " + index, "StrongPass123", "StrongPass123", "Hall 1");
                     if (result.isSuccess()) {
                         successCount.incrementAndGet();

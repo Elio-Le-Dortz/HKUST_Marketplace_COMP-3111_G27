@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.stream.Collectors;
 
 /**
@@ -223,14 +224,14 @@ public class ChatService {
             Offer offer = offerResult.getOffer();
 
             // Subflow S2 Step 3: Append structured formal offer message to chat thread
-            String structuredText = "[FORMAL OFFER] Proposed Price: HK$ " + String.format("%.2f", price);
+            String structuredText = "[FORMAL OFFER] Proposed Price: HK$ " + String.format(Locale.ENGLISH, "%.2f", price);
             String msgId = "M" + dataService.nextMessageId();
             Message offerMsg = new Message(msgId, buyerUsername.trim(), structuredText, LocalDateTime.now(), offer.getId());
             thread.addMessage(offerMsg);
             dataService.updateChatThread(thread);
 
             // Subflow S2 Step 4: Confirm to Buyer
-            String confirmMsg = "Your formal offer of HK$ " + String.format("%.2f", price) + " has been sent to " + listing.getSellerFullName() + ".";
+            String confirmMsg = "Your formal offer of HK$ " + String.format(Locale.ENGLISH, "%.2f", price) + " has been sent to " + listing.getSellerFullName() + ".";
             return SendFormalOfferResult.success(offer, offerMsg, confirmMsg);
         }
     }

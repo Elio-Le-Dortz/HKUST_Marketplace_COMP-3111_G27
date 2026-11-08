@@ -20,6 +20,7 @@ import java.time.LocalDateTime;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Locale;
 import java.util.stream.Collectors;
 import java.util.Optional;
 
@@ -1723,7 +1724,7 @@ public class AdminDashboardController {
             listingGrid.add(new Label(l.getMeetupLocation() != null ? l.getMeetupLocation().getDisplayName() : "-"), 1, 4);
 
             listingGrid.add(new Label("Original Price:"), 0, 5);
-            listingGrid.add(new Label(l.getPrice() != null ? String.format("$%.2f", l.getPrice()) : "Free"), 1, 5);
+            listingGrid.add(new Label(l.getPrice() != null ? String.format(Locale.ENGLISH, "$%.2f", l.getPrice()) : "Free"), 1, 5);
 
             listingGrid.add(new Label("Listing Status:"), 0, 6);
             Label lStatus = new Label(l.getStatus() != null ? l.getStatus().name() : "-");
@@ -1753,7 +1754,7 @@ public class AdminDashboardController {
             offerGrid.add(new Label(o.getType() != null ? o.getType().name() : "-"), 1, 1);
 
             offerGrid.add(new Label("Offered Price / Dates:"), 0, 2);
-            String offerTerms = o.getPrice() != null ? String.format("$%.2f", o.getPrice()) :
+            String offerTerms = o.getPrice() != null ? String.format(Locale.ENGLISH, "$%.2f", o.getPrice()) :
                     (o.getStartDate() != null ? o.getStartDate().toLocalDate() + " to " + (o.getEndDate() != null ? o.getEndDate().toLocalDate() : "-") : "N/A");
             offerGrid.add(new Label(offerTerms), 1, 2);
 
@@ -1831,7 +1832,7 @@ public class AdminDashboardController {
                         metrics.getFlaggedReviews() > 0 ? "⚠️ Needs Review" : "✓ None Flagged"),
                 createMetricCard("Hidden Reviews", String.valueOf(metrics.getHiddenReviews()), "#64748b", "Excluded from Ratings"),
                 createMetricCard("Visible Reviews", String.valueOf(metrics.getVisibleReviews()), "#2e7d32", "Counted in Ratings"),
-                createMetricCard("Platform Avg", String.format("%.1f ★", metrics.getAveragePlatformRating()), "#A68137", "Visible Average")
+                createMetricCard("Platform Avg", String.format(Locale.ENGLISH, "%.1f ★", metrics.getAveragePlatformRating()), "#A68137", "Visible Average")
         );
         root.getChildren().add(metricsRow);
 

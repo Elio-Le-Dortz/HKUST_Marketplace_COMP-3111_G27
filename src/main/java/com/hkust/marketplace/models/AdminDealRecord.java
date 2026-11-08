@@ -2,6 +2,7 @@ package com.hkust.marketplace.models;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Locale;
 import java.util.Objects;
 
 /**
@@ -252,7 +253,7 @@ public class AdminDealRecord {
             if (price == null && listing != null) {
                 price = listing.getPrice();
             }
-            return price != null ? String.format("$%.2f", price) : "N/A";
+            return price != null ? String.format(Locale.ENGLISH, "$%.2f", price) : "N/A";
         } else if (deal.getType() == DealType.LOAN) {
             String startStr = deal.getStartDate() != null ? deal.getStartDate().format(DATE_FORMAT) : "Start";
             String dueStr = deal.getDueDate() != null ? deal.getDueDate().format(DATE_FORMAT) : "Due";

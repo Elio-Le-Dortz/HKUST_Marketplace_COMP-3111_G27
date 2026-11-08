@@ -2,6 +2,7 @@ package com.hkust.marketplace.models;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Locale;
 
 /**
  * Unified representation of a deal or offer row displayed in the "My Deals" screen
@@ -65,7 +66,7 @@ public class MyDealsItem {
             statusStr = "Countered";
             if (offer.getCounterOffer() != null) {
                 if (offer.getCounterOffer().getPrice() != null) {
-                    counterInfo = "Counter Price: HK$ " + String.format("%.2f", offer.getCounterOffer().getPrice());
+                    counterInfo = "Counter Price: HK$ " + String.format(Locale.ENGLISH, "%.2f", offer.getCounterOffer().getPrice());
                 } else if (offer.getCounterOffer().getEndDate() != null) {
                     counterInfo = "Counter Due: " + offer.getCounterOffer().getEndDate().format(DATE_FMT);
                 }
@@ -194,7 +195,7 @@ public class MyDealsItem {
 
     public String getFormattedPrice() {
         if (price == null) return "-";
-        return "HK$ " + String.format("%.2f", price);
+        return "HK$ " + String.format(Locale.ENGLISH, "%.2f", price);
     }
 
     public LocalDateTime getTimestamp() {

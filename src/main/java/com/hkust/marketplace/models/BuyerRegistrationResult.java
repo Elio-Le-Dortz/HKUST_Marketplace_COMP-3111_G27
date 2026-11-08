@@ -5,10 +5,10 @@ import java.util.HashSet;
 import java.util.Set;
 
 /**
- * Result of a user registration attempt containing status, error messages,
+ * Result of a buyer registration attempt containing status, error messages,
  * affected field names for UI highlighting, and the created User on success.
  */
-public class RegistrationResult {
+public class BuyerRegistrationResult {
 
     private final boolean success;
     private final String message;
@@ -16,14 +16,14 @@ public class RegistrationResult {
     private final User user;
 
     /**
-     * Constructs a RegistrationResult.
+     * Constructs a BuyerRegistrationResult.
      *
      * @param success     True if registration succeeded, false otherwise
      * @param message     Human-readable message or error description
      * @param errorFields Set of field names that triggered validation errors
      * @param user        Created user instance on success, or null on failure
      */
-    public RegistrationResult(boolean success, String message, Set<String> errorFields, User user) {
+    public BuyerRegistrationResult(boolean success, String message, Set<String> errorFields, User user) {
         this.success = success;
         this.message = message;
         this.errorFields = errorFields != null ? Collections.unmodifiableSet(new HashSet<>(errorFields)) : Collections.emptySet();
@@ -34,10 +34,10 @@ public class RegistrationResult {
      * Creates a successful registration result.
      *
      * @param user The newly registered user
-     * @return A successful RegistrationResult
+     * @return A successful BuyerRegistrationResult
      */
-    public static RegistrationResult success(User user) {
-        return new RegistrationResult(true, "Registration successful!", Collections.emptySet(), user);
+    public static BuyerRegistrationResult success(User user) {
+        return new BuyerRegistrationResult(true, "Registration successful!", Collections.emptySet(), user);
     }
 
     /**
@@ -45,10 +45,10 @@ public class RegistrationResult {
      *
      * @param message     Error message explaining the failure
      * @param errorFields Set of invalid field names to highlight in the UI
-     * @return A failed RegistrationResult
+     * @return A failed BuyerRegistrationResult
      */
-    public static RegistrationResult failure(String message, Set<String> errorFields) {
-        return new RegistrationResult(false, message, errorFields, null);
+    public static BuyerRegistrationResult failure(String message, Set<String> errorFields) {
+        return new BuyerRegistrationResult(false, message, errorFields, null);
     }
 
     /**
@@ -56,10 +56,10 @@ public class RegistrationResult {
      *
      * @param message    Error message explaining the failure
      * @param errorField Single invalid field name to highlight in the UI
-     * @return A failed RegistrationResult
+     * @return A failed BuyerRegistrationResult
      */
-    public static RegistrationResult failure(String message, String errorField) {
-        return new RegistrationResult(false, message, Set.of(errorField), null);
+    public static BuyerRegistrationResult failure(String message, String errorField) {
+        return new BuyerRegistrationResult(false, message, Set.of(errorField), null);
     }
 
     /**

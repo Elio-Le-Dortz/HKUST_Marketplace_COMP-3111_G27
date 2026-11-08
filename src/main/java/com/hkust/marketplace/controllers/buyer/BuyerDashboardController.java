@@ -24,6 +24,7 @@ import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -935,7 +936,7 @@ public class BuyerDashboardController {
         content.setPrefWidth(380);
         content.setPadding(new Insets(10));
 
-        Label listedPriceLabel = new Label("Listed Price: HK$" + (listing.getPrice() != null ? String.format("%.2f", listing.getPrice()) : "N/A"));
+        Label listedPriceLabel = new Label("Listed Price: HK$" + (listing.getPrice() != null ? String.format(Locale.ENGLISH, "%.2f", listing.getPrice()) : "N/A"));
         listedPriceLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: #003974; -fx-font-size: 13px;");
 
         Label instruction = new Label("Enter your proposed offer price in HKD:");

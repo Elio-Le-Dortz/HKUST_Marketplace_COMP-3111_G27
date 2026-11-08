@@ -1,5 +1,6 @@
 package com.hkust.marketplace.models;
 
+import java.util.Locale;
 import java.util.Objects;
 
 /**
@@ -46,8 +47,8 @@ public class SellerRatingInfo {
      */
     public static SellerRatingInfo withRatings(String sellerUsername, String sellerFullName,
                                               double averageRating, int ratingCount) {
-        String formatted = String.format("%.1f", averageRating);
-        String display = String.format("★ %s / 5.0 (%d %s)",
+        String formatted = String.format(Locale.ENGLISH, "%.1f", averageRating);
+        String display = String.format(Locale.ENGLISH, "★ %s / 5.0 (%d %s)",
                 formatted,
                 ratingCount,
                 ratingCount == 1 ? "review" : "reviews");
@@ -87,7 +88,7 @@ public class SellerRatingInfo {
     }
 
     public String getFormattedScore() {
-        return hasRatings ? String.format("%.1f", averageRating) : "N/A";
+        return hasRatings ? String.format(Locale.ENGLISH, "%.1f", averageRating) : "N/A";
     }
 
     @Override

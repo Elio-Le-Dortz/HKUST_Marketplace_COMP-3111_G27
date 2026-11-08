@@ -85,4 +85,25 @@ class PasswordPolicyTest {
         assertEquals(4, PasswordPolicy.rules().size());
         assertTrue(PasswordPolicy.RULE_MIN_LENGTH.contains(String.valueOf(PasswordPolicy.MIN_LENGTH)));
     }
+
+    @Test
+    @DisplayName("joinRules formats single, pair, and multiple rules")
+    void joinRulesFormatting() {
+        assertEquals("", PasswordPolicy.joinRules(null));
+        assertEquals("", PasswordPolicy.joinRules(List.of()));
+        assertEquals("rule1", PasswordPolicy.joinRules(List.of("rule1")));
+        assertEquals("rule1 and rule2", PasswordPolicy.joinRules(List.of("rule1", "rule2")));
+        assertEquals("rule1, rule2 and rule3", PasswordPolicy.joinRules(List.of("rule1", "rule2", "rule3")));
+    }
+
+    @Test
+    @DisplayName("formatViolations formats error message")
+    void formatViolationsFormatting() {
+        assertEquals("", PasswordPolicy.formatViolations(null));
+        assertEquals("", PasswordPolicy.formatViolations(List.of()));
+        assertEquals("Password must contain at least 8 characters.",
+                PasswordPolicy.formatViolations(List.of(PasswordPolicy.RULE_MIN_LENGTH)));
+        assertEquals("Password must contain at least one uppercase letter and at least one digit.",
+                PasswordPolicy.formatViolations(List.of(PasswordPolicy.RULE_UPPERCASE, PasswordPolicy.RULE_DIGIT)));
+    }
 }

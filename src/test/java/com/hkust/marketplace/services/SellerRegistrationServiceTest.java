@@ -292,6 +292,28 @@ class SellerRegistrationServiceTest {
             assertEquals(List.of(RegistrationField.FULL_NAME), List.copyOf(result.getErrors().keySet()));
             assertFalse(data.usernameExists(username));
         }
+
+        @Test
+        @DisplayName("Rejects username with spaces")
+        void usernameWithSpaces() {
+            RegistrationResult<Seller> result = service.register(validRequest("john doe"));
+
+            assertFalse(result.isSuccess());
+            assertEquals(List.of(SellerRegistrationService.USERNAME_NO_SPACES),
+                    result.getErrorsFor(RegistrationField.USERNAME));
+            assertFalse(data.usernameExists("john doe"));
+        }
+
+        @Test
+        @DisplayName("Rejects username shorter than 3 characters")
+        void usernameTooShort() {
+            RegistrationResult<Seller> result = service.register(validRequest("ab"));
+
+            assertFalse(result.isSuccess());
+            assertEquals(List.of(SellerRegistrationService.USERNAME_TOO_SHORT),
+                    result.getErrorsFor(RegistrationField.USERNAME));
+            assertFalse(data.usernameExists("ab"));
+        }
     }
 
     @Nested

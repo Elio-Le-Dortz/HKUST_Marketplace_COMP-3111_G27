@@ -206,14 +206,19 @@ class DealModelsTest {
         completedDeal.setRated(true);
         assertFalse(MyDealsItem.fromDeal(completedDeal).canRate());
 
-        // Returned Deal
+        // Returned Deal (unrated)
         Deal returnedDeal = new Deal();
         returnedDeal.setType(DealType.LOAN);
         returnedDeal.setStatus(DealStatus.RETURNED);
+        returnedDeal.setRated(false);
         MyDealsItem itemReturned = MyDealsItem.fromDeal(returnedDeal);
         assertEquals("Returned", itemReturned.getStatusDisplay());
         assertFalse(itemReturned.canSelfReturn());
-        assertFalse(itemReturned.canRate());
+        assertTrue(itemReturned.canRate(), "Unrated returned loan deal can be rated in My Deals");
+
+        // Returned Deal (already rated)
+        returnedDeal.setRated(true);
+        assertFalse(MyDealsItem.fromDeal(returnedDeal).canRate(), "Already rated returned loan deal cannot be rated again");
     }
 
     @Test

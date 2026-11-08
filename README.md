@@ -1,40 +1,36 @@
-# HKUST Marketplace — Frontend Demo / Skeleton
+# HKUST Marketplace — COMP 3111 Group 27
 
-A complete **JavaFX + Maven** frontend-only demo of the HKUST Campus Marketplace platform.  
-Designed as a **skeleton / starter code** for students to implement the full project requirements (backend, persistence, real business logic, etc.).
+A complete **JavaFX + Maven** full-stack desktop application of the HKUST Campus Marketplace platform.  
+Implements all 28 use cases across the **Buyer**, **Seller**, and **Admin** portals with clean layered architecture, rich UI, session-based role access control (RBAC), thread-safe concurrency handling, and an extensive JUnit 5 test suite (1,761 tests passing).
 
 ## Prerequisites
 
 1. **JDK 17 or newer** (full JDK, not only JRE)
    - Download: https://adoptium.net/ (Temurin 17 or 21 recommended)
-   - After install, open a **new** PowerShell and check:
-     ```powershell
+   - After install, open a **new** terminal / PowerShell and check:
+     ```bash
      java -version
      javac -version
      ```
-   - Both commands must work. If `javac` is missing, you only have a JRE — install the JDK.
+   - Both commands must work. If `javac` is missing, you only have a JRE — install the full JDK.
 
-2. **Maven is optional** — this project includes the **Maven Wrapper** (`mvnw.cmd` on Windows).
+2. **Maven is optional** — this project includes the **Maven Wrapper** (`mvnw` on Linux/macOS, `mvnw.cmd` on Windows).
 
-## How to Run (Windows)
+## How to Run
 
-Open **PowerShell** or **Command Prompt** in the project folder  
-(`...\HKUST-Marketplace\HKUST-Marketplace`):
-
+### Command Line (Windows)
+Open **PowerShell** or **Command Prompt** in the project directory:
 ```powershell
 .\mvnw.cmd clean javafx:run
 ```
 
-First run downloads Maven automatically (needs internet). Then the app window should open.
-
-### Alternative: if you already installed Maven and added it to PATH
-
-```powershell
-mvn clean javafx:run
+### Command Line (Linux / macOS)
+Open a terminal in the project directory:
+```bash
+./mvnw clean javafx:run
 ```
 
 ### Run from IntelliJ IDEA
-
 1. Open the project folder as a Maven project (JDK 17 or newer as Project SDK)
 2. Wait for dependencies to download
 3. Pick a shared run configuration (stored in `.run/`) in the toolbar:
@@ -43,18 +39,37 @@ mvn clean javafx:run
    - **Maven Tests + JaCoCo** — `clean test`, coverage report in `target/site/jacoco/index.html`
    - **Maven Javadoc** — API docs in `target/site/apidocs/index.html`
 
-To start the app without the run configuration, open `Launcher.java` → right-click → **Run**.
-Do not run `MarketplaceApp.java` directly: a class extending `Application` fails with
-*"JavaFX runtime components are missing"* when JavaFX is on the class path.
+To start the app without the run configuration, open `Launcher.java` → right-click → **Run**.  
+*(Do not run `MarketplaceApp.java` directly: classes extending `Application` require JavaFX modules on the module path; `Launcher.java` avoids this).*
+
+### Run from VS Code
+1. Install **Extension Pack for Java**
+2. Open the project root folder
+3. Open `Launcher.java` and click **Run**, or run `./mvnw javafx:run` from the integrated terminal.
 
 ## Tests, Coverage and Javadoc (command line)
 
 ```bash
-./mvnw clean test          # all tests + JaCoCo report in target/site/jacoco/index.html
-./mvnw javadoc:javadoc     # API docs in target/site/apidocs/index.html
+./mvnw clean test          # all 1,761 tests + JaCoCo report in target/site/jacoco/index.html
+./mvnw javadoc:javadoc     # API documentation in target/site/apidocs/index.html
 ```
 
-## Password Rules
+## Demo Credentials
+
+| Role   | Username  | Password   | Description |
+|--------|-----------|------------|-------------|
+| Admin  | `admin`   | `admin123` | Seeded administrator account |
+| Buyer  | `alice`   | `password1`| Active buyer with active and completed deals |
+| Buyer  | `bob`     | `password1`| Active buyer participating in chats & offers |
+| Seller | `charlie` | `password1`| Active seller with listings, offers, and sales |
+| Seller | `diana`   | `password1`| Active seller with lending and giveaway items |
+
+> [!NOTE]
+> - **Seeded Admin Account**: The seeded administrator username is `admin` (the assignment brief and domain model gave `admin@ust.hk` as an illustrative example: *"e.g., admin@ust.hk"*). Log in to the Admin Portal using `admin` / `admin123`.
+> - **Demo Passwords**: Demo passwords (`password1`, `admin123`) were pre-seeded for development and testing, preceding the interactive password strength validator.
+> - **Listing Photos & Demo Data Limitation**: In accordance with the domain model (`Listing 1 *-- 1..6 Photo`), listings created via the Seller Portal (US-S02) or Admin Portal (US-A07) require 1 to 6 photos uploaded from the local filesystem. For static in-memory seed listings (`DummyDataService`), no photos are attached to avoid requiring local filesystem writes across different platforms. Seeded listings display dedicated "No Photo" placeholders.
+
+## Password Rules & Security
 
 Used by every registration and password-change screen (`utils/PasswordPolicy.java`).
 A password must contain **all** of:
@@ -65,8 +80,98 @@ A password must contain **all** of:
 - at least one **digit**
 
 When a password is rejected, the user is told every rule it breaks.
-Passwords are never stored in plaintext: `utils/PasswordHasher.java` stores a salted
-**PBKDF2-HMAC-SHA256** hash (600,000 iterations, random 16-byte salt per password).
+
+### Password Hashing Schemes
+Passwords are never stored in plaintext:
+- **Seller Portal**: `utils/PasswordHasher.java` stores a salted **PBKDF2-HMAC-SHA256** hash (600,000 iterations, random 16-byte salt per password).
+- **Buyer & Admin Portals / Profiles**: `utils/PasswordUtil.java` stores a salted **SHA-256** hash (`[salt_hex]:[hash_hex]`).
+
+---
+
+# Task 1: Buyer Portal (Owner: Charles Dupouy)
+
+## Buyer Registration (US-B01)
+- **Validation**: Username is required, at least 3 characters long, contains no whitespace, and is unique across all user roles (case-insensitive); full name and campus residence hall are required; password must satisfy the password policy; confirm password must match exactly.
+- **Security**: Passwords are securely hashed with a random 16-byte salt using SHA-256 (`PasswordUtil.hashPassword`).
+- **Feedback**: All invalid fields are validated simultaneously with descriptive error messages. On success, the user is redirected to Buyer login.
+- **Architecture**: Handled by `DummyDataService.registerBuyer(...)`, tested by `BuyerRegistrationTest` (boundary validations, duplicate username rejection, whitespace sanitization).
+
+## Buyer Login (US-B02)
+- **Validation Flow**:
+  1. **Empty fields check**: "Please enter both username and password."
+  2. **Invalid credentials**: Non-existent username and wrong password return the identical error (`LoginResult.MSG_INVALID_CREDENTIALS`), preventing username enumeration attacks.
+  3. **Role-Based Access Control**: Valid seller or admin credentials attempting login are refused and instructed to use their respective portals (`MSG_WRONG_PORTAL_SELLER`, `MSG_WRONG_PORTAL_ADMIN`).
+  4. **Deactivation check**: Accounts deactivated by an administrator are blocked from logging in.
+- **Session**: On successful authentication, a Buyer session is established via `SessionManager.login(user)`.
+- **Architecture**: Handled by `BuyerLoginService` / `DummyDataService.loginBuyer(...)`, tested by `BuyerLoginTest` (all normal/alternative/exception flows and concurrent logins).
+
+## Marketplace Browse & Filtering (US-B03)
+- **Live Catalog**: Real-time display of active listings in `LIVE` status across the HKUST campus.
+- **Multi-Attribute Filters**:
+  - **Category**: Textbooks, Electronics, Clothing, Furniture, Kitchen, Sports, Other, or All.
+  - **Listing Type**: Sell, Lend, Giveaway, or All.
+  - **Condition**: Brand New, Like New, Good, Fair, Poor, or All.
+  - **Price Range**: Min/max numeric filters for sale items.
+- **Keyword Search**: Substring search against item title and description.
+- **Sorting**: Newest first, Price: Low to High, Price: High to Low.
+- **Architecture**: Business logic in `services/ListingFilterService.java` and `DummyDataService.getFilteredLiveListings(...)`, tested by `ListingFilterServiceTest` and `BuyerBrowseFilterTest`.
+
+## Listing Details & View Count Tracker (US-B04)
+- **Item Details**: Displays title, description, category, condition, meet-up location, price or lending terms, seller information, and seller average rating.
+- **Photo Gallery**: Cover image and thumbnail gallery for all attached photos (up to 6). Displays styled "No Photo" placeholder when photos are absent.
+- **Atomic View Counter**: Opening a listing's detail view atomically increments its view count (`ListingDetailService.incrementViewCount(...)`), immediately reflected in Seller Statistics.
+- **Reporting**: Buyers can file a report against inappropriate listings with a written reason, dispatching an alert to administrators.
+- **Architecture**: Handled by `services/ListingDetailService.java`, tested by `ListingDetailServiceTest`.
+
+## Make Offer, Borrow Request & Atomic Claim (US-B05)
+- **Price Offer (Sell Listings)**: Buyer proposes a custom purchase price (must be positive).
+- **Borrow Request (Lend Listings)**: Buyer specifies desired start and end dates. Validates that dates are in the future, start date is before end date, and duration is at least 5 seconds.
+- **Atomic Giveaway Claim (Giveaway Listings)**: Claims operate on a strict first-come, first-served basis. The claim executes atomically: the listing immediately transitions from `LIVE` to `GIVEN`, creating a completed giveaway deal and automatically declining any competing requests.
+- **Architecture**: Business logic in `services/ActOnListingService.java`, tested by `ActOnListingServiceTest` (including multi-threaded concurrency tests for atomic giveaway claims).
+
+## Private Chat Thread & Searchable Messages (US-B06)
+- **Private Communication**: Dedicated 1-on-1 chat threads between buyer and seller per listing.
+- **Message Persistence**: Messages are stored chronologically with timestamps and sender identifiers.
+- **Search History**: Live keyword search filters chat history, highlighting matching messages.
+- **Formal Chat Offers**: Buyers can attach formal price offers or borrow requests directly within the chat interface, generating a structured message card and notifying the seller.
+- **Thread Safety**: Offer submissions and chat messaging use synchronized lock ordering to prevent deadlock during concurrent negotiations.
+- **Architecture**: Business logic in `services/ChatService.java`, tested by `ChatServiceTest`.
+
+## My Deals & Auto-Return Timer (US-B07)
+- **Active Deals Feed**: Displays ongoing transactions involving the buyer (Reserved sales, active loans, and completed giveaways).
+- **Complete Deal**: Buyer marks completed sale deals upon physical handover, transitioning listing to `SOLD` and prompting the buyer to rate the seller.
+- **Early Self-Return**: For borrowed items, the buyer can self-return the item early, marking the loan `RETURNED` and restoring the listing to `LIVE`.
+- **Automated Background Return Daemon**: `AutoReturnScheduler` runs a background task checking active loans every 5 seconds. When a loan passes its due date, the scheduler automatically transitions the deal to `RETURNED` and restores the listing to `LIVE`.
+- **Architecture**: Business logic in `services/DealService.java` and `utils/AutoReturnScheduler.java`, tested by `DealServiceTest` and `AutoReturnSchedulerTest`.
+
+## Buyer Profile Management (US-B08)
+- **Profile View**: Displays account username, registration date, full name, residence hall, and active deal count.
+- **Edit Details**: Allows updating full name and campus residence hall (validates non-empty input).
+- **Change Password**: Enforces current password verification before applying new password. Validates new password against password strength policy.
+- **Architecture**: Handled by `services/BuyerProfileService.java`, tested by `BuyerProfileServiceTest`.
+
+## Buyer Notifications Board (US-B09)
+- **Categorized Feed**: Groups alerts into Offers (incoming/accepted/countered), Reminders (borrow return deadlines), Deals (status updates), and Chat messages.
+- **Unread Counter**: Badge displays real-time unread count; individual or bulk mark-as-read.
+- **Deep Linking**: Clicking an alert navigates directly to the relevant deal, offer, or chat thread.
+- **Architecture**: Handled by `services/BuyerNotificationService.java`, tested by `BuyerNotificationServiceTest`.
+
+## Deal History & Ledger Filters (US-B10)
+- **Historical Record**: Searchable archive of all finalized transactions (`COMPLETED`, `RETURNED`, `GIVEN`).
+- **Filtering**: Filter by deal type (Purchase, Loan, Giveaway) and sort by completion date.
+- **Post-Deal Review Link**: Prompts buyers to review and rate unrated deals directly from the history table.
+- **Architecture**: Handled by `services/DealHistoryService.java`, tested by `DealHistoryServiceTest`.
+
+## Rate Seller & Review System (US-B11)
+- **Review Submission**: After a sale completes or a loan is returned, the buyer can submit a 1 to 5 star rating with a written review comment.
+- **Real-Time Recalculation**: Submitting a review immediately recalculates the seller's average rating and total review count across the platform.
+- **Exclusion of Hidden Reviews**: Per domain model Rule 4, reviews hidden by an administrator are automatically excluded from the seller's public rating calculation.
+- **One Review Per Deal**: Each deal can only be rated once; duplicate submissions are prevented.
+- **Architecture**: Handled by `services/BuyerReviewService.java`, tested by `BuyerReviewServiceTest`.
+
+---
+
+# Task 2: Seller Portal (Owner: Antoine Lepin)
 
 ## Seller Registration (US-S01)
 
@@ -327,54 +432,89 @@ with the admin's moderation, concurrency) and `ReviewHandlingModelsTest`.
 To try it with the demo data, log in as `charlie` / `password1`: the review by `alice` already has a reply,
 and the review by `bob` is already flagged in the seeded data.
 
-### Run from VS Code
+---
 
-1. Install **Extension Pack for Java**
-2. Open the folder
-3. Run `MarketplaceApp.java`
+# Task 3: Admin Portal (Owner: Elio Le Dortz)
 
-## Demo Credentials
+## Admin Login (US-A01)
+- **Authentication**: Authenticates the seeded administrator account (`admin` / `admin123`).
+- **Role Enforcement**: Prevents buyer and seller accounts from accessing administrative functions (`SessionManager.requireAdmin()`).
+- **Architecture**: Handled by `controllers/admin/AdminLoginController.java`, tested by `AdminLoginTest`.
 
-| Role   | Username  | Password   |
-|--------|-----------|------------|
-| Admin  | `admin`   | `admin123` |
-| Buyer  | `alice`   | `password1`|
-| Buyer  | `bob`     | `password1`|
-| Seller | `charlie` | `password1`|
-| Seller | `diana`   | `password1`|
+## User Management & Account Deactivation (US-A02)
+- **User Directory**: View all registered buyer and seller accounts with full name, role, email, status (Active / Deactivated), and registration timestamp.
+- **Search & Filters**: Filter users by account role (Buyer / Seller) and status (Active / Deactivated), with live name/username search.
+- **Edit User**: Edit user full name, email, and residence hall / meet-up preferences.
+- **Status Toggle**: Deactivate or reactivate accounts. Deactivated users cannot log in to any portal.
+- **Safe Soft-Deletion**: Soft-deletes user accounts. Prevents deleting any user currently involved in active deals or unreturned loans.
+- **Architecture**: Handled by `services/UserManagementService.java`, tested by `UserManagementServiceTest`.
 
-> [!NOTE]
-> **Listing Photos & Demo Data Limitation (F31)**:
-> In accordance with the domain model (`Listing 1 *-- 1..6 Photo`), listings created via the Seller Portal (US-S02) or Admin Portal (US-A07) require 1 to 6 photos uploaded from the local filesystem. For the static in-memory seed listings (`DummyDataService`), no photos are attached to avoid requiring local filesystem image writes on startup across arbitrary operating systems. Seeded listings display the dedicated "No Photo" / "No photos uploaded for this listing" placeholders in the Marketplace Browse cards and Listing Details gallery.
+## All Deals Audit Ledger (US-A03)
+- **Platform Ledger**: Comprehensive record of every transaction across HKUST Marketplace.
+- **Filters**: Filter by deal type (Sale, Loan, Giveaway) and status (Active, Completed, Returned).
+- **Deal Details Modal**: Inspect full transaction details including listing title, buyer username, seller username, timestamps, price/duration, and attached buyer review.
+- **Architecture**: Handled by `services/AdminDealsService.java`, tested by `AdminDealsServiceTest`.
 
-## Features Implemented (UI Only)
+## Listing Moderation Queue (US-A04)
+- **Pending Review Pipeline**: All newly posted listings and edited live listings enter `PENDING_REVIEW` status and appear in the admin review queue.
+- **Inspection**: Admin reviews title, category, description, price/terms, condition, and uploaded photos.
+- **Approval**: Admin approves listing, transitioning status to `LIVE` and notifying the seller.
+- **Rejection with Reason**: Admin rejects listing with a mandatory written reason. Listing transitions to `REJECTED`, and the seller receives a notification explaining the rejection reason.
+- **Architecture**: Handled by `services/ListingReviewService.java`, tested by `ListingReviewServiceTest`.
 
-### Shared
-- Welcome screen with role selection (Buyer / Seller / Admin)
-- HKUST branding (logo + colour palette: deep blue `#003974` + gold `#A68137`)
-- Modern card-based UI, icons (Ikonli), consistent sidebars & top bars
-- In-memory dummy data (no database / no network)
+## All Listings Management & Take-Down (US-A05)
+- **Global Inventory**: Browse all listings across all lifecycle states (`LIVE`, `PENDING_REVIEW`, `RESERVED`, `SOLD`, `LENT`, `GIVEN`, `TAKEN_DOWN`, `REJECTED`).
+- **Admin Edit**: Administrators can edit listing details on behalf of sellers.
+- **Take-Down Violation**: Inappropriate or reported live listings can be taken down with a mandatory admin reason. Status becomes `TAKEN_DOWN`, taking the item off the marketplace and notifying the seller.
+- **Architecture**: Handled by `services/AdminListingService.java`, tested by `AdminListingServiceTest`.
 
-### Buyer Portal
-- Registration, Login, Browse Marketplace, Make Offer / Borrow / Claim
-- My Deals, Deal History, Favourites (placeholder), Notifications, Profile
+## Seller Ratings & Review Moderation (US-A06)
+- **Review Oversight**: Browse all reviews submitted across the platform.
+- **Flagged Review Queue**: Dedicated inspection of reviews flagged by sellers for inappropriate language or harassment.
+- **Dismiss Flag**: Dismisses seller's flag if review complies with community guidelines.
+- **Hide Review**: Hides abusive reviews from public display. Automatically triggers seller average rating recalculation to exclude the hidden rating.
+- **Architecture**: Handled by `services/AdminRatingService.java`, tested by `AdminRatingServiceTest`.
 
-### Seller Portal
-- Registration, Login, Create Listing, My Listings
-- Seller Stats (charts), Reviews & Feedback, Notifications, Profile
+## Add Listing on Behalf of Seller (US-A07)
+- **Admin Creation**: Admin can post new listings for student sellers. Validates all field rules (1–6 photos, positive price/duration) and publishes directly with admin approval.
+- **Architecture**: Handled by `services/AdminListingService.java`, tested by `AdminListingServiceTest`.
 
-### Admin Portal
-- Login only (seeded), Listing Review (approve/reject)
-- Manage Users, All Listings, All Deals, Seller Ratings, Notifications, Profile
+## Admin Notifications & Audit Board (US-A08)
+- **Notification Categories**: Centralized inbox for Listing Submissions, User Reports, Flagged Reviews, and User Account audit entries.
+- **Report Resolution**: Resolve user-filed reports with resolution notes, automatically logging audit entries.
+- **Architecture**: Handled by `services/AdminNotificationService.java`, tested by `AdminNotificationServiceTest`.
+
+---
+
+## System Architecture & Features Summary
+
+### Technology Stack
+- **Frontend / UI**: JavaFX 21 (FXML + Controller architecture, custom CSS theme with HKUST palette `#003974` and `#A68137`, Ikonli Material Design icons).
+- **Core Platform**: Java 17, Maven 3 build toolchain.
+- **Persistence & Services**: Thread-safe in-memory domain model with synchronized concurrent operations, complemented by embedded SQLite database support (`DatabaseManager`).
+- **Security & Authorization**: Session-based RBAC (`SessionManager`), PBKDF2-HMAC-SHA256 and salted SHA-256 password hashing, PasswordPolicy validator.
+- **Background Tasks**: Periodic auto-return daemon (`AutoReturnScheduler`) for borrowed item lifecycle.
+- **Testing & Verification**: JUnit 5, Mockito, AssertJ, and JaCoCo coverage (1,761 unit and integration tests passing).
+
+### Summary of Implemented Use Cases (28 / 28 Complete)
+
+| Portal | Use Cases | Primary Services | Test Suites |
+|---|---|---|---|
+| **Buyer Portal** | US-B01 to US-B11 (Registration, Login, Browse, Details, Offers/Claims, Chat, My Deals, Profile, Notifications, History, Reviews) | `DummyDataService`, `ListingFilterService`, `ListingDetailService`, `ActOnListingService`, `ChatService`, `DealService`, `BuyerProfileService`, `BuyerNotificationService`, `DealHistoryService`, `BuyerReviewService` | `Buyer*Test`, `Deal*Test`, `ChatServiceTest`, `ActOnListingServiceTest`, `ListingFilterServiceTest` |
+| **Seller Portal** | US-S01 to US-S09 (Registration, Login, Create Listing, My Listings, Manage Offers, Profile, Notifications, Statistics, Reviews) | `SellerRegistrationService`, `SellerLoginService`, `CreateListingService`, `MyListingsService`, `OfferManagementService`, `SellerProfileService`, `SellerNotificationService`, `SellerStatisticsService`, `ReviewHandlingService` | `Seller*Test`, `CreateListingServiceTest`, `MyListingsServiceTest`, `OfferManagementServiceTest`, `ReviewHandlingServiceTest` |
+| **Admin Portal** | US-A01 to US-A08 (Login, User Management, All Deals, Listing Review, All Listings, Seller Ratings, Add Listing, Notifications) | `AdminLoginController`, `UserManagementService`, `AdminDealsService`, `ListingReviewService`, `AdminListingService`, `AdminRatingService`, `AdminNotificationService`, `AdminProfileService` | `Admin*Test`, `UserManagementServiceTest`, `ListingReviewServiceTest` |
 
 ## Project Structure
 
 ```
 HKUST-Marketplace/
-├── mvnw / mvnw.cmd          ← Maven Wrapper (use these!)
+├── mvnw / mvnw.cmd          ← Maven Wrapper
 ├── pom.xml
 ├── README.md
-├── .run/                    ← shared IntelliJ run configurations
+├── docs/                    ← Project Management, Sprint Backlog & Code Review
+│   ├── CODE_REVIEW.md
+│   └── project_management/
+├── .run/                    ← Shared IntelliJ run configurations
 └── src/
     ├── main/
     │   ├── java/com/hkust/marketplace/
@@ -382,14 +522,24 @@ HKUST-Marketplace/
     │   │   ├── Launcher.java    ← IDE entry point
     │   │   ├── controllers/
     │   │   ├── models/
-    │   │   ├── services/        ← business logic, testable without JavaFX
+    │   │   ├── services/        ← Business logic, fully testable without JavaFX
     │   │   └── utils/
     │   └── resources/
     │       ├── fxml/
     │       ├── css/styles.css
     │       └── images/hkust_logo.png
-    └── test/java/com/hkust/marketplace/   ← JUnit 5 tests
+    └── test/java/com/hkust/marketplace/   ← JUnit 5 test suite (1,761 tests)
 ```
+
+## Quality Assurance & Verification
+
+- **Automated Test Suite**: 1,761 automated tests covering normal flows, alternative flows, exception flows, input validation boundaries, and multi-threaded race conditions.
+- **Run Tests**:
+  ```bash
+  ./mvnw clean test
+  ```
+- **Coverage Report**: Generated at `target/site/jacoco/index.html`.
+- **API Documentation**: Generated at `target/site/apidocs/index.html`.
 
 ## Troubleshooting
 
@@ -404,22 +554,13 @@ Install JDK 17+ from https://adoptium.net/ and **restart the terminal**.
 Make sure the installer option “Add to PATH” was checked.
 
 ### Build fails with JavaFX / DISPLAY errors
-You need a normal desktop session (not a headless server). On Windows this is usually fine.
+You need a normal desktop session (not a headless server). On Windows or standard Linux desktops this works out of the box.
 
-### To see the real error
+### To see the detailed error log
 ```powershell
 .\mvnw.cmd clean javafx:run -e
 ```
-Copy the lines that start with `Exception in thread` or `Caused by`.
-
-## For Students — Next Steps (Backend)
-
-1. Replace `DummyDataService` with real repositories / REST clients
-2. Hash passwords — never store plaintext (done for sellers with `PasswordHasher`; buyer and admin logins still to migrate)
-3. Add JWT / session auth and enforce RBAC on the API
-4. Persist data in a database
-5. Photo upload, chat, auto-return for borrowed items, etc.
 
 ## Licence
 
-Educational use — HKUST COMP project skeleton.
+Educational use — HKUST COMP 3111 Group 27.

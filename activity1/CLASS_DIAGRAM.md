@@ -112,7 +112,7 @@ classDiagram
         -boolean hidden
     }
 
-    Buyer "1" --> "0..1" Review : Rates
+    Buyer "1" --> "*" Review : Rates
     Deal "1" --> "0..1" Review : Rates
 
     %% ================= CHAT =================

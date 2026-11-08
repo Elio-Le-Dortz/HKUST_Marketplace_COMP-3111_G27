@@ -33,7 +33,7 @@ public class BuyerDashboardController {
     @FXML private StackPane contentPane;
     @FXML private Label pageTitle;
     @FXML private Label welcomeLabel;
-    @FXML private Button btnBrowse, btnDeals, btnHistory, btnFavourites, btnNotifications, btnProfile;
+    @FXML private Button btnBrowse, btnDeals, btnHistory, btnNotifications, btnProfile;
 
     private Button currentActiveBtn;
 
@@ -2224,24 +2224,6 @@ public class BuyerDashboardController {
 
         card.getChildren().addAll(lblTitle, lblVal);
         return card;
-    }
-
-    @FXML
-    private void showFavourites() {
-        setActive(btnFavourites, "Favourites & Following");
-        contentPane.getChildren().clear();
-        VBox root = new VBox(16);
-        root.setPadding(new Insets(4));
-        root.setAlignment(Pos.CENTER);
-        Label icon = new Label("♥");
-        icon.setStyle("-fx-font-size: 48px; -fx-text-fill: #A68137;");
-        Label title = new Label("Favourites, Bookmarks & Following");
-        title.setStyle("-fx-font-size: 18px; -fx-font-weight: bold; -fx-text-fill: #003974;");
-        Label desc = new Label("Save listings you like and follow favourite sellers.\nThis section is a UI placeholder for students to implement.");
-        desc.setStyle("-fx-text-fill: #5a5a7a; -fx-text-alignment: center;");
-        desc.setTextAlignment(javafx.scene.text.TextAlignment.CENTER);
-        root.getChildren().addAll(icon, title, desc);
-        contentPane.getChildren().add(root);
     }
 
     @FXML

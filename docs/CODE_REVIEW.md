@@ -139,7 +139,7 @@ After F03/F04 (session checks for buyers and admins) the snippets must log in th
 | F24 | P4 | Charles — *Decision* | ~~Borrow request may exceed the listing's lending duration~~ **[DECIDED - As Specified]** | Consistency with UC 2.5 A4 |
 | F25 | P4 | Charles, Elio, shared | ~~Number formatting depends on the default locale~~ **[FIXED - PR #44]** | Brief "consistent interface" |
 | F26 | P4 | Charles | ~~Two classes named `RegistrationResult`~~ **[FIXED - PR #45]** | Brief "readability and maintainability" |
-| F27 | P4 | Charles — *Decision* | "Favourites" screen is a visible placeholder | Brief (favourites/follow mentioned) |
+| F27 | P4 | Charles — *Decision* | ~~"Favourites" screen is a visible placeholder~~ **[FIXED - PR #46]** | Brief (favourites/follow mentioned) |
 | F28 | P4 | Team | Dead / legacy code in `DummyDataService` | Brief "best coding practices" |
 | F29 | P4 | Elio | Report does not record the handling admin; resolution logged as "User Accounts" | CLASS_DIAGRAM `Admin 1 --> * Report : Handles`; UC 3.6 categories |
 | F30 | P4 | *Decision* | Seeded admin is `admin`, specs say `admin@ust.hk` | UC 3.1; CLASS_DIAGRAM §3.1 |
@@ -667,7 +667,10 @@ After F03/F04 (session checks for buyers and admins) the snippets must log in th
   seller registration). Code importing both packages must fully qualify one.
 - **Suggested fix:** rename the buyer one (e.g. `BuyerRegistrationResult`) and update its tests, or merge both.
 
-### F27 — "Favourites" screen is a visible placeholder (*Decision*)
+### F27 — [FIXED - PR #46] "Favourites" screen is a visible placeholder (*Decision*)
+> [!NOTE]
+> **Status: FIXED (PR #46)**
+> - Decision made by owner (Charles): Removed the placeholder "Favourites" button from the buyer sidebar (`BuyerDashboardView.fxml`) and controller (`BuyerDashboardController.java`) as favourites/follow are not part of the 28 required use cases, eliminating placeholder UI ahead of grading.
 - **Owner:** Charles.
 - **Where:** `controllers/buyer/BuyerDashboardController.java:2149` `showFavourites()` shows "This section is a UI
   placeholder for students to implement."; sidebar button `fxml/buyer/BuyerDashboardView.fxml` (`btnFavourites`).

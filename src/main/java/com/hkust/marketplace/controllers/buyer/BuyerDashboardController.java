@@ -484,16 +484,37 @@ public class BuyerDashboardController {
     }
 
     /**
-     * Opens and displays the listing detail screen (Use Case 1.4: View Listing Details).
-     * Enforces view count increment, photo gallery, full metadata, seller rating, and action buttons.
+     * Opens and displays the listing detail screen (Use Case 1.4: View Listing Details) with default requireLive=true and returnView="BROWSE".
      *
      * @param initialListing the listing to display
      */
     public void showListingDetail(Listing initialListing) {
+        showListingDetail(initialListing, true, "BROWSE");
+    }
+
+    /**
+     * Opens and displays the listing detail screen with specified requireLive condition and default returnView="BROWSE".
+     *
+     * @param initialListing the listing to display
+     * @param requireLive whether the listing must be LIVE
+     */
+    public void showListingDetail(Listing initialListing, boolean requireLive) {
+        showListingDetail(initialListing, requireLive, "BROWSE");
+    }
+
+    /**
+     * Opens and displays the listing detail screen (Use Case 1.4: View Listing Details).
+     * Enforces view count increment, photo gallery, full metadata, seller rating, and action buttons.
+     *
+     * @param initialListing the listing to display
+     * @param requireLive whether the listing must be LIVE (true from Browse, false from Deals/History/Notifications)
+     * @param returnView origin view name ("BROWSE", "DEALS", "HISTORY", "NOTIFICATIONS")
+     */
+    public void showListingDetail(Listing initialListing, boolean requireLive, String returnView) {
         if (initialListing == null) return;
 
         // Use service to increment view count and fetch full details & seller rating
-        ListingViewResult result = DummyDataService.getInstance().viewListing(initialListing.getId(), true);
+        ListingViewResult result = DummyDataService.getInstance().viewListing(initialListing.getId(), requireLive);
 
         // Alternative Flow A1: Listing No Longer Live
         if (!result.isSuccess()) {
@@ -526,12 +547,35 @@ public class BuyerDashboardController {
         HBox navBar = new HBox(12);
         navBar.setAlignment(Pos.CENTER_LEFT);
 
-        Button btnBack = new Button("← Back to Browse");
+        String backText = "← Back to Browse";
+        Runnable backAction = this::showBrowse;
+        if ("DEALS".equalsIgnoreCase(returnView)) {
+            backText = "← Back to My Deals";
+            backAction = this::showMyDeals;
+        } else if ("HISTORY".equalsIgnoreCase(returnView)) {
+            backText = "← Back to Deal History";
+            backAction = this::showHistory;
+        } else if ("NOTIFICATIONS".equalsIgnoreCase(returnView)) {
+            backText = "← Back to Notifications";
+            backAction = this::showNotifications;
+        }
+
+        Button btnBack = new Button(backText);
         btnBack.getStyleClass().addAll("btn-outline", "btn-sm");
-        btnBack.setOnAction(e -> showBrowse());
+        final Runnable finalBackAction = backAction;
+        btnBack.setOnAction(e -> finalBackAction.run());
 
         Label availBadge = new Label(listing.getAvailabilityDisplay());
-        availBadge.getStyleClass().addAll("badge", "badge-live");
+        availBadge.getStyleClass().add("badge");
+        if (listing.getStatus() == ListingStatus.LIVE) {
+            availBadge.getStyleClass().add("badge-live");
+        } else if (listing.getStatus() == ListingStatus.RESERVED || listing.getStatus() == ListingStatus.LENT) {
+            availBadge.getStyleClass().add("badge-pending");
+        } else if (listing.getStatus() == ListingStatus.SOLD || listing.getStatus() == ListingStatus.GIVEN) {
+            availBadge.getStyleClass().add("badge-sold");
+        } else {
+            availBadge.getStyleClass().add("badge-danger");
+        }
 
         Label typeBadge = new Label(listing.getTypeDisplay());
         typeBadge.getStyleClass().add("badge");
@@ -742,9 +786,13 @@ public class BuyerDashboardController {
             }
         }
 
+        if (listing.getStatus() != ListingStatus.LIVE) {
+            primaryActionBtn.setDisable(true);
+        }
+
         Button chatBtn = new Button("💬 Chat");
         chatBtn.getStyleClass().addAll("btn-outline");
-        chatBtn.setOnAction(e -> openChatForListing(listing, "LISTING"));
+        chatBtn.setOnAction(e -> openChatForListing(listing, "LISTING:" + (returnView != null ? returnView : "BROWSE")));
 
         Button reportBtn = new Button("🚩 Report Listing");
         reportBtn.getStyleClass().addAll("btn-danger");
@@ -1309,7 +1357,7 @@ public class BuyerDashboardController {
                     MyDealsItem item = row.getItem();
                     Listing l = DummyDataService.getInstance().findListing(item.getListingId());
                     if (l != null) {
-                        showListingDetail(l);
+                        showListingDetail(l, false, "DEALS");
                     }
                 }
             });
@@ -1572,7 +1620,7 @@ public class BuyerDashboardController {
             if (sel != null && sel.canOpenListing()) {
                 Listing l = DummyDataService.getInstance().findListing(sel.getListingId());
                 if (l != null) {
-                    showListingDetail(l);
+                    showListingDetail(l, false, "DEALS");
                 } else {
                     new Alert(Alert.AlertType.WARNING, "Listing details not found.").showAndWait();
                 }
@@ -1899,6 +1947,24 @@ public class BuyerDashboardController {
         table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
         VBox.setVgrow(table, Priority.ALWAYS);
 
+        // Double-click row handler: open listing details
+        table.setRowFactory(tv -> {
+            TableRow<DealHistoryItem> row = new TableRow<>();
+            row.setStyle("-fx-cursor: hand;");
+            row.setOnMouseClicked(event -> {
+                if (event.getClickCount() >= 2 && !row.isEmpty()) {
+                    DealHistoryItem item = row.getItem();
+                    if (item != null && item.getListingId() != null) {
+                        Listing l = DummyDataService.getInstance().findListing(item.getListingId());
+                        if (l != null) {
+                            showListingDetail(l, false, "HISTORY");
+                        }
+                    }
+                }
+            });
+            return row;
+        });
+
         TableColumn<DealHistoryItem, String> cTitle = new TableColumn<>("Item Title");
         cTitle.setCellValueFactory(d -> new javafx.beans.property.SimpleStringProperty(d.getValue().getItemTitle()));
         cTitle.setPrefWidth(180);
@@ -2115,7 +2181,7 @@ public class BuyerDashboardController {
             if (sel != null && sel.getListingId() != null) {
                 Listing l = DummyDataService.getInstance().findListing(sel.getListingId());
                 if (l != null) {
-                    showListingDetail(l);
+                    showListingDetail(l, false, "HISTORY");
                 } else {
                     new Alert(Alert.AlertType.WARNING, "Listing details not found.").showAndWait();
                 }
@@ -2433,7 +2499,7 @@ public class BuyerDashboardController {
                     break;
                 case LISTING:
                     Listing l = (Listing) result.getTargetObject();
-                    showListingDetail(l);
+                    showListingDetail(l, false, "NOTIFICATIONS");
                     break;
                 case REVIEW:
                     Review r = (Review) result.getTargetObject();
@@ -2810,8 +2876,11 @@ public class BuyerDashboardController {
                 showNotifications();
             } else if ("HISTORY".equalsIgnoreCase(returnView)) {
                 showHistory();
+            } else if (returnView != null && returnView.startsWith("LISTING:")) {
+                String prev = returnView.substring("LISTING:".length());
+                showListingDetail(listing, false, prev);
             } else {
-                showListingDetail(listing);
+                showListingDetail(listing, false, "BROWSE");
             }
         });
 

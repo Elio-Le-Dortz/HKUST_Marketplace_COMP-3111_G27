@@ -344,7 +344,8 @@ and the review by `bob` is already flagged in the seeded data.
 | Seller | `diana`   | `password1`|
 
 > [!NOTE]
-> The seeded administrator account username is `admin` (the assignment brief and domain model gave `admin@ust.hk` as an example: *"e.g., admin@ust.hk"*). Log in to the Admin Portal using `admin` / `admin123`.
+> **Listing Photos & Demo Data Limitation (F31)**:
+> In accordance with the domain model (`Listing 1 *-- 1..6 Photo`), listings created via the Seller Portal (US-S02) or Admin Portal (US-A07) require 1 to 6 photos uploaded from the local filesystem. For the static in-memory seed listings (`DummyDataService`), no photos are attached to avoid requiring local filesystem image writes on startup across arbitrary operating systems. Seeded listings display the dedicated "No Photo" / "No photos uploaded for this listing" placeholders in the Marketplace Browse cards and Listing Details gallery.
 
 ## Features Implemented (UI Only)
 

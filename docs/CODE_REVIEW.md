@@ -142,8 +142,9 @@ After F03/F04 (session checks for buyers and admins) the snippets must log in th
 | F27 | P4 | Charles — *Decision* | ~~"Favourites" screen is a visible placeholder~~ **[FIXED - PR #46]** | Brief (favourites/follow mentioned) |
 | F28 | P4 | Team | ~~Dead / legacy code in `DummyDataService`~~ **[FIXED - PR #48]** | Brief "best coding practices" |
 | F29 | P4 | Elio | Report does not record the handling admin; resolution logged as "User Accounts" | CLASS_DIAGRAM `Admin 1 --> * Report : Handles`; UC 3.6 categories |
+
 | F30 | P4 | *Decision* | ~~Seeded admin is `admin`, specs say `admin@ust.hk`~~ **[DECIDED - Keep `admin`]** | UC 3.1; CLASS_DIAGRAM §3.1 |
-| F31 | P4 | *Decision* | Seeded listings have no photos | CLASS_DIAGRAM `Listing 1 *-- 1..6 Photo` |
+| F31 | P4 | *Decision* | ~~Seeded listings have no photos~~ **[DECIDED - Demo Limitation Documented]** | CLASS_DIAGRAM `Listing 1 *-- 1..6 Photo` |
 | F32 | P4 | Charles | ~~My Deals cannot rate a returned loan (Deal History can)~~ **[FIXED - PR #47]** | Consistency (UC 1.10) |
 | F33 | P4 | Elio | All Deals matches a deal's review by users + listing, not by deal | UC 3.5 step 4 |
 | F34 | P4 | Antoine — *Decision* | Seller cannot cancel or mark sold a Reserved deal | Brief: sellers can "mark as sold" |
@@ -720,7 +721,10 @@ After F03/F04 (session checks for buyers and admins) the snippets must log in th
 - **Note:** either rename the seeded account (update README and tests) or state in the README that the seeded
   admin is `admin`.
 
-### F31 — Seeded listings have no photos (*Decision*)
+### F31 — [DECIDED - Demo Limitation Documented] Seeded listings have no photos (*Decision*)
+> [!NOTE]
+> **Status: DECIDED (No code change needed)**
+> Decision made by team / owner: Documented as a known demo limitation. Photos are stored as absolute filesystem paths read with `java.io.File`, meaning bundled JAR resources cannot be directly referenced without extracting them to disk on every application run. Real photo selection and validation (1..6 photos) is fully enforced on newly created listings via `CreateListingService` (US-S02) and `AdminListingService` (US-A07). The UI provides built-in fallback placeholders ("No Photo" / "No photos uploaded for this listing") when rendering seeded listings. Documented in `README.md` under Demo Credentials.
 - **Where:** `DummyDataService.createListing(...)` (line ~509) adds no `Photo`.
 - **Requirement:** CLASS_DIAGRAM `Listing 1 *-- 1..6 Photo`.
 - **Note:** photos are stored as absolute file paths and read with `java.io.File`; bundled resources are not files

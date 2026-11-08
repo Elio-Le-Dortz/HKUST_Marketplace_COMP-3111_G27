@@ -66,7 +66,8 @@ public class ActOnListingService {
 
         // Notify Seller (Subflow S1 Step 4)
         String notifMsg = buyerUsername.trim() + " offered HK$" + String.format("%.2f", price) + " for '" + listing.getTitle() + "'.";
-        dataService.addNotification(new Notification(listing.getSellerUsername(), "New Offer Received", notifMsg, "Offer"));
+        dataService.addNotification(new Notification(listing.getSellerUsername(), "New Offer Received", notifMsg, "Offer",
+                offer.getId(), NotificationTargetType.OFFER.name()));
 
         // Confirm to Buyer (Subflow S1 Step 5)
         String confirmMsg = "Your offer of HK$" + String.format("%.2f", price) + " has been submitted to " + listing.getSellerFullName() + ".";
@@ -115,7 +116,8 @@ public class ActOnListingService {
         // Notify Seller (Subflow S2 Step 4)
         String notifMsg = buyerUsername.trim() + " requested to borrow '" + listing.getTitle() + "' from "
                 + startDate.toLocalDate() + " to " + endDate.toLocalDate() + ".";
-        dataService.addNotification(new Notification(listing.getSellerUsername(), "Borrow Request Received", notifMsg, "Offer"));
+        dataService.addNotification(new Notification(listing.getSellerUsername(), "Borrow Request Received", notifMsg, "Offer",
+                offer.getId(), NotificationTargetType.OFFER.name()));
 
         // Confirm to Buyer (Subflow S2 Step 5)
         String confirmMsg = "Your borrow request for '" + listing.getTitle() + "' has been submitted to " + listing.getSellerFullName() + ".";
@@ -158,7 +160,8 @@ public class ActOnListingService {
 
         // Notify Seller (Subflow S3 Step 3)
         String notifMsg = buyerUsername.trim() + " claimed your giveaway item: '" + listing.getTitle() + "'.";
-        dataService.addNotification(new Notification(listing.getSellerUsername(), "Giveaway Claim Received", notifMsg, "Offer"));
+        dataService.addNotification(new Notification(listing.getSellerUsername(), "Giveaway Claim Received", notifMsg, "Offer",
+                offer.getId(), NotificationTargetType.OFFER.name()));
 
         // Confirm to Buyer (Subflow S3 Step 4)
         String confirmMsg = "Your claim for '" + listing.getTitle() + "' has been submitted to " + listing.getSellerFullName() + ".";

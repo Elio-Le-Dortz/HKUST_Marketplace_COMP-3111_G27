@@ -125,7 +125,7 @@ After F03/F04 (session checks for buyers and admins) the snippets must log in th
 | F10 | P2 | Antoine | Seller chat has no search | Brief "chat history retained and searchable" |
 | F11 | P2 | Elio | Admin never sees photos; "add listing" attaches a fake photo | Task 3.2 "Photos"; Task 3.7 "same fields as Task 2.3"; UC 3.7 A3 |
 | F12 | P3 | Charles / shared | ~~Buyer-facing seller rating stale after hiding; fake seeded ratings~~ **[FIXED - PR #37]** | CLASS_DIAGRAM rule 4; UC 3.8 postcondition; Task 1.10 |
-| F13 | P3 | Team (seed) | Seeded deals contradict listing statuses | CLASS_DIAGRAM listing lifecycle |
+| F13 | P3 | Team (seed) | ~~Seeded deals contradict listing statuses~~ **[FIXED - PR #49]** | CLASS_DIAGRAM listing lifecycle |
 | F14 | P3 | Elio | Admin login reveals which credential is wrong; no "use your own portal" | UC 3.1 A2, A3 |
 | F15 | P3 | Elio | Admin rename of a seller does not update their listings | UC 3.3; backlog US-S06 "reflected across all posted listings" |
 | F16 | P3 | Elio | Admin listing form stores lend duration in whole days (lossy) | UC 3.7 "same rules as a new listing"; 5-second minimum |
@@ -449,7 +449,19 @@ After F03/F04 (session checks for buyers and admins) the snippets must log in th
   demo should show ratings.
 - **Watch out:** tests asserting the seeded 4.7 / 4.3 values must be updated (`grep -rn '4\.7\|4\.3' src/test`).
 
-### F13 — Seeded deals contradict the listing lifecycle
+### F13 — [FIXED - PR #49] Seeded deals contradict the listing lifecycle
+> [!NOTE]
+> **Status: FIXED (PR #49)**
+> - Aligned seeded listings and deals in `DummyDataService.seedData()` with CLASS_DIAGRAM §3.2 and §3.5:
+>   - `L100` (Calculus Textbook Stewart, active deal `D500`): status set to `RESERVED`.
+>   - `L101` (MacBook Charger, completed sale `D502`): status set to `SOLD`.
+>   - `L103` (TI-84, active loan `D501`): status set to `LENT`.
+>   - `L107` (HKUST Hoodie, completed giveaway `D504`): status set to `GIVEN`.
+>   - `L104` (Mini Fridge): removed conflicting loan deal `D503`; kept clean as `PENDING_REVIEW` for admin demo review.
+>   - Added seeded live listings `L10` (*Multivariable Calculus*, SELL/BOOKS) and `L11` (*Casio fx-991ES*, LEND) so marketplace browsing, searching, and borrowing have live listings.
+>   - Moved returned loan deal `D503` to `L11` (which returned to `LIVE` after loan completion).
+>   - Moved countered offer `O2` to `L105` (live listing) so counter offer acceptance/decline tests operate on valid live listings.
+>   - Updated `ChatServiceTest` to submit formal offers on live listings, and updated `README.md` demo instructions.
 - **Owner:** Team (seed data in `DummyDataService.seedData()`, `utils/DummyDataService.java:168-282`).
 - **Requirement:** CLASS_DIAGRAM §3.2 lifecycle (`Live → Reserved → Sold/Lent/Given`) and §3.5.
 - **Observed:**

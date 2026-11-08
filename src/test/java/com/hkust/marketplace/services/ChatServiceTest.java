@@ -159,7 +159,7 @@ class ChatServiceTest {
         @Test
         @DisplayName("sendFormalPriceOffer on SELL listing submits offer, appends structured message, and notifies seller")
         void testSendFormalPriceOfferSuccess() {
-            Listing listing = dataService.findListing("L100"); // SELL listing
+            Listing listing = dataService.findListing("L105"); // live SELL listing
             ChatThread thread = chatService.getOrCreateThread(listing.getId(), "bob");
             int initialMsgCount = thread.getMessages().size();
             int initialOffers = dataService.getAllOffers().size();
@@ -189,7 +189,10 @@ class ChatServiceTest {
         @Test
         @DisplayName("sendFormalBorrowRequest on LEND listing submits borrow offer, appends structured message")
         void testSendFormalBorrowRequestSuccess() {
-            Listing lendListing = dataService.findListing("L103"); // LEND listing
+            Listing lendListing = dataService.getLiveListings().stream()
+                    .filter(l -> l.getType() == ListingType.LEND && !"bob".equalsIgnoreCase(l.getSellerUsername()))
+                    .findFirst()
+                    .orElseThrow();
             ChatThread thread = chatService.getOrCreateThread(lendListing.getId(), "bob");
 
             LocalDateTime start = LocalDateTime.now().plusDays(1);
@@ -210,7 +213,7 @@ class ChatServiceTest {
         @Test
         @DisplayName("Formal offers with invalid price, invalid dates, or wrong listing type fail")
         void testFormalOfferValidations() {
-            Listing sellListing = dataService.findListing("L100");
+            Listing sellListing = dataService.findListing("L105");
             ChatThread sellThread = chatService.getOrCreateThread(sellListing.getId(), "bob");
 
             // Zero or negative price
@@ -227,7 +230,10 @@ class ChatServiceTest {
             assertFalse(borrowOnSell.isSuccess());
 
             // Price offer on LEND listing
-            Listing lendListing = dataService.findListing("L103");
+            Listing lendListing = dataService.getLiveListings().stream()
+                    .filter(l -> l.getType() == ListingType.LEND && !"bob".equalsIgnoreCase(l.getSellerUsername()))
+                    .findFirst()
+                    .orElseThrow();
             ChatThread lendThread = chatService.getOrCreateThread(lendListing.getId(), "bob");
             SendFormalOfferResult priceOnLend = chatService.sendFormalPriceOffer(lendThread.getId(), "bob", 100.0);
             assertFalse(priceOnLend.isSuccess());
@@ -496,7 +502,7 @@ class ChatServiceTest {
         @DisplayName("F22: Concurrent formal chat offers and direct offers execute without lock inversion deadlock")
         void testConcurrentFormalOffersAndDirectOffersNoDeadlock() {
             assertTimeoutPreemptively(Duration.ofSeconds(10), () -> {
-                ChatThread thread = chatService.getOrCreateThread("L100", "bob");
+                ChatThread thread = chatService.getOrCreateThread("L105", "bob");
                 int threadCount = 8;
                 int iterations = 15;
                 ExecutorService executor = Executors.newFixedThreadPool(threadCount);
@@ -516,7 +522,7 @@ class ChatServiceTest {
                             } else {
                                 // Direct offer
                                 SessionManager.withSession(dataService.findUser("bob"), () ->
-                                        dataService.submitPriceOffer("L100", "bob", offerPrice + 100.0));
+                                        dataService.submitPriceOffer("L105", "bob", offerPrice + 100.0));
                             }
                         }
                         return null;

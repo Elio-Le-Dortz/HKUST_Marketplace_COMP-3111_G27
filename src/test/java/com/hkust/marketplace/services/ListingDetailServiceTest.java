@@ -93,6 +93,32 @@ class ListingDetailServiceTest {
                 assertTrue(res.isSuccess());
             }
         }
+
+        @Test
+        @DisplayName("Viewing a listing whose loan has expired triggers auto-return and allows viewing [F07]")
+        void testViewListingAutoReturnsExpiredLoan() {
+            Listing lend = new Listing();
+            lend.setTitle("Camera loan");
+            lend.setType(ListingType.LEND);
+            lend.setSellerUsername("charlie");
+            lend.setStatus(ListingStatus.LENT);
+            dataService.addListing(lend);
+
+            Deal loan = new Deal();
+            loan.setListingId(lend.getId());
+            loan.setListingTitle(lend.getTitle());
+            loan.setBuyerUsername("alice");
+            loan.setSellerUsername("charlie");
+            loan.setType(DealType.LOAN);
+            loan.setStatus(DealStatus.ACTIVE);
+            loan.setDueDate(java.time.LocalDateTime.now().minusMinutes(1));
+            dataService.addDeal(loan);
+
+            ListingViewResult result = detailService.viewListing(lend.getId(), true);
+            assertTrue(result.isSuccess());
+            assertEquals(ListingStatus.LIVE, lend.getStatus());
+            assertEquals(DealStatus.RETURNED, loan.getStatus());
+        }
     }
 
     @Nested

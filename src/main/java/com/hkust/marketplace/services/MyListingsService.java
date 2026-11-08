@@ -149,6 +149,7 @@ public class MyListingsService {
     public List<Listing> getMyListings() {
         Seller seller = SessionManager.requireSeller();
         synchronized (dataService) {
+            dataService.processAutoReturns();
             return dataService.getListingsBySeller(seller.getUsername()).stream()
                     .filter(listing -> !listing.isDeletedBySeller())
                     .sorted(NEWEST_FIRST)

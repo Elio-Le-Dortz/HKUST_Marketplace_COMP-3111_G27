@@ -36,6 +36,7 @@ public class ListingDetailService {
      * @return a {@link ListingViewResult} representing the outcome
      */
     public synchronized ListingViewResult viewListing(String listingId, boolean requireLive) {
+        dataService.processAutoReturns();
         if (listingId == null || listingId.trim().isEmpty()) {
             return ListingViewResult.notFound("Listing ID cannot be null or empty.");
         }

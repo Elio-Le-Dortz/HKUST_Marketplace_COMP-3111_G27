@@ -62,6 +62,9 @@ import java.util.regex.Pattern;
  * Seller, which the Buyer and Admin portals read to show it. The file is not copied: like all
  * the data of this in-memory demo, the listing only lasts until the application closes.</p>
  *
+ * <p><b>Persistence.</b> A submitted listing is written to the data store, with its photos,
+ * so it is kept in the SQLite database when the application restarts.</p>
+ *
  * <p>This class does not use JavaFX, so every flow is unit tested without a display.</p>
  */
 public class CreateListingService {
@@ -236,7 +239,10 @@ public class CreateListingService {
             // rename the Seller and their listings: a name changed at the same time is never lost.
             listing.setSellerFullName(seller.getFullName());
             dataService.addListing(listing);
+            // The photos are named after the identifier the data store has just given the
+            // listing, so the listing is saved again to write them to the database.
             listing.setPhotos(toPhotos(listing.getId(), request.photos()));
+            dataService.updateListing(listing);
         }
         // Step 9: notify the admin, after releasing the data store lock (see the class comment).
         dataService.getAdminNotificationService().notifyListingSubmission(listing);

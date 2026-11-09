@@ -65,6 +65,11 @@ import java.util.Set;
  * when two password changes are sent at the same time with the same current password, only the
  * first one succeeds. Inside the lock, only the data store is called.</p>
  *
+ * <p><b>Persistence.</b> A saved profile is written to the data store with
+ * {@link DummyDataService#updateUser}, and every renamed listing with
+ * {@link DummyDataService#updateListing}, so the changes are kept in the SQLite database when
+ * the application restarts.</p>
+ *
  * <p>This class does not use JavaFX, so every flow is unit tested without a display.</p>
  */
 public class SellerProfileService {
@@ -200,6 +205,8 @@ public class SellerProfileService {
             if (passwordChange) {
                 seller.setPasswordHash(newHash);
             }
+            // Write the account to the database, so the changes are kept after a restart.
+            dataService.updateUser(seller);
             int updatedListings = renameListings(seller);
             // Step 8: confirm the update to the Seller.
             return SellerProfileResult.success(seller, changed, updatedListings,
@@ -362,7 +369,8 @@ public class SellerProfileService {
 
     /**
      * Gives every listing of the Seller, whatever its status, the Seller's current name
-     * (acceptance criterion). Called while holding the data store lock.
+     * (acceptance criterion), and saves each renamed listing in the data store (and so in the
+     * database). Called while holding the data store lock.
      *
      * @param seller the Seller, with the saved name
      * @return the number of listings whose seller name changed
@@ -372,6 +380,7 @@ public class SellerProfileService {
         for (Listing listing : dataService.getListingsBySeller(seller.getUsername())) {
             if (!Objects.equals(seller.getFullName(), listing.getSellerFullName())) {
                 listing.setSellerFullName(seller.getFullName());
+                dataService.updateListing(listing);
                 updated++;
             }
         }

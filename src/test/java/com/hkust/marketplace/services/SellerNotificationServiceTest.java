@@ -438,8 +438,7 @@ class SellerNotificationServiceTest {
         @DisplayName("Listing Review: the admin takes the listing down, with the reason shown (use case 3.7)")
         void listingTakenDown() {
             Listing listing = liveSellListing();
-            AdminListingOperationResult takenDown = DATA.getAdminListingService()
-                    .takeDownListing(listing.getId(), "Counterfeit item", ADMIN);
+            AdminListingOperationResult takenDown = DATA.takeDownListing(listing.getId(), "Counterfeit item", ADMIN);
             assertTrue(takenDown.isSuccess(), takenDown.getMessage());
 
             Notification n = onlyNotificationTitled("Listing Taken Down");
@@ -504,13 +503,13 @@ class SellerNotificationServiceTest {
         @DisplayName("Reviews: the admin hides a review or dismisses its flag (use case 3.8)")
         void reviewModerated() {
             Review hidden = reviewThroughBuyerFlow(buyer1, 1);
-            AdminRatingOperationResult hide = DATA.getAdminRatingService().hideReview(hidden.getId(), ADMIN);
+            AdminRatingOperationResult hide = DATA.hideReviewByAdmin(hidden.getId(), ADMIN);
             assertTrue(hide.isSuccess(), hide.getMessage());
             Review kept = reviewThroughBuyerFlow(buyer2, 2);
             ReviewHandlingResult flagged = new ReviewHandlingService(DATA)
                     .flagReview(kept.getId(), ReviewFlagReason.OFFENSIVE_LANGUAGE, null);
             assertTrue(flagged.isSuccess(), flagged.getMessage());
-            AdminRatingOperationResult dismissed = DATA.getAdminRatingService().dismissFlag(kept.getId(), ADMIN);
+            AdminRatingOperationResult dismissed = DATA.dismissReviewFlagByAdmin(kept.getId(), ADMIN);
             assertTrue(dismissed.isSuccess(), dismissed.getMessage());
 
             assertCategory(SellerNotificationCategory.REVIEWS, onlyNotificationTitled("Review Hidden by Admin"));
@@ -544,11 +543,11 @@ class SellerNotificationServiceTest {
         @Test
         @DisplayName("Announcements: the admin deactivates then reactivates the Seller's account (use case 3.3)")
         void accountChanges() {
-            UserManagementResult off = DATA.getUserManagementService()
-                    .changeAccountStatus(seller.getUsername(), AccountStatus.DEACTIVATED, ADMIN);
+            UserManagementResult off = SessionManager.withSession(DATA.findUser(ADMIN), () -> DATA.getUserManagementService()
+                    .changeAccountStatus(seller.getUsername(), AccountStatus.DEACTIVATED, ADMIN));
             assertTrue(off.isSuccess(), off.getMessage());
-            UserManagementResult on = DATA.getUserManagementService()
-                    .changeAccountStatus(seller.getUsername(), AccountStatus.ACTIVE, ADMIN);
+            UserManagementResult on = SessionManager.withSession(DATA.findUser(ADMIN), () -> DATA.getUserManagementService()
+                    .changeAccountStatus(seller.getUsername(), AccountStatus.ACTIVE, ADMIN));
             assertTrue(on.isSuccess(), on.getMessage());
             SessionManager.login(seller);
 
@@ -716,7 +715,7 @@ class SellerNotificationServiceTest {
         @DisplayName("A take-down opens the listing, still on My Listings with the admin's reason")
         void opensTakenDownListing() {
             Listing listing = liveSellListing();
-            DATA.getAdminListingService().takeDownListing(listing.getId(), "Not allowed on campus", ADMIN);
+            DATA.takeDownListing(listing.getId(), "Not allowed on campus", ADMIN);
 
             SellerNotificationResult result = service.openNotification(onlyNotificationTitled("Listing Taken Down").getId());
 
@@ -896,7 +895,7 @@ class SellerNotificationServiceTest {
         @DisplayName("A review hidden by the admin (use case 3.8) is no longer shown to the Seller")
         void hiddenReview() {
             Review review = reviewThroughBuyerFlow(buyer1, 1);
-            DATA.getAdminRatingService().hideReview(review.getId(), ADMIN);
+            DATA.hideReviewByAdmin(review.getId(), ADMIN);
 
             assertUnavailable(service.openNotification(onlyNotificationTitled("New Review Received").getId()),
                     NotificationTargetType.REVIEW, SellerNotificationService.REVIEW_HIDDEN);

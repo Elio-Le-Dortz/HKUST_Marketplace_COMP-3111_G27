@@ -1,5 +1,6 @@
 package com.hkust.marketplace.services;
 
+import com.hkust.marketplace.models.Admin;
 import com.hkust.marketplace.models.AdminRatingFilterCriteria;
 import com.hkust.marketplace.models.AdminRatingOperationResult;
 import com.hkust.marketplace.models.AdminRatingOperationStatus;
@@ -12,6 +13,7 @@ import com.hkust.marketplace.models.SellerRatingInfo;
 import com.hkust.marketplace.models.User;
 import com.hkust.marketplace.models.UserRole;
 import com.hkust.marketplace.utils.DummyDataService;
+import com.hkust.marketplace.utils.SessionManager;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -87,6 +89,7 @@ public class AdminRatingService {
      * @return a sorted list of all reviews in the system
      */
     public synchronized List<Review> getOrderedReviews() {
+        SessionManager.requireAdmin();
         return dataService.getAllReviews().stream()
                 .filter(Objects::nonNull)
                 .sorted(REVIEW_ORDER_COMPARATOR)
@@ -101,6 +104,7 @@ public class AdminRatingService {
      * @throws IllegalArgumentException if the date range has an end date before its start date (Flow A3)
      */
     public synchronized List<Review> filterReviews(AdminRatingFilterCriteria criteria) {
+        SessionManager.requireAdmin();
         if (criteria != null && !criteria.isValidDateRange()) {
             throw new IllegalArgumentException("Invalid date range: end date cannot be before start date.");
         }
@@ -118,6 +122,7 @@ public class AdminRatingService {
      * @return the computed {@link AdminRatingSummaryMetrics}
      */
     public synchronized AdminRatingSummaryMetrics getSummaryMetrics() {
+        SessionManager.requireAdmin();
         List<Review> all = dataService.getAllReviews().stream()
                 .filter(Objects::nonNull)
                 .collect(Collectors.toList());
@@ -356,6 +361,7 @@ public class AdminRatingService {
      * @return the matching {@link Review}, or null if not found
      */
     public synchronized Review findReviewById(String reviewId) {
+        SessionManager.requireAdmin();
         if (reviewId == null || reviewId.trim().isEmpty()) {
             return null;
         }
@@ -368,14 +374,15 @@ public class AdminRatingService {
     }
 
     private boolean isAdmin(String username) {
+        Admin sessionAdmin = SessionManager.requireAdmin();
         if (username == null || username.trim().isEmpty()) {
             return false;
         }
         User user = dataService.findUser(username.trim());
-        if (user != null) {
-            return user.getRole() == UserRole.ADMIN;
+        if (user == null || user.getRole() != UserRole.ADMIN || !user.isActive()) {
+            return false;
         }
-        return "admin".equalsIgnoreCase(username.trim());
+        return sessionAdmin.getUsername().equalsIgnoreCase(user.getUsername());
     }
 
     private String resolveListingTitle(Review review) {
@@ -398,7 +405,8 @@ public class AdminRatingService {
         if (reviewId == null || reviewId.trim().isEmpty()) {
             return;
         }
-        List<Notification> adminNotifs = dataService.getNotificationsFor("admin");
+        Admin sessionAdmin = SessionManager.requireAdmin();
+        List<Notification> adminNotifs = dataService.getNotificationsFor(sessionAdmin.getUsername());
         for (Notification n : adminNotifs) {
             if (n != null && "REVIEW".equalsIgnoreCase(n.getRelatedItemType())
                     && reviewId.trim().equalsIgnoreCase(n.getRelatedItemId())) {

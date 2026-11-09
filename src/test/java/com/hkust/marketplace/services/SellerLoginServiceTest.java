@@ -391,11 +391,11 @@ class SellerLoginServiceTest {
             Seller seller = storeSeller("s02_reactivated", AccountStatus.ACTIVE);
             UserManagementService admin = new UserManagementService(DATA);
 
-            assertTrue(admin.changeAccountStatus(seller.getUsername(), AccountStatus.DEACTIVATED, "admin").isSuccess());
+            assertTrue(SessionManager.withSession(DATA.findUser(DummyDataService.SEEDED_ADMIN_USERNAME), () -> admin.changeAccountStatus(seller.getUsername(), AccountStatus.DEACTIVATED, "admin").isSuccess()));
             assertEquals(LoginErrorType.ACCOUNT_DEACTIVATED,
                     service.authenticate(seller.getUsername(), PASSWORD).getErrorType());
 
-            assertTrue(admin.changeAccountStatus(seller.getUsername(), AccountStatus.ACTIVE, "admin").isSuccess());
+            assertTrue(SessionManager.withSession(DATA.findUser(DummyDataService.SEEDED_ADMIN_USERNAME), () -> admin.changeAccountStatus(seller.getUsername(), AccountStatus.ACTIVE, "admin").isSuccess()));
             assertTrue(service.authenticate(seller.getUsername(), PASSWORD).isSuccess());
         }
     }
@@ -418,7 +418,8 @@ class SellerLoginServiceTest {
             assertTrue(service.login(seller.getUsername(), PASSWORD).isSuccess());
             assertSame(seller, SessionManager.requireSeller());
 
-            new UserManagementService(DATA).changeAccountStatus(seller.getUsername(), AccountStatus.DEACTIVATED, "admin");
+            SessionManager.withSession(DATA.findUser(DummyDataService.SEEDED_ADMIN_USERNAME), () ->
+                    new UserManagementService(DATA).changeAccountStatus(seller.getUsername(), AccountStatus.DEACTIVATED, "admin"));
 
             assertThrows(SecurityException.class, SessionManager::requireSeller);
         }

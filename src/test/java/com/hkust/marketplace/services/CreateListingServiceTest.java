@@ -409,8 +409,8 @@ class CreateListingServiceTest {
         void adminNotificationOpensListing() {
             Listing listing = createValid(form().build());
             Notification notification = newAdminNotifications().get(0);
-            AdminNotificationDetailResult detail = DATA.getAdminNotificationService()
-                    .getNotificationDetail(notification.getId(), ADMIN);
+            AdminNotificationDetailResult detail = SessionManager.withSession(DATA.findUser(ADMIN), () ->
+                    DATA.getAdminNotificationService().getNotificationDetail(notification.getId(), ADMIN));
             assertEquals(AdminNotificationDetailStatus.FOUND, detail.getStatus());
             assertSame(listing, detail.getListing());
         }

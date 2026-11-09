@@ -129,7 +129,7 @@ public class AdminLoginTest {
         AdminProfileUpdateRequest req = new AdminProfileUpdateRequest(
                 "admin", "Updated Admin",
                 "admin123", "BrandNewPass2026", "BrandNewPass2026");
-        dataService.getAdminProfileService().updateProfile("admin", req);
+        dataService.updateAdminProfile("admin", req);
 
         // Old password now fails
         String oldResult = controller.authenticateAdmin("admin", "admin123");

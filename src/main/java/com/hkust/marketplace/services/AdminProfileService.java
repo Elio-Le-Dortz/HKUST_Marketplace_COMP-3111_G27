@@ -43,6 +43,7 @@ public class AdminProfileService {
      * @return active {@link Admin} entity if found, or {@code null} otherwise
      */
     public synchronized Admin getProfile(String username) {
+        SessionManager.requireAdmin();
         if (username == null || username.trim().isEmpty()) {
             return null;
         }
@@ -61,6 +62,7 @@ public class AdminProfileService {
      * @return {@link AdminProfileUpdateResult} indicating success or specific validation failure
      */
     public synchronized AdminProfileUpdateResult updateProfile(String username, AdminProfileUpdateRequest request) {
+        Admin sessionAdmin = SessionManager.requireAdmin();
         if (username == null || username.trim().isEmpty()) {
             return AdminProfileUpdateResult.failure(AdminProfileUpdateStatus.USER_NOT_FOUND,
                     "Admin username is required.", Collections.emptySet());
@@ -82,6 +84,11 @@ public class AdminProfileService {
                     "Administrator account is deactivated.", Collections.emptySet());
         }
 
+        if (!sessionAdmin.getUsername().equalsIgnoreCase(user.getUsername())) {
+            return AdminProfileUpdateResult.failure(AdminProfileUpdateStatus.UNAUTHORIZED,
+                    "Cannot update profile of another administrator.", Collections.emptySet());
+        }
+
         return updateProfile((Admin) user, request);
     }
 
@@ -93,9 +100,15 @@ public class AdminProfileService {
      * @return {@link AdminProfileUpdateResult} indicating success or specific failure
      */
     public synchronized AdminProfileUpdateResult updateProfile(Admin admin, AdminProfileUpdateRequest request) {
+        Admin sessionAdmin = SessionManager.requireAdmin();
         if (admin == null) {
             return AdminProfileUpdateResult.failure(AdminProfileUpdateStatus.USER_NOT_FOUND,
                     "Admin cannot be null.", Collections.emptySet());
+        }
+
+        if (!sessionAdmin.getUsername().equalsIgnoreCase(admin.getUsername())) {
+            return AdminProfileUpdateResult.failure(AdminProfileUpdateStatus.UNAUTHORIZED,
+                    "Cannot update profile of another administrator.", Collections.emptySet());
         }
 
         if (request == null) {
@@ -118,7 +131,7 @@ public class AdminProfileService {
             // Alternative Flow A2: Current password missing
             if (currentPassword == null || currentPassword.isEmpty()) {
                 return AdminProfileUpdateResult.failure(AdminProfileUpdateStatus.CURRENT_PASSWORD_REQUIRED,
-                        "Current password is required to change password.", "currentPassword");
+                    "Current password is required to change password.", "currentPassword");
             }
 
             // Alternative Flow A2: Wrong current password

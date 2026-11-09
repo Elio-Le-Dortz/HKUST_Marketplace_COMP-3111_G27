@@ -3,6 +3,8 @@ package com.hkust.marketplace.services;
 import com.hkust.marketplace.models.*;
 import com.hkust.marketplace.utils.DummyDataService;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.AfterEach;
+import com.hkust.marketplace.utils.SessionManager;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -25,6 +27,12 @@ class AdminRatingServiceTest {
         dataService = DummyDataService.getInstance();
         dataService.resetData();
         ratingService = dataService.getAdminRatingService();
+        SessionManager.login(dataService.findUser(DummyDataService.SEEDED_ADMIN_USERNAME));
+    }
+
+    @AfterEach
+    void tearDown() {
+        SessionManager.logout();
     }
 
     // =========================================================================
@@ -538,5 +546,31 @@ class AdminRatingServiceTest {
         AdminRatingSummaryMetrics metrics = ratingService.getSummaryMetrics();
         assertTrue(metrics.getTotalReviews() >= 20);
         assertTrue(seller.getAverageRating() >= 0.0);
+    }
+
+    @Test
+    @DisplayName("RBAC: Unauthenticated caller throws SecurityException")
+    void testUnauthenticatedAccessThrowsSecurityException() {
+        SessionManager.logout();
+        assertThrows(SecurityException.class, () -> ratingService.getOrderedReviews());
+        assertThrows(SecurityException.class, () -> ratingService.filterReviews(null));
+        assertThrows(SecurityException.class, () -> ratingService.getSummaryMetrics());
+        assertThrows(SecurityException.class, () -> ratingService.findReviewById("R1"));
+        assertThrows(SecurityException.class, () -> ratingService.hideReview("R1", "admin"));
+        assertThrows(SecurityException.class, () -> ratingService.unhideReview("R1", "admin"));
+        assertThrows(SecurityException.class, () -> ratingService.dismissFlag("R1", "admin"));
+    }
+
+    @Test
+    @DisplayName("RBAC: Non-admin caller throws SecurityException")
+    void testNonAdminAccessThrowsSecurityException() {
+        SessionManager.login(dataService.findUser("alice"));
+        assertThrows(SecurityException.class, () -> ratingService.getOrderedReviews());
+        assertThrows(SecurityException.class, () -> ratingService.filterReviews(null));
+        assertThrows(SecurityException.class, () -> ratingService.getSummaryMetrics());
+        assertThrows(SecurityException.class, () -> ratingService.findReviewById("R1"));
+        assertThrows(SecurityException.class, () -> ratingService.hideReview("R1", "admin"));
+        assertThrows(SecurityException.class, () -> ratingService.unhideReview("R1", "admin"));
+        assertThrows(SecurityException.class, () -> ratingService.dismissFlag("R1", "admin"));
     }
 }

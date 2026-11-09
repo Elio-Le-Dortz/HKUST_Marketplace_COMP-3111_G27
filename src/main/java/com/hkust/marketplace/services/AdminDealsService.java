@@ -2,6 +2,7 @@ package com.hkust.marketplace.services;
 
 import com.hkust.marketplace.models.*;
 import com.hkust.marketplace.utils.DummyDataService;
+import com.hkust.marketplace.utils.SessionManager;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -33,6 +34,8 @@ public class AdminDealsService {
      * @return an {@link AdminDealQueryResult} describing the status and matching records
      */
     public synchronized AdminDealQueryResult queryDeals(AdminDealFilterCriteria criteria) {
+        SessionManager.requireAdmin();
+
         // Enforce Alternative Flow A4: Invalid date range (end date precedes start date)
         if (criteria != null && !criteria.isValidDateRange()) {
             return AdminDealQueryResult.invalidDateRange(
@@ -83,6 +86,7 @@ public class AdminDealsService {
      * @return an {@link Optional} containing the enriched record if found, or empty otherwise
      */
     public synchronized Optional<AdminDealRecord> getDealDetails(String dealId) {
+        SessionManager.requireAdmin();
         if (dealId == null || dealId.trim().isEmpty()) {
             return Optional.empty();
         }
@@ -98,6 +102,7 @@ public class AdminDealsService {
      * Total number of transactions currently recorded in the marketplace.
      */
     public synchronized int getTotalDealsCount() {
+        SessionManager.requireAdmin();
         return dataService.getAllDeals().size();
     }
 

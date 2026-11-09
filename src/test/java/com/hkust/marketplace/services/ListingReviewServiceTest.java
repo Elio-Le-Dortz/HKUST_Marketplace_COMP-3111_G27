@@ -3,6 +3,8 @@ package com.hkust.marketplace.services;
 import com.hkust.marketplace.models.*;
 import com.hkust.marketplace.utils.DummyDataService;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.AfterEach;
+import com.hkust.marketplace.utils.SessionManager;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -27,6 +29,12 @@ class ListingReviewServiceTest {
         dataService = DummyDataService.getInstance();
         dataService.resetData();
         reviewService = new ListingReviewService(dataService);
+        SessionManager.login(dataService.findUser("admin"));
+    }
+
+    @AfterEach
+    void tearDown() {
+        SessionManager.logout();
     }
 
     @Test
@@ -376,16 +384,9 @@ class ListingReviewServiceTest {
             User admin = dataService.findUser("admin");
             admin.setActive(false);
 
-            List<Listing> pending = reviewService.getPendingListingsOldestFirst();
-            Listing target = pending.get(0);
-
-            ListingReviewResult result = reviewService.approveListing(target.getId(), "admin");
-            assertFalse(result.isSuccess());
-            assertEquals(ListingReviewStatus.UNAUTHORIZED, result.getStatus());
-
-            ListingReviewResult rejResult = reviewService.rejectListing(target.getId(), "admin", "Valid reason");
-            assertFalse(rejResult.isSuccess());
-            assertEquals(ListingReviewStatus.UNAUTHORIZED, rejResult.getStatus());
+            assertThrows(SecurityException.class, () -> reviewService.getPendingListingsOldestFirst());
+            assertThrows(SecurityException.class, () -> reviewService.approveListing("L100", "admin"));
+            assertThrows(SecurityException.class, () -> reviewService.rejectListing("L100", "admin", "Valid reason"));
         }
 
         @Test
@@ -543,5 +544,27 @@ class ListingReviewServiceTest {
                 assertEquals(ListingStatus.LIVE, dataService.findListing(id).getStatus());
             }
         }
+    }
+
+    @Test
+    @DisplayName("RBAC: Unauthenticated caller throws SecurityException")
+    void testUnauthenticatedAccessThrowsSecurityException() {
+        SessionManager.logout();
+        assertThrows(SecurityException.class, () -> reviewService.getPendingListingsOldestFirst());
+        assertThrows(SecurityException.class, () -> reviewService.getListingDetails("L100"));
+        assertThrows(SecurityException.class, () -> reviewService.approveListing("L100", "admin"));
+        assertThrows(SecurityException.class, () -> reviewService.rejectListing("L100", "admin", "Reason"));
+        assertThrows(SecurityException.class, () -> reviewService.reviewListing(ListingReviewRequest.approveRequest("L100", "admin")));
+    }
+
+    @Test
+    @DisplayName("RBAC: Non-admin caller throws SecurityException")
+    void testNonAdminAccessThrowsSecurityException() {
+        SessionManager.login(dataService.findUser("alice"));
+        assertThrows(SecurityException.class, () -> reviewService.getPendingListingsOldestFirst());
+        assertThrows(SecurityException.class, () -> reviewService.getListingDetails("L100"));
+        assertThrows(SecurityException.class, () -> reviewService.approveListing("L100", "admin"));
+        assertThrows(SecurityException.class, () -> reviewService.rejectListing("L100", "admin", "Reason"));
+        assertThrows(SecurityException.class, () -> reviewService.reviewListing(ListingReviewRequest.approveRequest("L100", "admin")));
     }
 }

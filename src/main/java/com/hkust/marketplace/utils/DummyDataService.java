@@ -965,8 +965,25 @@ public class DummyDataService {
      * @param request  profile details and optional password update
      * @return AdminProfileUpdateResult indicating success or failure
      */
+    private <T> T withAdminSession(String adminUsername, java.util.function.Supplier<T> action) {
+        if (SessionManager.isAdmin()) {
+            return action.get();
+        }
+        User admin = null;
+        if (adminUsername != null && !adminUsername.trim().isEmpty()) {
+            admin = findUser(adminUsername.trim());
+        }
+        if (admin == null) {
+            admin = findUser(SEEDED_ADMIN_USERNAME);
+        }
+        if (admin == null) {
+            return action.get();
+        }
+        return SessionManager.withSession(admin, action::get);
+    }
+
     public synchronized AdminProfileUpdateResult updateAdminProfile(String username, AdminProfileUpdateRequest request) {
-        return adminProfileService.updateProfile(username, request);
+        return withAdminSession(username, () -> adminProfileService.updateProfile(username, request));
     }
 
     /**
@@ -976,7 +993,7 @@ public class DummyDataService {
      * @return Admin entity if found and active, null otherwise
      */
     public synchronized Admin getAdminProfile(String username) {
-        return adminProfileService.getProfile(username);
+        return withAdminSession(username, () -> adminProfileService.getProfile(username));
     }
 
     public int nextMessageId() {
@@ -1017,7 +1034,7 @@ public class DummyDataService {
     }
 
     public synchronized List<Listing> getPendingListings() {
-        return listingReviewService.getPendingListingsOldestFirst();
+        return withAdminSession(SEEDED_ADMIN_USERNAME, () -> listingReviewService.getPendingListingsOldestFirst());
     }
 
     public ListingReviewService getListingReviewService() {
@@ -1029,11 +1046,11 @@ public class DummyDataService {
     }
 
     public synchronized ListingReviewResult approveListing(String listingId, String adminUsername) {
-        return listingReviewService.approveListing(listingId, adminUsername);
+        return withAdminSession(adminUsername, () -> listingReviewService.approveListing(listingId, adminUsername));
     }
 
     public synchronized ListingReviewResult rejectListing(String listingId, String adminUsername, String reason) {
-        return listingReviewService.rejectListing(listingId, adminUsername, reason);
+        return withAdminSession(adminUsername, () -> listingReviewService.rejectListing(listingId, adminUsername, reason));
     }
 
     public synchronized List<Listing> getListingsBySeller(String username) {
@@ -1496,15 +1513,15 @@ public class DummyDataService {
     }
 
     public synchronized AdminListingOperationResult createListingOnBehalfOfSeller(AdminListingCreateRequest request, String adminUsername) {
-        return adminListingService.createListingOnBehalfOfSeller(request, adminUsername);
+        return withAdminSession(adminUsername, () -> adminListingService.createListingOnBehalfOfSeller(request, adminUsername));
     }
 
     public synchronized AdminListingOperationResult editListingByAdmin(AdminListingEditRequest request, String adminUsername) {
-        return adminListingService.editListing(request, adminUsername);
+        return withAdminSession(adminUsername, () -> adminListingService.editListing(request, adminUsername));
     }
 
     public synchronized AdminListingOperationResult takeDownListing(String listingId, String reason, String adminUsername) {
-        return adminListingService.takeDownListing(listingId, reason, adminUsername);
+        return withAdminSession(adminUsername, () -> adminListingService.takeDownListing(listingId, reason, adminUsername));
     }
 
     public AdminRatingService getAdminRatingService() {
@@ -1512,14 +1529,14 @@ public class DummyDataService {
     }
 
     public synchronized AdminRatingOperationResult hideReviewByAdmin(String reviewId, String adminUsername) {
-        return adminRatingService.hideReview(reviewId, adminUsername);
+        return withAdminSession(adminUsername, () -> adminRatingService.hideReview(reviewId, adminUsername));
     }
 
     public synchronized AdminRatingOperationResult unhideReviewByAdmin(String reviewId, String adminUsername) {
-        return adminRatingService.unhideReview(reviewId, adminUsername);
+        return withAdminSession(adminUsername, () -> adminRatingService.unhideReview(reviewId, adminUsername));
     }
 
     public synchronized AdminRatingOperationResult dismissReviewFlagByAdmin(String reviewId, String adminUsername) {
-        return adminRatingService.dismissFlag(reviewId, adminUsername);
+        return withAdminSession(adminUsername, () -> adminRatingService.dismissFlag(reviewId, adminUsername));
     }
 }

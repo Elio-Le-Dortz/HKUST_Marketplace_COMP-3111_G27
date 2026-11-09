@@ -202,4 +202,64 @@ class SessionManagerTest {
             assertTrue(ex.getMessage().contains("Seller account is not active"), status::name);
         }
     }
+
+    // ===== US-A01: Admin session check (use case 3.1 special requirement, F04) =====
+
+    @Test
+    @DisplayName("getCurrentAdmin returns the Admin only for an Admin session")
+    void testGetCurrentAdmin() {
+        assertNull(SessionManager.getCurrentAdmin());
+
+        Admin admin = new Admin("admin", "Admin User", "hash");
+        SessionManager.login(admin);
+        assertSame(admin, SessionManager.getCurrentAdmin());
+
+        SessionManager.login(new Buyer("alice", "Alice Chan", "hash"));
+        assertNull(SessionManager.getCurrentAdmin());
+
+        SessionManager.login(new Seller("charlie", "Charlie Lee", "hash"));
+        assertNull(SessionManager.getCurrentAdmin());
+    }
+
+    @Test
+    @DisplayName("requireAdmin returns the active Admin of the session")
+    void testRequireAdminSuccess() {
+        Admin admin = new Admin("admin", "Admin User", "hash");
+        SessionManager.login(admin);
+        assertSame(admin, SessionManager.requireAdmin());
+    }
+
+    @Test
+    @DisplayName("requireAdmin throws SecurityException when unauthenticated")
+    void testRequireAdminUnauthenticated() {
+        SecurityException ex = assertThrows(SecurityException.class, SessionManager::requireAdmin);
+        assertTrue(ex.getMessage().contains("No user is currently logged in"));
+    }
+
+    @Test
+    @DisplayName("requireAdmin throws SecurityException when logged in as non-admin")
+    void testRequireAdminNonAdmin() {
+        Buyer buyer = new Buyer("alice", "Alice Chan", "hash");
+        SessionManager.login(buyer);
+        SecurityException ex = assertThrows(SecurityException.class, SessionManager::requireAdmin);
+        assertTrue(ex.getMessage().contains("Access requires an Admin account"));
+
+        Seller seller = new Seller("charlie", "Charlie Lee", "hash");
+        SessionManager.login(seller);
+        ex = assertThrows(SecurityException.class, SessionManager::requireAdmin);
+        assertTrue(ex.getMessage().contains("Access requires an Admin account"));
+    }
+
+    @Test
+    @DisplayName("requireAdmin throws SecurityException when the Admin is deactivated or deleted")
+    void testRequireAdminInactive() {
+        for (AccountStatus status : new AccountStatus[]{AccountStatus.DEACTIVATED, AccountStatus.DELETED}) {
+            Admin admin = new Admin("admin", "Admin User", "hash");
+            admin.setAccountStatus(status);
+            SessionManager.login(admin);
+
+            SecurityException ex = assertThrows(SecurityException.class, SessionManager::requireAdmin);
+            assertTrue(ex.getMessage().contains("Admin account is not active"), status::name);
+        }
+    }
 }

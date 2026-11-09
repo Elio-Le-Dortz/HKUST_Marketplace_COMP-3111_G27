@@ -4,6 +4,7 @@ import com.hkust.marketplace.models.*;
 import com.hkust.marketplace.utils.DummyDataService;
 import com.hkust.marketplace.utils.SessionManager;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -25,8 +26,13 @@ class UserManagementServiceTest {
     void setUp() {
         dataService = DummyDataService.getInstance();
         dataService.resetData();
-        SessionManager.logout();
+        SessionManager.login(dataService.findUser("admin"));
         service = new UserManagementService(dataService);
+    }
+
+    @AfterEach
+    void tearDown() {
+        SessionManager.logout();
     }
 
     @Nested
@@ -71,9 +77,7 @@ class UserManagementServiceTest {
             // Requester admin is deactivated
             User admin = dataService.findUser("admin");
             admin.setAccountStatus(AccountStatus.DEACTIVATED);
-            UserManagementResult r6 = service.editUser(UserEditRequest.builder().targetUsername("alice").adminUsername("admin").newFullName("Name").build());
-            assertFalse(r6.isSuccess());
-            assertEquals(UserManagementStatus.UNAUTHORIZED, r6.getStatus());
+            assertThrows(SecurityException.class, () -> service.editUser(UserEditRequest.builder().targetUsername("alice").adminUsername("admin").newFullName("Name").build()));
             admin.setAccountStatus(AccountStatus.ACTIVE);
 
             // Target user does not exist
@@ -358,7 +362,8 @@ class UserManagementServiceTest {
             SessionManager.login(alice);
             assertTrue(SessionManager.isLoggedIn());
 
-            UserManagementResult result = service.changeAccountStatus("alice", AccountStatus.DEACTIVATED, "admin");
+            User admin = dataService.findUser("admin");
+            UserManagementResult result = SessionManager.withSession(admin, () -> service.changeAccountStatus("alice", AccountStatus.DEACTIVATED, "admin"));
             assertTrue(result.isSuccess());
             assertEquals(AccountStatus.DEACTIVATED, alice.getAccountStatus());
             assertFalse(alice.isActive());
@@ -473,7 +478,8 @@ class UserManagementServiceTest {
             SessionManager.login(cleanSeller);
             assertTrue(SessionManager.isLoggedIn());
 
-            UserManagementResult result = service.deleteUser("seller_clean", "admin");
+            User admin = dataService.findUser("admin");
+            UserManagementResult result = SessionManager.withSession(admin, () -> service.deleteUser("seller_clean", "admin"));
             assertTrue(result.isSuccess());
             assertTrue(cleanSeller.isDeleted());
             assertEquals(AccountStatus.DELETED, cleanSeller.getAccountStatus());
@@ -518,7 +524,8 @@ class UserManagementServiceTest {
             SessionManager.login(cleanBuyer);
             assertTrue(SessionManager.isLoggedIn());
 
-            UserManagementResult result = service.deleteUser("buyer_clean", "admin");
+            User admin = dataService.findUser("admin");
+            UserManagementResult result = SessionManager.withSession(admin, () -> service.deleteUser("buyer_clean", "admin"));
             assertTrue(result.isSuccess());
             assertTrue(cleanBuyer.isDeleted());
             assertEquals(AccountStatus.DELETED, cleanBuyer.getAccountStatus());
@@ -614,4 +621,29 @@ class UserManagementServiceTest {
             assertNotNull(testUser.getAccountStatus());
         }
     }
+
+    @Test
+    @DisplayName("RBAC: Unauthenticated caller throws SecurityException")
+    void testUnauthenticatedAccessThrowsSecurityException() {
+        SessionManager.logout();
+        assertThrows(SecurityException.class, () -> service.getUsers(null));
+        assertThrows(SecurityException.class, () -> service.getUser("alice"));
+        assertThrows(SecurityException.class, () -> service.getActiveDealsForUser("alice"));
+        assertThrows(SecurityException.class, () -> service.editUser(UserEditRequest.builder().targetUsername("alice").adminUsername("admin").newFullName("Name").build()));
+        assertThrows(SecurityException.class, () -> service.changeAccountStatus("alice", AccountStatus.DEACTIVATED, "admin"));
+        assertThrows(SecurityException.class, () -> service.deleteUser("alice", "admin"));
+    }
+
+    @Test
+    @DisplayName("RBAC: Non-admin caller throws SecurityException")
+    void testNonAdminAccessThrowsSecurityException() {
+        SessionManager.login(dataService.findUser("alice"));
+        assertThrows(SecurityException.class, () -> service.getUsers(null));
+        assertThrows(SecurityException.class, () -> service.getUser("alice"));
+        assertThrows(SecurityException.class, () -> service.getActiveDealsForUser("alice"));
+        assertThrows(SecurityException.class, () -> service.editUser(UserEditRequest.builder().targetUsername("alice").adminUsername("admin").newFullName("Name").build()));
+        assertThrows(SecurityException.class, () -> service.changeAccountStatus("alice", AccountStatus.DEACTIVATED, "admin"));
+        assertThrows(SecurityException.class, () -> service.deleteUser("alice", "admin"));
+    }
 }
+

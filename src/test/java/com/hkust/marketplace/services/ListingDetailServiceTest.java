@@ -382,7 +382,7 @@ class ListingDetailServiceTest {
             assertEquals(1, before.getRatingCount());
 
             // Admin hides the review
-            dataService.getAdminRatingService().hideReview(rev.getId(), "admin");
+            dataService.hideReviewByAdmin(rev.getId(), "admin");
 
             // Buyer view must immediately reflect no ratings
             assertFalse(detailService.getSellerRatingInfo("rs").hasRatings());

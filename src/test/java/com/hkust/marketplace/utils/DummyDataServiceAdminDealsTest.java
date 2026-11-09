@@ -24,6 +24,12 @@ class DummyDataServiceAdminDealsTest {
     void setUp() {
         dataService = DummyDataService.getInstance();
         dataService.resetData();
+        SessionManager.login(dataService.findUser(DummyDataService.SEEDED_ADMIN_USERNAME));
+    }
+
+    @org.junit.jupiter.api.AfterEach
+    void tearDown() {
+        SessionManager.logout();
     }
 
     @Test

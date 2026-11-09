@@ -17,6 +17,12 @@ class DummyDataServiceAdminRatingTest {
     void setUp() {
         service = DummyDataService.getInstance();
         service.resetData();
+        SessionManager.login(service.findUser(DummyDataService.SEEDED_ADMIN_USERNAME));
+    }
+
+    @org.junit.jupiter.api.AfterEach
+    void tearDown() {
+        SessionManager.logout();
     }
 
     @Test

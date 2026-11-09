@@ -3,6 +3,8 @@ package com.hkust.marketplace.services;
 import com.hkust.marketplace.models.*;
 import com.hkust.marketplace.utils.DummyDataService;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.AfterEach;
+import com.hkust.marketplace.utils.SessionManager;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -26,6 +28,12 @@ class AdminListingServiceTest {
         dataService = DummyDataService.getInstance();
         dataService.resetData();
         service = new AdminListingService(dataService);
+        SessionManager.login(dataService.findUser(ADMIN_USER));
+    }
+
+    @AfterEach
+    void tearDown() {
+        SessionManager.logout();
     }
 
     private Listing getSampleListing(String titleSubstring) {
@@ -699,5 +707,33 @@ class AdminListingServiceTest {
             assertTrue(takeDownSuccesses.get() <= 1, "At most one take-down can succeed");
             assertTrue(target.getStatus() == ListingStatus.REMOVED || target.getStatus() == ListingStatus.RESERVED);
         }
+    }
+
+    @Test
+    @DisplayName("RBAC: Unauthenticated caller throws SecurityException")
+    void testUnauthenticatedAccessThrowsSecurityException() {
+        SessionManager.logout();
+        assertThrows(SecurityException.class, () -> service.getAllListings());
+        assertThrows(SecurityException.class, () -> service.filterListings(null));
+        assertThrows(SecurityException.class, () -> service.getActiveSellers());
+        assertThrows(SecurityException.class, () -> service.getActiveOffersCount("L100"));
+        assertThrows(SecurityException.class, () -> service.getListingCountsByStatus());
+        assertThrows(SecurityException.class, () -> service.createListingOnBehalfOfSeller(null, ADMIN_USER));
+        assertThrows(SecurityException.class, () -> service.editListing(null, ADMIN_USER));
+        assertThrows(SecurityException.class, () -> service.takeDownListing("L100", "Reason", ADMIN_USER));
+    }
+
+    @Test
+    @DisplayName("RBAC: Non-admin caller throws SecurityException")
+    void testNonAdminAccessThrowsSecurityException() {
+        SessionManager.login(dataService.findUser("alice"));
+        assertThrows(SecurityException.class, () -> service.getAllListings());
+        assertThrows(SecurityException.class, () -> service.filterListings(null));
+        assertThrows(SecurityException.class, () -> service.getActiveSellers());
+        assertThrows(SecurityException.class, () -> service.getActiveOffersCount("L100"));
+        assertThrows(SecurityException.class, () -> service.getListingCountsByStatus());
+        assertThrows(SecurityException.class, () -> service.createListingOnBehalfOfSeller(null, ADMIN_USER));
+        assertThrows(SecurityException.class, () -> service.editListing(null, ADMIN_USER));
+        assertThrows(SecurityException.class, () -> service.takeDownListing("L100", "Reason", ADMIN_USER));
     }
 }

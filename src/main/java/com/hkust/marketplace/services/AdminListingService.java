@@ -4,6 +4,7 @@ import com.hkust.marketplace.models.*;
 import com.hkust.marketplace.utils.DummyDataService;
 import com.hkust.marketplace.utils.SessionManager;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.nio.file.Path;
@@ -98,7 +99,8 @@ public class AdminListingService {
             AdminListingOperationResult validation = validateListingFields(
                     request.getTitle(), request.getDescription(), request.getType(), request.getCategory(),
                     request.getCondition(), request.getMeetupLocation(),
-                    request.getPrice(), request.getLendingDays(), request.getPhotos()
+                    request.getPrice(), request.getLendingAmount(), request.getLendingUnit(),
+                    request.getLendingDuration(), request.getLendingDays(), request.getPhotos()
             );
             if (validation != null) {
                 return validation;
@@ -119,13 +121,13 @@ public class AdminListingService {
 
             if (request.getType() == ListingType.SELL) {
                 listing.setPrice(request.getPrice());
-                listing.setLendingDays(null);
+                listing.setLendingDuration(null);
             } else if (request.getType() == ListingType.LEND) {
                 listing.setPrice(null);
-                listing.setLendingDays(request.getLendingDays());
+                listing.setLendingDuration(request.getLendingDuration());
             } else {
                 listing.setPrice(null);
-                listing.setLendingDays(null);
+                listing.setLendingDuration(null);
             }
 
             dataService.addListing(listing);
@@ -188,7 +190,8 @@ public class AdminListingService {
             AdminListingOperationResult validation = validateListingFields(
                     request.getTitle(), request.getDescription(), request.getType(), request.getCategory(),
                     request.getCondition(), request.getMeetupLocation(),
-                    request.getPrice(), request.getLendingDays(), request.getPhotos()
+                    request.getPrice(), request.getLendingAmount(), request.getLendingUnit(),
+                    request.getLendingDuration(), request.getLendingDays(), request.getPhotos()
             );
             if (validation != null) {
                 return validation;
@@ -204,13 +207,13 @@ public class AdminListingService {
 
             if (request.getType() == ListingType.SELL) {
                 listing.setPrice(request.getPrice());
-                listing.setLendingDays(null);
+                listing.setLendingDuration(null);
             } else if (request.getType() == ListingType.LEND) {
                 listing.setPrice(null);
-                listing.setLendingDays(request.getLendingDays());
+                listing.setLendingDuration(request.getLendingDuration());
             } else {
                 listing.setPrice(null);
-                listing.setLendingDays(null);
+                listing.setLendingDuration(null);
             }
 
             List<Photo> storedEditPhotos = new ArrayList<>();
@@ -409,7 +412,8 @@ public class AdminListingService {
     private AdminListingOperationResult validateListingFields(
             String title, String description, ListingType type, Category category,
             Condition condition, MeetupLocation meetupLocation,
-            Double price, Integer lendingDays, List<Photo> photos) {
+            Double price, String lendingAmount, LendingDurationUnit lendingUnit,
+            Duration lendingDuration, Integer lendingDays, List<Photo> photos) {
 
         if (title == null || title.trim().isEmpty()) {
             return AdminListingOperationResult.invalidField("title", "Item name is required.");
@@ -441,8 +445,24 @@ public class AdminListingService {
                 return AdminListingOperationResult.invalidField("price", "Price must be greater than zero for Sell listings.");
             }
         } else if (type == ListingType.LEND) {
-            if (lendingDays == null || lendingDays <= 0) {
-                return AdminListingOperationResult.invalidField("lendingDays", "Lending duration must be positive for Lend listings.");
+            String lendErr = null;
+            if (lendingAmount != null || lendingUnit != null) {
+                lendErr = CreateListingService.checkLendingDuration(lendingAmount, lendingUnit);
+            } else if (lendingDuration != null) {
+                if (lendingDuration.isZero() || lendingDuration.isNegative()) {
+                    lendErr = CreateListingService.LENDING_NOT_POSITIVE;
+                } else if (lendingDuration.compareTo(CreateListingService.MIN_LENDING_DURATION) < 0) {
+                    lendErr = CreateListingService.LENDING_TOO_SHORT;
+                } else if (lendingDuration.compareTo(CreateListingService.MAX_LENDING_DURATION) > 0) {
+                    lendErr = CreateListingService.LENDING_TOO_LONG;
+                }
+            } else if (lendingDays != null) {
+                lendErr = CreateListingService.checkLendingDuration(String.valueOf(lendingDays), LendingDurationUnit.DAYS);
+            } else {
+                lendErr = CreateListingService.LENDING_REQUIRED;
+            }
+            if (lendErr != null) {
+                return AdminListingOperationResult.invalidField("lendingDays", lendErr);
             }
         }
 
@@ -477,5 +497,16 @@ public class AdminListingService {
         }
 
         return null; // Valid
+    }
+
+    private AdminListingOperationResult validateListingFields(
+            String title, String description, ListingType type, Category category,
+            Condition condition, MeetupLocation meetupLocation,
+            Double price, Integer lendingDays, List<Photo> photos) {
+        return validateListingFields(title, description, type, category, condition, meetupLocation,
+                price, lendingDays != null ? String.valueOf(lendingDays) : null,
+                lendingDays != null ? LendingDurationUnit.DAYS : null,
+                lendingDays != null ? Duration.ofDays(lendingDays) : null,
+                lendingDays, photos);
     }
 }

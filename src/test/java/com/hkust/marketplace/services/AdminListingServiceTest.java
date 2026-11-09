@@ -13,6 +13,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.*;
@@ -424,7 +425,56 @@ class AdminListingServiceTest {
             Listing created = res.getListing();
             assertEquals(ListingStatus.LIVE, created.getStatus());
             assertEquals(14, created.getLendingDays());
+            assertEquals(Duration.ofDays(14), created.getLendingDuration());
             assertNull(created.getPrice());
+        }
+
+        @Test
+        @DisplayName("Subflow S1: Successfully add LEND listing with granular duration (10 seconds, 36 hours) [F16]")
+        void testAddLendListingGranularDuration() {
+            AdminListingCreateRequest reqSec = new AdminListingCreateRequest(
+                    "diana", "Stopwatch", "Timer", ListingType.LEND,
+                    Category.ELECTRONICS, Condition.LIKE_NEW, MeetupLocation.ATRIUM,
+                    null, "10", LendingDurationUnit.SECONDS, List.of(new Photo(samplePhoto.toString()))
+            );
+            AdminListingOperationResult resSec = service.createListingOnBehalfOfSeller(reqSec, ADMIN_USER);
+            assertTrue(resSec.isSuccess());
+            assertEquals(Duration.ofSeconds(10), resSec.getListing().getLendingDuration());
+
+            AdminListingCreateRequest reqHours = new AdminListingCreateRequest(
+                    "diana", "Tent", "Camping", ListingType.LEND,
+                    Category.OTHER, Condition.USED, MeetupLocation.LIBRARY,
+                    null, "36", LendingDurationUnit.HOURS, List.of(new Photo(samplePhoto.toString()))
+            );
+            AdminListingOperationResult resHours = service.createListingOnBehalfOfSeller(reqHours, ADMIN_USER);
+            assertTrue(resHours.isSuccess());
+            assertEquals(Duration.ofHours(36), resHours.getListing().getLendingDuration());
+        }
+
+        @Test
+        @DisplayName("Subflow S1: Reject invalid lending durations (too short, too long, non-whole number) [F16]")
+        void testAddLendListingInvalidDurations() {
+            AdminListingCreateRequest req = new AdminListingCreateRequest(
+                    "diana", "Stopwatch", "Timer", ListingType.LEND,
+                    Category.ELECTRONICS, Condition.LIKE_NEW, MeetupLocation.ATRIUM,
+                    null, "4", LendingDurationUnit.SECONDS, List.of(new Photo(samplePhoto.toString()))
+            );
+            AdminListingOperationResult resShort = service.createListingOnBehalfOfSeller(req, ADMIN_USER);
+            assertFalse(resShort.isSuccess());
+            assertEquals("lendingDays", resShort.getInvalidFieldName());
+            assertEquals(CreateListingService.LENDING_TOO_SHORT, resShort.getMessage());
+
+            req.setLending("366", LendingDurationUnit.DAYS);
+            AdminListingOperationResult resLong = service.createListingOnBehalfOfSeller(req, ADMIN_USER);
+            assertFalse(resLong.isSuccess());
+            assertEquals("lendingDays", resLong.getInvalidFieldName());
+            assertEquals(CreateListingService.LENDING_TOO_LONG, resLong.getMessage());
+
+            req.setLending("2.5", LendingDurationUnit.DAYS);
+            AdminListingOperationResult resFraction = service.createListingOnBehalfOfSeller(req, ADMIN_USER);
+            assertFalse(resFraction.isSuccess());
+            assertEquals("lendingDays", resFraction.getInvalidFieldName());
+            assertEquals(CreateListingService.LENDING_NOT_A_WHOLE_NUMBER, resFraction.getMessage());
         }
 
         @Test
@@ -599,6 +649,52 @@ class AdminListingServiceTest {
             assertEquals(ListingType.GIVEAWAY, updated.getType());
             assertNull(updated.getPrice());
             assertNull(updated.getLendingDays());
+            assertNull(updated.getLendingDuration());
+        }
+
+        @Test
+        @DisplayName("Subflow S2: Editing title of 36-hour Lend listing preserves 36 hours without loss [F16]")
+        void testEditLendListingPreserves36Hours() {
+            Listing target = getSampleListing("MacBook");
+            target.setType(ListingType.LEND);
+            target.setStatus(ListingStatus.LIVE);
+            target.setLendingDuration(Duration.ofHours(36));
+            dataService.updateListing(target);
+
+            // Edit only title - mimicking prefilled request with 36 hours
+            AdminListingEditRequest req = new AdminListingEditRequest(
+                    target.getId(), "MacBook Pro M2 (Updated Title)", target.getDescription(),
+                    ListingType.LEND, target.getCategory(), target.getCondition(), target.getMeetupLocation(),
+                    null, "36", LendingDurationUnit.HOURS, List.of(new Photo(samplePhoto.toString()))
+            );
+
+            AdminListingOperationResult res = service.editListing(req, ADMIN_USER);
+            assertTrue(res.isSuccess());
+            Listing updated = dataService.findListing(target.getId());
+            assertEquals("MacBook Pro M2 (Updated Title)", updated.getTitle());
+            assertEquals(Duration.ofHours(36), updated.getLendingDuration());
+        }
+
+        @Test
+        @DisplayName("Subflow S2: Editing title of 10-second Lend listing preserves 10 seconds without error [F16]")
+        void testEditLendListingPreserves10Seconds() {
+            Listing target = getSampleListing("Calculus");
+            target.setType(ListingType.LEND);
+            target.setStatus(ListingStatus.LIVE);
+            target.setLendingDuration(Duration.ofSeconds(10));
+            dataService.updateListing(target);
+
+            AdminListingEditRequest req = new AdminListingEditRequest(
+                    target.getId(), "Calculus Book (Updated)", target.getDescription(),
+                    ListingType.LEND, target.getCategory(), target.getCondition(), target.getMeetupLocation(),
+                    null, "10", LendingDurationUnit.SECONDS, List.of(new Photo(samplePhoto.toString()))
+            );
+
+            AdminListingOperationResult res = service.editListing(req, ADMIN_USER);
+            assertTrue(res.isSuccess());
+            Listing updated = dataService.findListing(target.getId());
+            assertEquals("Calculus Book (Updated)", updated.getTitle());
+            assertEquals(Duration.ofSeconds(10), updated.getLendingDuration());
         }
     }
 

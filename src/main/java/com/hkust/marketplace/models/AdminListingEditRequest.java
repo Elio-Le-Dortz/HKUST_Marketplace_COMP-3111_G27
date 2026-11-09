@@ -1,5 +1,8 @@
 package com.hkust.marketplace.models;
 
+import com.hkust.marketplace.services.CreateListingService;
+
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -8,6 +11,14 @@ import java.util.List;
  * listing (US-A07, specs_admin.tex Subflow S2: Edit Listing).
  */
 public class AdminListingEditRequest {
+
+    private static final List<LendingDurationUnit> UNITS_LARGEST_FIRST = List.of(
+            LendingDurationUnit.WEEKS,
+            LendingDurationUnit.DAYS,
+            LendingDurationUnit.HOURS,
+            LendingDurationUnit.MINUTES,
+            LendingDurationUnit.SECONDS
+    );
 
     private String listingId;
     private String title;
@@ -18,6 +29,9 @@ public class AdminListingEditRequest {
     private MeetupLocation meetupLocation;
     private Double price;
     private Integer lendingDays;
+    private Duration lendingDuration;
+    private String lendingAmount;
+    private LendingDurationUnit lendingUnit;
     private List<Photo> photos = new ArrayList<>();
 
     public AdminListingEditRequest() {
@@ -35,8 +49,36 @@ public class AdminListingEditRequest {
         this.condition = condition;
         this.meetupLocation = meetupLocation;
         this.price = price;
-        this.lendingDays = lendingDays;
+        setLendingDays(lendingDays);
         setPhotos(photos);
+    }
+
+    public AdminListingEditRequest(String listingId, String title, String description,
+                                   ListingType type, Category category, Condition condition,
+                                   MeetupLocation meetupLocation, Double price,
+                                   String lendingAmount, LendingDurationUnit lendingUnit,
+                                   List<Photo> photos) {
+        this.listingId = listingId;
+        this.title = title;
+        this.description = description;
+        this.type = type;
+        this.category = category;
+        this.condition = condition;
+        this.meetupLocation = meetupLocation;
+        this.price = price;
+        setLending(lendingAmount, lendingUnit);
+        setPhotos(photos);
+    }
+
+    public static AdminListingEditRequest ofDuration(String listingId, String title, String description,
+                                                     ListingType type, Category category, Condition condition,
+                                                     MeetupLocation meetupLocation, Double price,
+                                                     Duration lendingDuration, List<Photo> photos) {
+        AdminListingEditRequest req = new AdminListingEditRequest(
+                listingId, title, description, type, category, condition, meetupLocation, price, (Integer) null, photos
+        );
+        req.setLendingDuration(lendingDuration);
+        return req;
     }
 
     public String getListingId() {
@@ -104,11 +146,113 @@ public class AdminListingEditRequest {
     }
 
     public Integer getLendingDays() {
-        return lendingDays;
+        if (lendingDays != null) {
+            return lendingDays;
+        }
+        Duration duration = getLendingDuration();
+        if (duration != null) {
+            return (int) duration.toDays();
+        }
+        return null;
     }
 
     public void setLendingDays(Integer lendingDays) {
         this.lendingDays = lendingDays;
+        if (lendingDays != null) {
+            this.lendingDuration = Duration.ofDays(lendingDays);
+            this.lendingAmount = String.valueOf(lendingDays);
+            this.lendingUnit = LendingDurationUnit.DAYS;
+        } else {
+            this.lendingDuration = null;
+            this.lendingAmount = null;
+            this.lendingUnit = null;
+        }
+    }
+
+    public Duration getLendingDuration() {
+        if (lendingDuration != null) {
+            return lendingDuration;
+        }
+        if (lendingAmount != null && lendingUnit != null) {
+            try {
+                return CreateListingService.toLendingDuration(lendingAmount, lendingUnit);
+            } catch (Exception ignored) {
+                return null;
+            }
+        }
+        if (lendingDays != null) {
+            return Duration.ofDays(lendingDays);
+        }
+        return null;
+    }
+
+    public void setLendingDuration(Duration lendingDuration) {
+        this.lendingDuration = lendingDuration;
+        if (lendingDuration == null) {
+            this.lendingDays = null;
+            this.lendingAmount = null;
+            this.lendingUnit = null;
+            return;
+        }
+        this.lendingDays = (int) lendingDuration.toDays();
+        long seconds = lendingDuration.getSeconds();
+        if (seconds > 0) {
+            for (LendingDurationUnit unit : UNITS_LARGEST_FIRST) {
+                long unitSeconds = unit.getLength().getSeconds();
+                if (seconds % unitSeconds == 0) {
+                    this.lendingUnit = unit;
+                    this.lendingAmount = String.valueOf(seconds / unitSeconds);
+                    return;
+                }
+            }
+            this.lendingUnit = LendingDurationUnit.SECONDS;
+            this.lendingAmount = String.valueOf(seconds);
+        } else {
+            this.lendingAmount = String.valueOf(seconds);
+            this.lendingUnit = LendingDurationUnit.DAYS;
+        }
+    }
+
+    public void setLending(String amount, LendingDurationUnit unit) {
+        this.lendingAmount = amount;
+        this.lendingUnit = unit;
+        try {
+            this.lendingDuration = CreateListingService.toLendingDuration(amount, unit);
+            this.lendingDays = (int) this.lendingDuration.toDays();
+        } catch (Exception ex) {
+            this.lendingDuration = null;
+            this.lendingDays = null;
+        }
+    }
+
+    public String getLendingAmount() {
+        return lendingAmount;
+    }
+
+    public void setLendingAmount(String lendingAmount) {
+        this.lendingAmount = lendingAmount;
+        updateDurationFromAmountAndUnit();
+    }
+
+    public LendingDurationUnit getLendingUnit() {
+        return lendingUnit;
+    }
+
+    public void setLendingUnit(LendingDurationUnit lendingUnit) {
+        this.lendingUnit = lendingUnit;
+        updateDurationFromAmountAndUnit();
+    }
+
+    private void updateDurationFromAmountAndUnit() {
+        if (lendingAmount != null && lendingUnit != null) {
+            try {
+                this.lendingDuration = CreateListingService.toLendingDuration(lendingAmount, lendingUnit);
+                this.lendingDays = (int) this.lendingDuration.toDays();
+            } catch (Exception ignored) {
+                this.lendingDuration = null;
+                this.lendingDays = null;
+            }
+        }
     }
 
     public List<Photo> getPhotos() {

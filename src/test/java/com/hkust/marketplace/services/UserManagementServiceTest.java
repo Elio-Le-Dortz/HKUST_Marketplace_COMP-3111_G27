@@ -306,6 +306,35 @@ class UserManagementServiceTest {
             assertEquals("Charlie New", result.getUser().getFullName());
             assertEquals("Selling lab gear and textbooks", result.getUser().getBio());
             assertEquals("Library", result.getUser().getPreferredMeetup());
+
+            // F15: seller's listings must also have updated sellerFullName
+            List<Listing> charlieListings = dataService.getListingsBySeller("charlie");
+            assertFalse(charlieListings.isEmpty());
+            for (Listing l : charlieListings) {
+                assertEquals("Charlie New", l.getSellerFullName());
+            }
+        }
+
+        @Test
+        @DisplayName("Regression F15: Admin rename of a seller updates sellerFullName across all their listings")
+        void testF15AdminRenameSellerUpdatesListings() {
+            List<Listing> listings = dataService.getListingsBySeller("charlie");
+            assertFalse(listings.isEmpty(), "Charlie should have seeded listings");
+
+            UserEditRequest req = UserEditRequest.builder()
+                    .targetUsername("charlie")
+                    .adminUsername("admin")
+                    .newFullName("Charles Lee")
+                    .build();
+
+            UserManagementResult result = service.editUser(req);
+            assertTrue(result.isSuccess());
+
+            List<Listing> updatedListings = dataService.getListingsBySeller("charlie");
+            assertFalse(updatedListings.isEmpty());
+            for (Listing l : updatedListings) {
+                assertEquals("Charles Lee", l.getSellerFullName());
+            }
         }
 
         @Test

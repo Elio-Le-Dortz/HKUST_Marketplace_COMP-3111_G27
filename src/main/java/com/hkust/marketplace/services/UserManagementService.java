@@ -95,7 +95,8 @@ public class UserManagementService {
      *   <li>Alternative Flow A2: Full name must not be empty.</li>
      * </ul>
      *
-     * <p>Upon success, updates fields, dispatches a profile update notification to the user,
+     * <p>Upon success, updates fields, synchronizes the updated full name across all
+     * listings posted by the seller, dispatches a profile update notification to the user,
      * and records an audit log entry in the admin notifications board.
      *
      * @param request the edit request
@@ -142,20 +143,27 @@ public class UserManagementService {
         }
 
         // 4. Update details
-        target.setFullName(request.getNewFullName().trim());
-        if (target instanceof Buyer buyer) {
-            if (request.getResidence() != null) {
-                buyer.setResidence(request.getResidence().trim());
+        synchronized (dataService) {
+            target.setFullName(request.getNewFullName().trim());
+            if (target instanceof Buyer buyer) {
+                if (request.getResidence() != null) {
+                    buyer.setResidence(request.getResidence().trim());
+                }
+            } else if (target instanceof Seller seller) {
+                if (request.getBio() != null) {
+                    seller.setBio(request.getBio().trim());
+                }
+                if (request.getPreferredMeetups() != null && !request.getPreferredMeetups().isEmpty()) {
+                    seller.setPreferredMeetups(request.getPreferredMeetups());
+                }
             }
-        } else if (target instanceof Seller seller) {
-            if (request.getBio() != null) {
-                seller.setBio(request.getBio().trim());
-            }
-            if (request.getPreferredMeetups() != null && !request.getPreferredMeetups().isEmpty()) {
-                seller.setPreferredMeetups(request.getPreferredMeetups());
+            dataService.updateUser(target);
+
+            // Reflect full name update across all posted listings of the seller (F15)
+            if (target instanceof Seller || target.getRole() == UserRole.SELLER) {
+                renameListings(target.getUsername(), target.getFullName());
             }
         }
-        dataService.updateUser(target);
 
         // 5. Subflow S1 Step 5: Notify user
         dataService.addNotification(new Notification(
@@ -176,6 +184,28 @@ public class UserManagementService {
         ));
 
         return UserManagementResult.success("User @" + target.getUsername() + " successfully updated.", target);
+    }
+
+    /**
+     * Updates {@code sellerFullName} across all listings posted by the renamed seller,
+     * fulfilling the acceptance criterion that seller full name updates are reflected
+     * across all posted listings (UC 3.3 S1, backlog US-S06). Called while holding the
+     * data store lock.
+     *
+     * @param sellerUsername the username of the seller
+     * @param newFullName    the new full name
+     * @return number of listings updated
+     */
+    private int renameListings(String sellerUsername, String newFullName) {
+        int updated = 0;
+        for (Listing listing : dataService.getListingsBySeller(sellerUsername)) {
+            if (!Objects.equals(newFullName, listing.getSellerFullName())) {
+                listing.setSellerFullName(newFullName);
+                dataService.updateListing(listing);
+                updated++;
+            }
+        }
+        return updated;
     }
 
     /**

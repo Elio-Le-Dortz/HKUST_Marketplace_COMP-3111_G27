@@ -81,4 +81,21 @@ class DummyDataServiceUserManagementTest {
         assertEquals(LoginErrorType.ACCOUNT_DEACTIVATED, loginResult.getErrorType());
         assertEquals(LoginResult.MSG_ACCOUNT_DELETED, loginResult.getMessage());
     }
+
+    @Test
+    @DisplayName("Admin renaming seller updates sellerFullName on all seller's listings (F15)")
+    void testAdminRenameSellerUpdatesListings() {
+        UserEditRequest req = UserEditRequest.builder()
+                .targetUsername("charlie")
+                .adminUsername("admin")
+                .newFullName("Charles Lee")
+                .build();
+        UserManagementResult r = dataService.getUserManagementService().editUser(req);
+        assertTrue(r.isSuccess());
+        List<Listing> charlieListings = dataService.getListingsBySeller("charlie");
+        assertFalse(charlieListings.isEmpty());
+        for (Listing l : charlieListings) {
+            assertEquals("Charles Lee", l.getSellerFullName());
+        }
+    }
 }

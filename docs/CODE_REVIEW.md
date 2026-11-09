@@ -126,7 +126,7 @@ After F03/F04 (session checks for buyers and admins) the snippets must log in th
 | F11 | P2 | Elio | ~~Admin never sees photos; "add listing" attaches a fake photo~~ **[FIXED]** | Task 3.2 "Photos"; Task 3.7 "same fields as Task 2.3"; UC 3.7 A3 |
 | F12 | P3 | Charles / shared | ~~Buyer-facing seller rating stale after hiding; fake seeded ratings~~ **[FIXED - PR #37]** | CLASS_DIAGRAM rule 4; UC 3.8 postcondition; Task 1.10 |
 | F13 | P3 | Team (seed) | ~~Seeded deals contradict listing statuses~~ **[FIXED - PR #49]** | CLASS_DIAGRAM listing lifecycle |
-| F14 | P3 | Elio | Admin login reveals which credential is wrong; no "use your own portal" | UC 3.1 A2, A3 |
+| F14 | P3 | Elio | ~~Admin login reveals which credential is wrong; no "use your own portal"~~ **[FIXED]** | UC 3.1 A2, A3 |
 | F15 | P3 | Elio | ~~Admin rename of a seller does not update their listings~~ **[FIXED]** | UC 3.3; backlog US-S06 "reflected across all posted listings" |
 | F16 | P3 | Elio | Admin listing form stores lend duration in whole days (lossy) | UC 3.7 "same rules as a new listing"; 5-second minimum |
 | F17 | P3 | Elio | ~~Take-down is not atomic with offer acceptance~~ **[FIXED]** | UC 3.7 special req.; CLASS_DIAGRAM rule 1 |

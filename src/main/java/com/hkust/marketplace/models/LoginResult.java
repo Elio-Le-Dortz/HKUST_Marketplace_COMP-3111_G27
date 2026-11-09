@@ -18,6 +18,7 @@ public class LoginResult {
     public static final String MSG_PASSWORD_REQUIRED = "Password is required.";
     public static final String MSG_INVALID_CREDENTIALS = "The username or password you entered is incorrect.";
     public static final String MSG_WRONG_ROLE_BUYER = "This account cannot log in to the Buyer Portal and must use its own portal.";
+    public static final String MSG_WRONG_ROLE_ADMIN = "This account cannot log in to the Admin Portal and must use its own portal.";
     public static final String MSG_ACCOUNT_DEACTIVATED = "This account is deactivated. Please contact an administrator.";
     public static final String MSG_ACCOUNT_DELETED = "This account has been deleted. Please contact an administrator.";
 

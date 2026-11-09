@@ -1,20 +1,23 @@
 package com.hkust.marketplace.controllers.admin;
 
-import com.hkust.marketplace.controllers.admin.AdminLoginController;
 import com.hkust.marketplace.models.Admin;
 import com.hkust.marketplace.models.AdminProfileUpdateRequest;
+import com.hkust.marketplace.models.LoginResult;
 import com.hkust.marketplace.models.User;
 import com.hkust.marketplace.models.UserRole;
+import com.hkust.marketplace.services.AdminLoginService;
 import com.hkust.marketplace.utils.DummyDataService;
 import com.hkust.marketplace.utils.PasswordHasher;
 import com.hkust.marketplace.utils.PasswordUtil;
 import com.hkust.marketplace.utils.SessionManager;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+@DisplayName("AdminLogin Tests (US-A01 Log In As Admin)")
 public class AdminLoginTest {
 
     private AdminLoginController controller;
@@ -71,39 +74,51 @@ public class AdminLoginTest {
 
     @Test
     void testEmptyOrNullCredentialsFail() {
-        assertEquals("Please enter credentials.", controller.authenticateAdmin("", "admin123"));
-        assertEquals("Please enter credentials.", controller.authenticateAdmin("   ", "admin123"));
-        assertEquals("Please enter credentials.", controller.authenticateAdmin(null, "admin123"));
-        assertEquals("Please enter credentials.", controller.authenticateAdmin("admin", ""));
-        assertEquals("Please enter credentials.", controller.authenticateAdmin("admin", null));
+        assertEquals(LoginResult.MSG_EMPTY_CREDENTIALS, controller.authenticateAdmin("", "admin123"));
+        assertEquals(LoginResult.MSG_EMPTY_CREDENTIALS, controller.authenticateAdmin("   ", "admin123"));
+        assertEquals(LoginResult.MSG_EMPTY_CREDENTIALS, controller.authenticateAdmin(null, "admin123"));
+        assertEquals(LoginResult.MSG_EMPTY_CREDENTIALS, controller.authenticateAdmin("admin", ""));
+        assertEquals(LoginResult.MSG_EMPTY_CREDENTIALS, controller.authenticateAdmin("admin", null));
         assertNull(SessionManager.getCurrentUser());
     }
 
     @Test
     void testUnknownUserCannotLogin() {
         String result = controller.authenticateAdmin("unknown_user", "admin123");
-        assertEquals("Invalid admin credentials.", result);
+        assertEquals(LoginResult.MSG_INVALID_CREDENTIALS, result);
         assertNull(SessionManager.getCurrentUser());
     }
 
     @Test
     void testSeededBuyerCannotLoginToAdminPortal() {
         String result = controller.authenticateAdmin("alice", "password1");
-        assertEquals("Invalid admin credentials.", result);
+        assertEquals(AdminLoginService.MSG_WRONG_ROLE_ADMIN, result);
         assertNull(SessionManager.getCurrentUser());
     }
 
     @Test
     void testSeededSellerCannotLoginToAdminPortal() {
         String result = controller.authenticateAdmin("charlie", "password1");
-        assertEquals("Invalid admin credentials.", result);
+        assertEquals(AdminLoginService.MSG_WRONG_ROLE_ADMIN, result);
+        assertNull(SessionManager.getCurrentUser());
+    }
+
+    @Test
+    void testBuyerOrSellerWithWrongPasswordGetsGenericInvalidCredentials() {
+        // A2 must take precedence over A3: role is not leaked to unauthenticated users
+        String result = controller.authenticateAdmin("alice", "wrong_password");
+        assertEquals(LoginResult.MSG_INVALID_CREDENTIALS, result);
+        assertNull(SessionManager.getCurrentUser());
+
+        String sellerResult = controller.authenticateAdmin("charlie", "wrong_password");
+        assertEquals(LoginResult.MSG_INVALID_CREDENTIALS, sellerResult);
         assertNull(SessionManager.getCurrentUser());
     }
 
     @Test
     void testSeededAdminWrongPasswordFails() {
         String result = controller.authenticateAdmin("admin", "wrong_password");
-        assertEquals("Incorrect password.", result);
+        assertEquals(LoginResult.MSG_INVALID_CREDENTIALS, result);
         assertNull(SessionManager.getCurrentUser());
     }
 
@@ -113,7 +128,7 @@ public class AdminLoginTest {
         admin.setActive(false);
 
         String result = controller.authenticateAdmin("admin", "admin123");
-        assertEquals("Admin account is deactivated.", result);
+        assertEquals(LoginResult.MSG_ACCOUNT_DEACTIVATED, result);
         assertNull(SessionManager.getCurrentUser());
     }
 
@@ -133,7 +148,7 @@ public class AdminLoginTest {
 
         // Old password now fails
         String oldResult = controller.authenticateAdmin("admin", "admin123");
-        assertEquals("Incorrect password.", oldResult);
+        assertEquals(LoginResult.MSG_INVALID_CREDENTIALS, oldResult);
 
         // New password succeeds
         String newResult = controller.authenticateAdmin("admin", "BrandNewPass2026");

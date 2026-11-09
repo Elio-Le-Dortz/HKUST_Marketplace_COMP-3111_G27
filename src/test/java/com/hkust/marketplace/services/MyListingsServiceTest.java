@@ -1626,6 +1626,31 @@ class MyListingsServiceTest {
 
         @Test
         @Timeout(30)
+        @DisplayName("The seller and the buyer completing the same deal at once: exactly one of them wins [F34]")
+        void sellerVersusBuyerCompletion() throws Exception {
+            for (int round = 0; round < 25; round++) {
+                Listing listing = liveSell();
+                OfferManagementResult accepted = offerService.acceptOffer(priceOffer(listing, buyer1, 100.0).getId());
+                assertTrue(accepted.isSuccess(), accepted::getMessage);
+                Deal deal = accepted.getDeal();
+                List<Callable<Boolean>> tasks = List.of(
+                        () -> service.completeDeal(listing.getId()).isSuccess(),
+                        () -> SessionManager.withSession(buyer1, () ->
+                                DATA.markDealComplete(deal.getId(), buyer1.getUsername()).isSuccess()));
+
+                List<Boolean> results = runTogether(tasks);
+
+                assertEquals(1, results.stream().filter(Boolean::booleanValue).count(), "round " + round + ": " + results);
+                assertEquals(ListingStatus.SOLD, listing.getStatus());
+                assertEquals(DealStatus.COMPLETED, deal.getStatus());
+                assertEquals(1, DATA.getNotificationsFor(buyer1.getUsername()).stream()
+                        .filter(n -> deal.getId().equals(n.getRelatedItemId()) && "Deal Completed".equals(n.getTitle()))
+                        .count(), "the buyer gets one completion notification");
+            }
+        }
+
+        @Test
+        @Timeout(30)
         @DisplayName("Accepting an offer and deleting its listing at once: exactly one of them wins")
         void acceptVersusDelete() throws Exception {
             for (int round = 0; round < 25; round++) {
@@ -1718,6 +1743,177 @@ class MyListingsServiceTest {
             assertEquals(THREADS, sent.size());
             assertEquals(1, sent.stream().filter(n -> n.getTitle().startsWith("Listing Resubmitted")).count(),
                     "Only the first edit resubmits the Live listing");
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // F34: the Seller marks a Reserved listing as sold or given
+    // ------------------------------------------------------------------
+
+    @Nested
+    @DisplayName("Mark as sold / given: completing the deal of a Reserved listing [F34]")
+    class CompleteDeal {
+
+        /** A Live listing of the given type with an accepted offer, so it is Reserved (or Lent). */
+        private OfferManagementResult accepted(Listing listing, Offer offer) {
+            OfferManagementResult result = offerService.acceptOffer(offer.getId());
+            assertTrue(result.isSuccess(), result::getMessage);
+            return result;
+        }
+
+        private List<Notification> dealNotifications(String username, Deal deal) {
+            return DATA.getNotificationsFor(username).stream()
+                    .filter(n -> deal.getId().equals(n.getRelatedItemId()) && "Deal Completed".equals(n.getTitle()))
+                    .toList();
+        }
+
+        @Test
+        @DisplayName("A Reserved Sell listing becomes Sold, its deal Completed, and the buyer is asked to rate")
+        void sellBecomesSold() {
+            Listing listing = liveSell();
+            Deal deal = accepted(listing, priceOffer(listing, buyer1, 110.0)).getDeal();
+            assertEquals(ListingStatus.RESERVED, listing.getStatus());
+
+            MyListingResult result = service.completeDeal(listing.getId());
+
+            assertTrue(result.isSuccess(), result::toString);
+            assertEquals(MyListingStatus.SUCCESS, result.getStatus());
+            assertSame(listing, result.getListing());
+            assertEquals(ListingStatus.SOLD, listing.getStatus());
+            assertEquals(DealStatus.COMPLETED, deal.getStatus());
+            assertNotNull(deal.getClosedDate());
+            assertTrue(result.getMessage().contains("Sold"));
+            assertTrue(result.getMessage().contains("@" + buyer1.getUsername()));
+            List<Notification> sent = dealNotifications(buyer1.getUsername(), deal);
+            assertEquals(1, sent.size());
+            assertEquals(NotificationTargetType.DEAL.name(), sent.get(0).getRelatedItemType());
+            assertEquals(NotificationCategory.OFFERS, NotificationCategory.fromRaw(sent.get(0).getCategory()));
+            assertTrue(sent.get(0).getMessage().contains("rate"));
+        }
+
+        @Test
+        @DisplayName("A Reserved Give Away listing becomes Given")
+        void giveawayBecomesGiven() {
+            Listing listing = store(ListingType.GIVEAWAY, ListingStatus.LIVE);
+            Deal deal = accepted(listing, claim(listing, buyer1)).getDeal();
+
+            MyListingResult result = service.completeDeal(listing.getId());
+
+            assertTrue(result.isSuccess(), result::toString);
+            assertEquals(ListingStatus.GIVEN, listing.getStatus());
+            assertEquals(DealStatus.COMPLETED, deal.getStatus());
+            assertTrue(result.getMessage().contains("Given"));
+        }
+
+        @Test
+        @DisplayName("The check summarises the deal and changes nothing")
+        void checkChangesNothing() {
+            Listing listing = liveSell();
+            Deal deal = accepted(listing, priceOffer(listing, buyer1, 110.0)).getDeal();
+            int notificationsBefore = DATA.getNotificationsFor(buyer1.getUsername()).size();
+
+            MyListingResult check = service.checkCanCompleteDeal(listing.getId());
+
+            assertTrue(check.isSuccess(), check::toString);
+            assertTrue(check.getMessage().contains("@" + buyer1.getUsername()));
+            assertTrue(check.getMessage().contains("HK$ 110.00"));
+            assertTrue(check.getMessage().contains("Sold"));
+            assertEquals(ListingStatus.RESERVED, listing.getStatus());
+            assertEquals(DealStatus.ACTIVE, deal.getStatus());
+            assertEquals(notificationsBefore, DATA.getNotificationsFor(buyer1.getUsername()).size());
+        }
+
+        @Test
+        @DisplayName("A listing that is not Reserved has no deal to complete")
+        void notReserved() {
+            Listing live = liveSell();
+            Listing lent = store(ListingType.LEND, ListingStatus.LIVE);
+            accepted(lent, borrowRequest(lent, buyer1));
+
+            MyListingResult onLive = service.completeDeal(live.getId());
+            MyListingResult onLent = service.checkCanCompleteDeal(lent.getId());
+
+            assertEquals(MyListingStatus.NOT_RESERVED, onLive.getStatus());
+            assertEquals(ListingStatus.LIVE, live.getStatus());
+            assertEquals(MyListingStatus.NOT_RESERVED, onLent.getStatus());
+            assertTrue(onLent.getMessage().contains("returns the item"));
+            assertEquals(ListingStatus.LENT, lent.getStatus());
+        }
+
+        @Test
+        @DisplayName("A deal the buyer has already completed cannot be completed again")
+        void alreadyCompletedByBuyer() {
+            Listing listing = liveSell();
+            Deal deal = accepted(listing, priceOffer(listing, buyer1, 110.0)).getDeal();
+            assertTrue(SessionManager.withSession(buyer1, () ->
+                    DATA.markDealComplete(deal.getId(), buyer1.getUsername()).isSuccess()));
+
+            MyListingResult result = service.completeDeal(listing.getId());
+
+            assertEquals(MyListingStatus.NOT_RESERVED, result.getStatus());
+            assertTrue(result.getMessage().contains("already"));
+            assertEquals(1, dealNotifications(buyer1.getUsername(), deal).size(), "the buyer is not notified twice");
+        }
+
+        @Test
+        @DisplayName("A Reserved listing without an active deal is reported, nothing is changed")
+        void noActiveDeal() {
+            Listing reserved = store(ListingType.SELL, ListingStatus.RESERVED);
+            Listing withEndedDeal = store(ListingType.SELL, ListingStatus.RESERVED);
+            storeDeal(withEndedDeal, buyer1, DealStatus.COMPLETED);
+
+            assertEquals(MyListingStatus.NO_ACTIVE_DEAL, service.completeDeal(reserved.getId()).getStatus());
+            assertEquals(MyListingStatus.NO_ACTIVE_DEAL, service.checkCanCompleteDeal(withEndedDeal.getId()).getStatus());
+            assertEquals(ListingStatus.RESERVED, reserved.getStatus());
+            assertEquals(ListingStatus.RESERVED, withEndedDeal.getStatus());
+        }
+
+        @Test
+        @DisplayName("Only the owner can complete the deal; unknown and deleted listings are not found")
+        void ownListingsOnly() {
+            Listing listing = liveSell();
+            accepted(listing, priceOffer(listing, buyer1, 110.0));
+            Listing deleted = liveSell();
+            deleteConfirmed(deleted);
+
+            assertEquals(MyListingStatus.LISTING_NOT_FOUND, service.completeDeal("L-unknown").getStatus());
+            assertEquals(MyListingStatus.LISTING_NOT_FOUND, service.completeDeal("  ").getStatus());
+            assertEquals(MyListingStatus.LISTING_NOT_FOUND, service.checkCanCompleteDeal(null).getStatus());
+            assertEquals(MyListingStatus.LISTING_NOT_FOUND, service.completeDeal(deleted.getId()).getStatus());
+            SessionManager.login(otherSeller);
+            assertEquals(MyListingStatus.UNAUTHORIZED, service.completeDeal(listing.getId()).getStatus());
+            assertEquals(ListingStatus.RESERVED, listing.getStatus());
+        }
+
+        @Test
+        @DisplayName("Requires a Seller session: logged out and buyer sessions are refused")
+        void requiresSellerSession() {
+            Listing listing = liveSell();
+            accepted(listing, priceOffer(listing, buyer1, 110.0));
+            SessionManager.logout();
+            assertThrows(SecurityException.class, () -> service.completeDeal(listing.getId()));
+            assertThrows(SecurityException.class, () -> service.checkCanCompleteDeal(listing.getId()));
+            SessionManager.login(buyer1);
+            assertThrows(SecurityException.class, () -> service.completeDeal(listing.getId()));
+            assertEquals(ListingStatus.RESERVED, listing.getStatus());
+        }
+
+        @Test
+        @DisplayName("Integration: the buyer can then rate the seller, can no longer complete it, and statistics count it")
+        void integrationWithBuyerAndStatistics() {
+            Listing listing = liveSell();
+            Deal deal = accepted(listing, priceOffer(listing, buyer1, 110.0)).getDeal();
+
+            assertTrue(service.completeDeal(listing.getId()).isSuccess());
+
+            SessionManager.withSession(buyer1, () -> {
+                assertEquals(com.hkust.marketplace.models.DealOperationStatus.DEAL_NOT_ACTIVE,
+                        DATA.markDealComplete(deal.getId(), buyer1.getUsername()).getStatus());
+                assertTrue(DATA.submitRating(deal.getId(), buyer1.getUsername(), 5, "Smooth deal, thanks!").isSuccess());
+            });
+            assertTrue(deal.isRated());
+            assertEquals(1, new SellerStatisticsService(DATA).getMyStatistics().getCompletedDeals(DealType.SALE));
+            assertEquals(MyListingStatus.DEAL_IN_PROGRESS_OR_COMPLETED, service.checkCanEdit(listing.getId()).getStatus());
         }
     }
 }

@@ -128,7 +128,7 @@ After F03/F04 (session checks for buyers and admins) the snippets must log in th
 | F13 | P3 | Team (seed) | ~~Seeded deals contradict listing statuses~~ **[FIXED - PR #49]** | CLASS_DIAGRAM listing lifecycle |
 | F14 | P3 | Elio | ~~Admin login reveals which credential is wrong; no "use your own portal"~~ **[FIXED]** | UC 3.1 A2, A3 |
 | F15 | P3 | Elio | ~~Admin rename of a seller does not update their listings~~ **[FIXED]** | UC 3.3; backlog US-S06 "reflected across all posted listings" |
-| F16 | P3 | Elio | Admin listing form stores lend duration in whole days (lossy) | UC 3.7 "same rules as a new listing"; 5-second minimum |
+| F16 | P3 | Elio | ~~Admin listing form stores lend duration in whole days (lossy)~~ **[FIXED]** | UC 3.7 "same rules as a new listing"; 5-second minimum |
 | F17 | P3 | Elio | ~~Take-down is not atomic with offer acceptance~~ **[FIXED]** | UC 3.7 special req.; CLASS_DIAGRAM rule 1 |
 | F18 | P3 | Charles | ~~Accepting a counter offer leaves other countered offers stuck~~ **[FIXED - PR #38]** | CLASS_DIAGRAM rule 1; UC 1.6 S2 |
 | F19 | P3 | Charles | ~~Buyer registration: generic weak-password message; extra username rules~~ **[FIXED - PR #39]** | UC 1.1 A3; README password rules |
@@ -540,7 +540,10 @@ After F03/F04 (session checks for buyers and admins) the snippets must log in th
 - **Suggested fix:** after the change, update `sellerFullName` of every listing of the seller, inside the
   data-store lock (same as `SellerProfileService.renameListings`, US-S06).
 
-### F16 — Admin listing form stores the lend duration in whole days
+### F16 — [FIXED] Admin listing form stores the lend duration in whole days
+> [!NOTE]
+> **Status: FIXED**
+> Admin forms and DTOs now carry granular lending durations (amount + `LendingDurationUnit` and `Duration`), validated via `CreateListingService.checkLendingDuration` / `toLendingDuration` (enforcing the 5-second minimum and 365-day maximum). The admin edit form prefills duration decomposed into the largest whole unit (matching `MyListingsService.toEditRequest`), preserving durations such as 36 hours or 10 seconds without loss.
 - **Owner:** Elio.
 - **Requirement:** UC 3.7 S2 "checks the changed fields with the same rules as a new listing"; Task 1.5 / team rule
   "minimum borrow time 5 seconds" (CLASS_DIAGRAM §3.2 `lendingDuration: Duration`).

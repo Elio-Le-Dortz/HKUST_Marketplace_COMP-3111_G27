@@ -3,6 +3,7 @@ package com.hkust.marketplace.models;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.time.Duration;
 import java.util.Collections;
 import java.util.List;
 
@@ -171,5 +172,70 @@ class AdminListingModelsTest {
 
         editReq.addPhoto(new Photo("img3.png"));
         assertEquals(1, editReq.getPhotos().size());
+        assertEquals(Duration.ofDays(7), editReq.getLendingDuration());
+        assertEquals("7", editReq.getLendingAmount());
+        assertEquals(LendingDurationUnit.DAYS, editReq.getLendingUnit());
+    }
+
+    @Test
+    @DisplayName("AdminListingCreateRequest and EditRequest granular lending duration support [F16]")
+    void testRequestsLendingDurationGranular() {
+        AdminListingCreateRequest req = new AdminListingCreateRequest(
+                "diana", "Microscope", "Lab grade", ListingType.LEND,
+                Category.ELECTRONICS, Condition.USED, MeetupLocation.ATRIUM,
+                null, "36", LendingDurationUnit.HOURS, List.of(new Photo("m.png"))
+        );
+        assertEquals("36", req.getLendingAmount());
+        assertEquals(LendingDurationUnit.HOURS, req.getLendingUnit());
+        assertEquals(Duration.ofHours(36), req.getLendingDuration());
+        assertEquals(1, req.getLendingDays());
+
+        req.setLendingDuration(Duration.ofSeconds(10));
+        assertEquals("10", req.getLendingAmount());
+        assertEquals(LendingDurationUnit.SECONDS, req.getLendingUnit());
+        assertEquals(Duration.ofSeconds(10), req.getLendingDuration());
+        assertEquals(0, req.getLendingDays());
+
+        req.setLendingDuration(Duration.ofDays(14));
+        assertEquals("2", req.getLendingAmount());
+        assertEquals(LendingDurationUnit.WEEKS, req.getLendingUnit());
+        assertEquals(14, req.getLendingDays());
+
+        AdminListingCreateRequest factoryReq = AdminListingCreateRequest.ofDuration(
+                "diana", "Microscope", "Lab grade", ListingType.LEND,
+                Category.ELECTRONICS, Condition.USED, MeetupLocation.ATRIUM,
+                null, Duration.ofHours(36), List.of(new Photo("m.png"))
+        );
+        assertEquals(Duration.ofHours(36), factoryReq.getLendingDuration());
+        assertEquals("36", factoryReq.getLendingAmount());
+        assertEquals(LendingDurationUnit.HOURS, factoryReq.getLendingUnit());
+
+        AdminListingEditRequest editReq = new AdminListingEditRequest(
+                "L20", "Microscope v2", "Updated", ListingType.LEND,
+                Category.ELECTRONICS, Condition.LIKE_NEW, MeetupLocation.ATRIUM,
+                null, "10", LendingDurationUnit.SECONDS, List.of(new Photo("m.png"))
+        );
+        assertEquals("10", editReq.getLendingAmount());
+        assertEquals(LendingDurationUnit.SECONDS, editReq.getLendingUnit());
+        assertEquals(Duration.ofSeconds(10), editReq.getLendingDuration());
+        assertEquals(0, editReq.getLendingDays());
+
+        AdminListingEditRequest editFactory = AdminListingEditRequest.ofDuration(
+                "L20", "Microscope v2", "Updated", ListingType.LEND,
+                Category.ELECTRONICS, Condition.LIKE_NEW, MeetupLocation.ATRIUM,
+                null, Duration.ofHours(36), List.of(new Photo("m.png"))
+        );
+        assertEquals(Duration.ofHours(36), editFactory.getLendingDuration());
+        assertEquals("36", editFactory.getLendingAmount());
+        assertEquals(LendingDurationUnit.HOURS, editFactory.getLendingUnit());
+
+        editFactory.setLendingAmount("48");
+        editFactory.setLendingUnit(LendingDurationUnit.HOURS);
+        assertEquals(Duration.ofHours(48), editFactory.getLendingDuration());
+
+        editFactory.setLendingDays(null);
+        assertNull(editFactory.getLendingDuration());
+        assertNull(editFactory.getLendingAmount());
+        assertNull(editFactory.getLendingUnit());
     }
 }

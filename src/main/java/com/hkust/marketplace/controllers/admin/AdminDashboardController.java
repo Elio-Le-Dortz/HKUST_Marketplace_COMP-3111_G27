@@ -17,6 +17,7 @@ import javafx.geometry.Pos;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
@@ -806,21 +807,31 @@ public class AdminDashboardController {
         TextField priceField = new TextField();
         priceField.setPromptText("Price in HKD (e.g. 150.0) *");
 
-        TextField daysField = new TextField();
-        daysField.setPromptText("Lending Duration in days (e.g. 14) *");
-        daysField.setDisable(true);
+        TextField lendingAmountField = new TextField();
+        lendingAmountField.setPromptText("Duration amount (e.g. 7) *");
+        lendingAmountField.setDisable(true);
+
+        ComboBox<LendingDurationUnit> lendingUnitCombo = new ComboBox<>(FXCollections.observableArrayList(LendingDurationUnit.values()));
+        lendingUnitCombo.setValue(LendingDurationUnit.DAYS);
+        lendingUnitCombo.setDisable(true);
+
+        HBox lendingDurationBox = new HBox(8, lendingAmountField, lendingUnitCombo);
+        HBox.setHgrow(lendingAmountField, Priority.ALWAYS);
 
         typeCombo.setOnAction(e -> {
             String val = typeCombo.getValue();
             if ("Sell".equals(val)) {
                 priceField.setDisable(false);
-                daysField.setDisable(true);
+                lendingAmountField.setDisable(true);
+                lendingUnitCombo.setDisable(true);
             } else if ("Lend".equals(val)) {
                 priceField.setDisable(true);
-                daysField.setDisable(false);
+                lendingAmountField.setDisable(false);
+                lendingUnitCombo.setDisable(false);
             } else {
                 priceField.setDisable(true);
-                daysField.setDisable(true);
+                lendingAmountField.setDisable(true);
+                lendingUnitCombo.setDisable(true);
             }
         });
 
@@ -882,7 +893,7 @@ public class AdminDashboardController {
                 new Label("Condition *:"), condCombo,
                 new Label("Meetup Point *:"), meetupCombo,
                 new Label("Price (for Sell):"), priceField,
-                new Label("Lending Days (for Lend):"), daysField,
+                new Label("Lending Duration (for Lend):"), lendingDurationBox,
                 new Label("Description *:"), descArea,
                 photoSection
         );
@@ -906,16 +917,20 @@ public class AdminDashboardController {
                 }
             }
 
-            Integer days = null;
+            Duration lendingDuration = null;
+            String lendingAmount = null;
+            LendingDurationUnit lendingUnit = null;
             if (type == ListingType.LEND) {
-                try {
-                    days = Integer.parseInt(daysField.getText().trim());
-                } catch (Exception ex) {
-                    errLabel.setText("Please enter a valid numeric lending duration in days.");
+                lendingAmount = lendingAmountField.getText() != null ? lendingAmountField.getText().trim() : "";
+                lendingUnit = lendingUnitCombo.getValue();
+                String lendProblem = CreateListingService.checkLendingDuration(lendingAmount, lendingUnit);
+                if (lendProblem != null) {
+                    errLabel.setText(lendProblem);
                     errLabel.setVisible(true);
                     event.consume();
                     return;
                 }
+                lendingDuration = CreateListingService.toLendingDuration(lendingAmount, lendingUnit);
             }
 
             if (descArea.getText() == null || descArea.getText().trim().isEmpty()) {
@@ -945,9 +960,13 @@ public class AdminDashboardController {
                     condCombo.getValue(),
                     meetupCombo.getValue(),
                     price,
-                    days,
+                    lendingAmount, lendingUnit,
                     photos
             );
+            if (type == ListingType.LEND) {
+                req.setLendingAmount(lendingAmount);
+                req.setLendingUnit(lendingUnit);
+            }
 
             AdminListingOperationResult res = service.createListingOnBehalfOfSeller(req, getEffectiveAdminUsername());
             if (!res.isSuccess()) {
@@ -1003,21 +1022,49 @@ public class AdminDashboardController {
         priceField.setPromptText("Price in HKD *");
         priceField.setDisable(l.getType() != ListingType.SELL);
 
-        TextField daysField = new TextField(l.getLendingDays() != null ? String.valueOf(l.getLendingDays()) : "");
-        daysField.setPromptText("Lending Duration in days *");
-        daysField.setDisable(l.getType() != ListingType.LEND);
+        String prefilledLendingAmount = "";
+        LendingDurationUnit prefilledLendingUnit = LendingDurationUnit.DAYS;
+        Duration lending = l.getLendingDuration();
+        if (l.getType() == ListingType.LEND && lending != null && lending.getSeconds() > 0) {
+            long seconds = lending.getSeconds();
+            for (LendingDurationUnit unit : List.of(LendingDurationUnit.WEEKS, LendingDurationUnit.DAYS, LendingDurationUnit.HOURS, LendingDurationUnit.MINUTES, LendingDurationUnit.SECONDS)) {
+                long unitSeconds = unit.getLength().getSeconds();
+                if (seconds % unitSeconds == 0) {
+                    prefilledLendingUnit = unit;
+                    prefilledLendingAmount = String.valueOf(seconds / unitSeconds);
+                    break;
+                }
+            }
+        } else if (l.getLendingDays() != null) {
+            prefilledLendingAmount = String.valueOf(l.getLendingDays());
+            prefilledLendingUnit = LendingDurationUnit.DAYS;
+        }
+
+        TextField lendingAmountField = new TextField(prefilledLendingAmount);
+        lendingAmountField.setPromptText("Duration amount (e.g. 7) *");
+        lendingAmountField.setDisable(l.getType() != ListingType.LEND);
+
+        ComboBox<LendingDurationUnit> lendingUnitCombo = new ComboBox<>(FXCollections.observableArrayList(LendingDurationUnit.values()));
+        lendingUnitCombo.setValue(prefilledLendingUnit);
+        lendingUnitCombo.setDisable(l.getType() != ListingType.LEND);
+
+        HBox lendingDurationBox = new HBox(8, lendingAmountField, lendingUnitCombo);
+        HBox.setHgrow(lendingAmountField, Priority.ALWAYS);
 
         typeCombo.setOnAction(e -> {
             String val = typeCombo.getValue();
             if ("Sell".equals(val)) {
                 priceField.setDisable(false);
-                daysField.setDisable(true);
+                lendingAmountField.setDisable(true);
+                lendingUnitCombo.setDisable(true);
             } else if ("Lend".equals(val)) {
                 priceField.setDisable(true);
-                daysField.setDisable(false);
+                lendingAmountField.setDisable(false);
+                lendingUnitCombo.setDisable(false);
             } else {
                 priceField.setDisable(true);
-                daysField.setDisable(true);
+                lendingAmountField.setDisable(true);
+                lendingUnitCombo.setDisable(true);
             }
         });
 
@@ -1088,7 +1135,7 @@ public class AdminDashboardController {
                 new Label("Condition *:"), condCombo,
                 new Label("Meetup Point *:"), meetupCombo,
                 new Label("Price (for Sell):"), priceField,
-                new Label("Lending Days (for Lend):"), daysField,
+                new Label("Lending Duration (for Lend):"), lendingDurationBox,
                 new Label("Description *:"), descArea,
                 editPhotoSection
         );
@@ -1112,16 +1159,20 @@ public class AdminDashboardController {
                 }
             }
 
-            Integer days = null;
+            Duration lendingDuration = null;
+            String lendingAmount = null;
+            LendingDurationUnit lendingUnit = null;
             if (type == ListingType.LEND) {
-                try {
-                    days = Integer.parseInt(daysField.getText().trim());
-                } catch (Exception ex) {
-                    errLabel.setText("Please enter a valid numeric lending duration in days.");
+                lendingAmount = lendingAmountField.getText() != null ? lendingAmountField.getText().trim() : "";
+                lendingUnit = lendingUnitCombo.getValue();
+                String lendProblem = CreateListingService.checkLendingDuration(lendingAmount, lendingUnit);
+                if (lendProblem != null) {
+                    errLabel.setText(lendProblem);
                     errLabel.setVisible(true);
                     event.consume();
                     return;
                 }
+                lendingDuration = CreateListingService.toLendingDuration(lendingAmount, lendingUnit);
             }
 
             if (descArea.getText() == null || descArea.getText().trim().isEmpty()) {
@@ -1151,9 +1202,13 @@ public class AdminDashboardController {
                     condCombo.getValue(),
                     meetupCombo.getValue(),
                     price,
-                    days,
+                    lendingAmount, lendingUnit,
                     photos
             );
+            if (type == ListingType.LEND) {
+                req.setLendingAmount(lendingAmount);
+                req.setLendingUnit(lendingUnit);
+            }
 
             AdminListingOperationResult res = service.editListing(req, getEffectiveAdminUsername());
             if (!res.isSuccess()) {

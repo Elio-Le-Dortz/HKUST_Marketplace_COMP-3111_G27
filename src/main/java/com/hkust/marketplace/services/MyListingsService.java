@@ -2,6 +2,9 @@ package com.hkust.marketplace.services;
 
 import com.hkust.marketplace.models.AdminNotificationCategory;
 import com.hkust.marketplace.models.CreateListingRequest;
+import com.hkust.marketplace.models.Deal;
+import com.hkust.marketplace.models.DealStatus;
+import com.hkust.marketplace.models.DealType;
 import com.hkust.marketplace.models.LendingDurationUnit;
 import com.hkust.marketplace.models.Listing;
 import com.hkust.marketplace.models.ListingField;
@@ -31,6 +34,7 @@ import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -61,6 +65,9 @@ import java.util.function.Function;
  *       passing their identifiers back: the offers are then declined and each buyer
  *       notified. An offer received after the warning is never declined without a new
  *       warning.</li>
+ *   <li>The deal of a Reserved listing can be marked complete by the Seller (F34, the brief's
+ *       "mark as sold"): the listing becomes Sold or Given, as when the buyer completes the
+ *       deal (use case 1.6), and the buyer is asked to rate the Seller.</li>
  * </ul>
  *
  * <p><b>Access control.</b> Every public instance method first calls
@@ -95,6 +102,12 @@ public class MyListingsService {
 
     /** Category of the notifications sent to buyers, shown under "Offers" on their board. */
     private static final String BUYER_NOTIFICATION_CATEGORY = NotificationCategory.OFFERS.getDisplayName();
+
+    /**
+     * Category of the notification sent to the buyer when the Seller completes a deal (F34): the
+     * same as the buyer's own deal notifications (use case 1.6), shown under "Offers" on their board.
+     */
+    private static final String DEAL_NOTIFICATION_CATEGORY = "Deal";
 
     /** Category of the notifications sent to the admin, shown under "Listing Submissions". */
     private static final String ADMIN_NOTIFICATION_CATEGORY = AdminNotificationCategory.LISTING_SUBMISSIONS.getDisplayName();
@@ -347,6 +360,79 @@ public class MyListingsService {
     }
 
     // =====================================================================
+    // Mark a Reserved listing as sold or given (F34)
+    // =====================================================================
+
+    /**
+     * Checks that the deal of one of the Seller's Reserved listings can be marked complete
+     * (F34), before the Seller is asked to confirm. The completion itself checks again.
+     *
+     * @param listingId identifier of the listing
+     * @return a successful result holding the listing and a summary of the deal to confirm; or a
+     *         failure: not found, another Seller's listing, not Reserved, or no active deal
+     * @throws SecurityException if no active Seller is logged in
+     */
+    public MyListingResult checkCanCompleteDeal(String listingId) {
+        Seller seller = SessionManager.requireSeller();
+        synchronized (dataService) {
+            DealLookup lookup = findDealToComplete(listingId, seller);
+            if (lookup.failure() != null) {
+                return lookup.failure();
+            }
+            Listing listing = lookup.listing();
+            Deal deal = lookup.deal();
+            return MyListingResult.allowed(listing, List.of(), "Confirm that you handed " + quote(listing)
+                    + " over to @" + deal.getBuyerUsername() + (deal.getType() == DealType.SALE && deal.getOfferPrice() != null
+                    ? " for " + OfferManagementService.formatPrice(deal.getOfferPrice()) : "")
+                    + ". The listing becomes " + completedStatusName(deal) + ", the deal is completed and the buyer"
+                    + " is asked to rate you. This cannot be undone.");
+        }
+    }
+
+    /**
+     * Marks the deal of one of the Seller's Reserved listings complete (F34: the brief's "mark as
+     * sold"), atomically: checks that the listing is still Reserved with an active sale or
+     * giveaway deal, then sets the deal to Completed, the listing to Sold (sale) or Given
+     * (giveaway), and notifies the buyer, who is asked to rate the Seller (use case 1.10). This
+     * has the same effect as the buyer marking the deal complete (use case 1.6, subflow S5), so
+     * a deal the buyer never completes no longer leaves the listing Reserved for ever. When the
+     * buyer and the Seller complete the deal at the same time, only the first one succeeds.
+     *
+     * @param listingId identifier of the listing
+     * @return a successful result holding the listing, now Sold or Given; or a failure telling
+     *         why nothing was changed: not found, another Seller's listing, not Reserved (for
+     *         example already completed), or no active deal
+     * @throws SecurityException if no active Seller is logged in
+     */
+    public MyListingResult completeDeal(String listingId) {
+        Seller seller = SessionManager.requireSeller();
+        synchronized (dataService) {
+            DealLookup lookup = findDealToComplete(listingId, seller);
+            if (lookup.failure() != null) {
+                return lookup.failure();
+            }
+            Listing listing = lookup.listing();
+            Deal deal = lookup.deal();
+
+            deal.setStatus(DealStatus.COMPLETED);
+            deal.setClosedDate(LocalDateTime.now());
+            dataService.updateDeal(deal);
+            listing.setStatus(deal.getType() == DealType.GIVEAWAY ? ListingStatus.GIVEN : ListingStatus.SOLD);
+            dataService.updateListing(listing);
+
+            dataService.addNotification(new Notification(deal.getBuyerUsername(), "Deal Completed",
+                    seller.getDisplayName() + " marked the deal for '" + listing.getTitle() + "' as completed ("
+                            + completedStatusName(deal).toLowerCase(Locale.ENGLISH) + "). Please take a moment to"
+                            + " rate and review the seller.",
+                    DEAL_NOTIFICATION_CATEGORY, deal.getId(), NotificationTargetType.DEAL.name()));
+
+            return MyListingResult.success(listing, List.of(), quote(listing) + " is now "
+                    + completedStatusName(deal) + ". @" + deal.getBuyerUsername()
+                    + " has been notified and can now rate you.");
+        }
+    }
+
+    // =====================================================================
     // Edit form helpers (no session needed, nothing changed)
     // =====================================================================
 
@@ -518,6 +604,75 @@ public class MyListingsService {
                     + " was taken down by the admin and can no longer be edited. You can delete it from your listings.");
         }
         return new Lookup(listing, null);
+    }
+
+    /**
+     * A Reserved listing of the logged-in Seller with its active deal, or the failure explaining
+     * why its deal cannot be marked complete.
+     *
+     * @param listing the listing, {@code null} on failure
+     * @param deal    its active sale or giveaway deal, {@code null} on failure
+     * @param failure the failure, {@code null} if the deal can be completed
+     */
+    private record DealLookup(Listing listing, Deal deal, MyListingResult failure) {
+    }
+
+    /**
+     * Finds the active deal of one of the Seller's Reserved listings (F34). Called while holding
+     * the data store lock.
+     *
+     * @param listingId identifier of the listing
+     * @param seller    the logged-in Seller
+     * @return the listing and its deal, or the failure: as for {@link #findOwnListing},
+     *         {@link MyListingStatus#NOT_RESERVED} or {@link MyListingStatus#NO_ACTIVE_DEAL}
+     */
+    private DealLookup findDealToComplete(String listingId, Seller seller) {
+        Lookup lookup = findOwnListing(listingId, seller);
+        if (lookup.failure() != null) {
+            return new DealLookup(null, null, lookup.failure());
+        }
+        Listing listing = lookup.listing();
+        if (listing.getStatus() != ListingStatus.RESERVED) {
+            return new DealLookup(null, null, MyListingResult.failure(MyListingStatus.NOT_RESERVED, listing,
+                    notReservedMessage(listing)));
+        }
+        Deal deal = dataService.getAllDeals().stream()
+                .filter(d -> d.isActive() && listing.getId().equals(d.getListingId())
+                        && seller.getUsername().equalsIgnoreCase(d.getSellerUsername())
+                        && (d.getType() == DealType.SALE || d.getType() == DealType.GIVEAWAY))
+                .findFirst().orElse(null);
+        if (deal == null) {
+            return new DealLookup(null, null, MyListingResult.failure(MyListingStatus.NO_ACTIVE_DEAL, listing,
+                    quote(listing) + " has no deal in progress with a buyer, so there is nothing to complete."));
+        }
+        return new DealLookup(listing, deal, null);
+    }
+
+    /**
+     * Explains why a listing that is not Reserved has no deal to complete.
+     *
+     * @param listing the listing
+     * @return the explanation for the Seller
+     */
+    private static String notReservedMessage(Listing listing) {
+        return switch (listing.getStatus()) {
+            case SOLD, GIVEN -> quote(listing) + " is already " + listing.getAvailabilityDisplay()
+                    + ": its deal was completed.";
+            case LENT -> quote(listing) + " is lent: a loan ends when the buyer returns the item,"
+                    + " or automatically when the borrow period ends.";
+            default -> "Only a Reserved listing has a deal to complete; " + quote(listing) + " is "
+                    + listing.getAvailabilityDisplay() + ".";
+        };
+    }
+
+    /**
+     * Names the status a listing gets when its deal is completed.
+     *
+     * @param deal the deal
+     * @return {@code Given} for a giveaway, {@code Sold} otherwise
+     */
+    private static String completedStatusName(Deal deal) {
+        return deal.getType() == DealType.GIVEAWAY ? "Given" : "Sold";
     }
 
     /**

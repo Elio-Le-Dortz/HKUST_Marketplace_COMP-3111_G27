@@ -173,6 +173,13 @@ Passwords are never stored in plaintext:
 
 # Task 2: Seller Portal (Owner: Antoine Lepin)
 
+**Persistence.** Every change made in the Seller Portal is written to the SQLite database
+(`data/marketplace.db`) as soon as it is made, so it is still there after the application restarts:
+new listings with their photos, edits and deletes, accepted / declined / countered offers and the
+listing status they set, profile changes (including the password hash and the name shown on every
+listing), review replies and flags, and the read state of notifications. Tested by
+`SellerPersistenceTest`, which makes each change and then reloads the data from the database.
+
 ## Seller Registration (US-S01)
 
 - Username is required, at least 3 characters long, cannot contain spaces, and is unique across buyer,

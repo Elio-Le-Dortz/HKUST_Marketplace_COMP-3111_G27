@@ -47,6 +47,10 @@ import java.util.Objects;
  * the lock, only the data store is called, so no other lock is taken and no deadlock can
  * occur.</p>
  *
+ * <p><b>Persistence.</b> Every offer, listing, deal and chat thread changed by an action is
+ * saved through the data store's {@code add…}/{@code update…} methods, so the change is
+ * written to the SQLite database and kept when the application restarts.</p>
+ *
  * <p><b>Counter offers.</b> A counter offer is stored, as the buyer side expects it, as a
  * new {@link Offer} attached to the original one with {@link Offer#setCounterOffer}, and the
  * original offer gets the status {@link OfferStatus#COUNTERED}. The buyer then accepts or
@@ -190,8 +194,10 @@ public class OfferManagementService {
 
             Deal deal = recordDeal(offer, listing, now);
             offer.setStatus(OfferStatus.ACCEPTED);
+            dataService.updateOffer(offer);
             ListingStatus newStatus = listing.getType() == ListingType.LEND ? ListingStatus.LENT : ListingStatus.RESERVED;
             listing.setStatus(newStatus);
+            dataService.updateListing(listing);
             int othersDeclined = declineCompetingOffers(listing, offer, seller);
 
             notifyBuyer(offer, "Offer Accepted", seller.getDisplayName() + " accepted your " + kindOf(offer)
@@ -366,6 +372,7 @@ public class OfferManagementService {
             if (thread.getListingTitle() == null) {
                 // The listing was deleted: keep the title known by the offer.
                 thread.setListingTitle(offer.getListingTitle());
+                dataService.updateChatThread(thread);
             }
             return OfferManagementResult.chatOpened(offer, thread);
         }
@@ -658,22 +665,25 @@ public class OfferManagementService {
     }
 
     /**
-     * Marks an offer, and its counter offer if it has one, as declined.
+     * Marks an offer, and its counter offer if it has one, as declined, and saves it in the
+     * data store (and so in the database).
      *
      * @param offer  the offer to decline
      * @param reason the reason to store, may be {@code null}
      */
-    private static void markDeclined(Offer offer, String reason) {
+    private void markDeclined(Offer offer, String reason) {
         offer.setStatus(OfferStatus.DECLINED);
         offer.setDeclineReason(reason);
         if (offer.getCounterOffer() != null) {
             offer.getCounterOffer().setStatus(OfferStatus.DECLINED);
         }
+        // Saving the offer also saves its counter offer.
+        dataService.updateOffer(offer);
     }
 
     /**
-     * Attaches a counter offer to an offer and marks the offer as countered
-     * (subflow S3, step 4).
+     * Attaches a counter offer to an offer, marks the offer as countered (subflow S3, step 4)
+     * and saves both in the data store (and so in the database).
      *
      * @param offer the pending offer to counter
      * @param price the counter price, {@code null} for a borrow request
@@ -681,7 +691,7 @@ public class OfferManagementService {
      * @param end   the counter end date, {@code null} for a price offer
      * @return the counter offer
      */
-    private static Offer recordCounter(Offer offer, Double price, LocalDateTime start, LocalDateTime end) {
+    private Offer recordCounter(Offer offer, Double price, LocalDateTime start, LocalDateTime end) {
         Offer counter = new Offer(offer.getId() + COUNTER_ID_SUFFIX, offer.getType(), offer.getListingId(),
                 offer.getBuyerUsername(), offer.getSellerUsername());
         counter.setListingTitle(offer.getListingTitle());
@@ -692,6 +702,8 @@ public class OfferManagementService {
         counter.setCreatedDate(LocalDateTime.now());
         offer.setCounterOffer(counter);
         offer.setStatus(OfferStatus.COUNTERED);
+        // Saving the offer also saves the counter offer attached to it.
+        dataService.updateOffer(offer);
         return counter;
     }
 

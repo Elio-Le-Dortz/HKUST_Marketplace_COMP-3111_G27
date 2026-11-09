@@ -76,6 +76,10 @@ import java.util.function.Function;
  * is taken and no deadlock can occur. The photo files of an edit are read before taking the
  * lock.</p>
  *
+ * <p><b>Persistence.</b> Every listing and offer changed by an edit or a delete is saved
+ * through the data store's {@code update…} methods, so the change is written to the SQLite
+ * database and kept when the application restarts.</p>
+ *
  * <p>This class does not use JavaFX, so every flow is unit tested without a display.</p>
  */
 public class MyListingsService {
@@ -604,7 +608,8 @@ public class MyListingsService {
     }
 
     /**
-     * Declines offers, with their counter offers, and notifies each buyer.
+     * Declines offers, with their counter offers, saves them in the data store (and so in the
+     * database), and notifies each buyer.
      *
      * @param offers  the offers to decline
      * @param reason  the reason stored on each offer
@@ -617,6 +622,8 @@ public class MyListingsService {
             if (offer.getCounterOffer() != null) {
                 offer.getCounterOffer().setStatus(OfferStatus.DECLINED);
             }
+            // Saving the offer also saves its counter offer.
+            dataService.updateOffer(offer);
             dataService.addNotification(new Notification(offer.getBuyerUsername(), "Offer Declined",
                     message.apply(offer), BUYER_NOTIFICATION_CATEGORY, offer.getId(), NotificationTargetType.OFFER.name()));
         }

@@ -8,6 +8,10 @@ import com.hkust.marketplace.utils.SessionManager;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 import java.time.LocalDateTime;
 import java.util.*;
@@ -19,16 +23,28 @@ import static org.junit.jupiter.api.Assertions.*;
 @DisplayName("AdminListingService Tests (US-A07 Manage All Listings)")
 class AdminListingServiceTest {
 
+    @TempDir
+    Path tempDir;
+
+    private static final byte[] PNG_HEADER = {(byte) 0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A, 0, 0, 0, 0x0D};
+    private Path samplePhoto;
+    private Path samplePhoto2;
+
     private DummyDataService dataService;
     private AdminListingService service;
     private static final String ADMIN_USER = "admin";
 
     @BeforeEach
-    void setUp() {
+    void setUp() throws IOException {
         dataService = DummyDataService.getInstance();
         dataService.resetData();
         service = new AdminListingService(dataService);
         SessionManager.login(dataService.findUser(ADMIN_USER));
+
+        samplePhoto = tempDir.resolve("sample.png");
+        samplePhoto2 = tempDir.resolve("sample2.png");
+        Files.write(samplePhoto, PNG_HEADER);
+        Files.write(samplePhoto2, PNG_HEADER);
     }
 
     @AfterEach
@@ -179,7 +195,7 @@ class AdminListingServiceTest {
             AdminListingCreateRequest req = new AdminListingCreateRequest(
                     "charlie", "Item", "Desc", ListingType.SELL,
                     Category.BOOKS, Condition.LIKE_NEW, MeetupLocation.LIBRARY,
-                    100.0, null, List.of(new Photo("p.png"))
+                    100.0, null, List.of(new Photo(samplePhoto.toString()))
             );
 
             AdminListingOperationResult res1 = service.createListingOnBehalfOfSeller(req, null);
@@ -210,7 +226,7 @@ class AdminListingServiceTest {
             AdminListingCreateRequest req = new AdminListingCreateRequest(
                     null, "Item", "Desc", ListingType.SELL,
                     Category.BOOKS, Condition.LIKE_NEW, MeetupLocation.LIBRARY,
-                    100.0, null, List.of(new Photo("p.png"))
+                    100.0, null, List.of(new Photo(samplePhoto.toString()))
             );
 
             // Null seller
@@ -251,12 +267,29 @@ class AdminListingServiceTest {
             AdminListingCreateRequest req = new AdminListingCreateRequest(
                     "charlie", "   ", "Desc", ListingType.SELL,
                     Category.BOOKS, Condition.LIKE_NEW, MeetupLocation.LIBRARY,
-                    100.0, null, List.of(new Photo("p.png"))
+                    100.0, null, List.of(new Photo(samplePhoto.toString()))
             );
             assertEquals("title", service.createListingOnBehalfOfSeller(req, ADMIN_USER).getInvalidFieldName());
 
-            // Missing category
+            // Missing description (null or blank)
             req.setTitle("Valid Title");
+            req.setDescription(null);
+            assertEquals("description", service.createListingOnBehalfOfSeller(req, ADMIN_USER).getInvalidFieldName());
+
+            req.setDescription("   ");
+            assertEquals("description", service.createListingOnBehalfOfSeller(req, ADMIN_USER).getInvalidFieldName());
+
+            // Description too long (> 1000)
+            req.setDescription("A".repeat(CreateListingService.MAX_DESCRIPTION_LENGTH + 1));
+            assertEquals("description", service.createListingOnBehalfOfSeller(req, ADMIN_USER).getInvalidFieldName());
+
+            // Title too long (> 100)
+            req.setDescription("Valid Description");
+            req.setTitle("T".repeat(CreateListingService.MAX_TITLE_LENGTH + 1));
+            assertEquals("title", service.createListingOnBehalfOfSeller(req, ADMIN_USER).getInvalidFieldName());
+            req.setTitle("Valid Title");
+
+            // Missing category
             req.setCategory(null);
             assertEquals("category", service.createListingOnBehalfOfSeller(req, ADMIN_USER).getInvalidFieldName());
 
@@ -285,14 +318,16 @@ class AdminListingServiceTest {
 
             // More than 6 photos
             List<Photo> tooMany = List.of(
-                    new Photo("1"), new Photo("2"), new Photo("3"),
-                    new Photo("4"), new Photo("5"), new Photo("6"), new Photo("7")
+                    new Photo(samplePhoto.toString()), new Photo(samplePhoto2.toString()),
+                    new Photo(samplePhoto.toString() + "3"), new Photo(samplePhoto.toString() + "4"),
+                    new Photo(samplePhoto.toString() + "5"), new Photo(samplePhoto.toString() + "6"),
+                    new Photo(samplePhoto.toString() + "7")
             );
             req.setPhotos(tooMany);
             assertEquals("photos", service.createListingOnBehalfOfSeller(req, ADMIN_USER).getInvalidFieldName());
 
             // Sell: missing or non-positive price
-            req.setPhotos(List.of(new Photo("1")));
+            req.setPhotos(List.of(new Photo(samplePhoto.toString())));
             req.setPrice(null);
             assertEquals("price", service.createListingOnBehalfOfSeller(req, ADMIN_USER).getInvalidFieldName());
 
@@ -312,6 +347,36 @@ class AdminListingServiceTest {
 
             req.setLendingDays(-5);
             assertEquals("lendingDays", service.createListingOnBehalfOfSeller(req, ADMIN_USER).getInvalidFieldName());
+
+            // Photo validation: file does not exist
+            req.setType(ListingType.SELL);
+            req.setPrice(100.0);
+            req.setPhotos(List.of(new Photo("nonexistent_photo_path.png")));
+            AdminListingOperationResult resNotFound = service.createListingOnBehalfOfSeller(req, ADMIN_USER);
+            assertEquals("photos", resNotFound.getInvalidFieldName());
+            assertTrue(resNotFound.getMessage().contains(CreateListingService.PHOTO_NOT_FOUND));
+
+            // Photo validation: blank path
+            req.setPhotos(List.of(new Photo("   ")));
+            assertEquals("photos", service.createListingOnBehalfOfSeller(req, ADMIN_USER).getInvalidFieldName());
+
+            // Photo validation: not an image
+            Path textFile = tempDir.resolve("plain.png");
+            try {
+                Files.writeString(textFile, "not an image content");
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+            req.setPhotos(List.of(new Photo(textFile.toString())));
+            AdminListingOperationResult resNotImg = service.createListingOnBehalfOfSeller(req, ADMIN_USER);
+            assertEquals("photos", resNotImg.getInvalidFieldName());
+            assertTrue(resNotImg.getMessage().contains(CreateListingService.PHOTO_NOT_AN_IMAGE));
+
+            // Photo validation: repeated photo
+            req.setPhotos(List.of(new Photo(samplePhoto.toString()), new Photo(samplePhoto.toString())));
+            AdminListingOperationResult resRepeat = service.createListingOnBehalfOfSeller(req, ADMIN_USER);
+            assertEquals("photos", resRepeat.getInvalidFieldName());
+            assertTrue(resRepeat.getMessage().contains(CreateListingService.PHOTO_REPEATED));
         }
 
         @Test
@@ -320,7 +385,7 @@ class AdminListingServiceTest {
             AdminListingCreateRequest req = new AdminListingCreateRequest(
                     "charlie", "Algorithms 4th Ed", "Sedgewick", ListingType.SELL,
                     Category.BOOKS, Condition.LIKE_NEW, MeetupLocation.LIBRARY,
-                    220.0, null, List.of(new Photo("algo.png"))
+                    220.0, null, List.of(new Photo(samplePhoto.toString()))
             );
 
             AdminListingOperationResult res = service.createListingOnBehalfOfSeller(req, ADMIN_USER);
@@ -351,7 +416,7 @@ class AdminListingServiceTest {
             AdminListingCreateRequest req = new AdminListingCreateRequest(
                     "diana", "Microscope", "Lab grade", ListingType.LEND,
                     Category.ELECTRONICS, Condition.USED, MeetupLocation.ATRIUM,
-                    null, 14, List.of(new Photo("mic.png"))
+                    null, 14, List.of(new Photo(samplePhoto.toString()))
             );
 
             AdminListingOperationResult res = service.createListingOnBehalfOfSeller(req, ADMIN_USER);
@@ -368,7 +433,7 @@ class AdminListingServiceTest {
             AdminListingCreateRequest req = new AdminListingCreateRequest(
                     "charlie", "Free Plant", "Pothos cutting", ListingType.GIVEAWAY,
                     Category.OTHER, Condition.LIKE_NEW, MeetupLocation.STUDENT_HALLS,
-                    null, null, List.of(new Photo("plant.png"))
+                    null, null, List.of(new Photo(samplePhoto.toString()))
             );
 
             AdminListingOperationResult res = service.createListingOnBehalfOfSeller(req, ADMIN_USER);
@@ -390,7 +455,7 @@ class AdminListingServiceTest {
             AdminListingEditRequest req = new AdminListingEditRequest(
                     "L1", "New Title", "Desc", ListingType.SELL,
                     Category.BOOKS, Condition.LIKE_NEW, MeetupLocation.LIBRARY,
-                    100.0, null, List.of(new Photo("p.png"))
+                    100.0, null, List.of(new Photo(samplePhoto.toString()))
             );
             assertEquals(AdminListingOperationStatus.UNAUTHORIZED, service.editListing(req, null).getStatus());
             assertEquals(AdminListingOperationStatus.UNAUTHORIZED, service.editListing(req, "alice").getStatus());
@@ -402,7 +467,7 @@ class AdminListingServiceTest {
             AdminListingEditRequest req = new AdminListingEditRequest(
                     null, "New Title", "Desc", ListingType.SELL,
                     Category.BOOKS, Condition.LIKE_NEW, MeetupLocation.LIBRARY,
-                    100.0, null, List.of(new Photo("p.png"))
+                    100.0, null, List.of(new Photo(samplePhoto.toString()))
             );
             assertEquals(AdminListingOperationStatus.INVALID_FIELD, service.editListing(req, ADMIN_USER).getStatus());
 
@@ -419,7 +484,7 @@ class AdminListingServiceTest {
             AdminListingEditRequest req = new AdminListingEditRequest(
                     target.getId(), "Updated Title", "Desc", ListingType.SELL,
                     Category.BOOKS, Condition.LIKE_NEW, MeetupLocation.LIBRARY,
-                    150.0, null, List.of(new Photo("p.png"))
+                    150.0, null, List.of(new Photo(samplePhoto.toString()))
             );
 
             for (ListingStatus blockedStatus : List.of(ListingStatus.RESERVED, ListingStatus.SOLD, ListingStatus.LENT, ListingStatus.GIVEN)) {
@@ -439,7 +504,7 @@ class AdminListingServiceTest {
             AdminListingEditRequest req = new AdminListingEditRequest(
                     target.getId(), "", "Desc", ListingType.SELL,
                     Category.BOOKS, Condition.LIKE_NEW, MeetupLocation.LIBRARY,
-                    150.0, null, List.of(new Photo("p.png"))
+                    150.0, null, List.of(new Photo(samplePhoto.toString()))
             );
             assertEquals("title", service.editListing(req, ADMIN_USER).getInvalidFieldName());
 
@@ -450,6 +515,26 @@ class AdminListingServiceTest {
             req.setType(ListingType.LEND);
             req.setLendingDays(0);
             assertEquals("lendingDays", service.editListing(req, ADMIN_USER).getInvalidFieldName());
+
+            // Edit description validation
+            req.setType(ListingType.SELL);
+            req.setPrice(100.0);
+            req.setDescription(null);
+            assertEquals("description", service.editListing(req, ADMIN_USER).getInvalidFieldName());
+
+            req.setDescription("   ");
+            assertEquals("description", service.editListing(req, ADMIN_USER).getInvalidFieldName());
+
+            req.setDescription("B".repeat(CreateListingService.MAX_DESCRIPTION_LENGTH + 1));
+            assertEquals("description", service.editListing(req, ADMIN_USER).getInvalidFieldName());
+            req.setDescription("Valid Description");
+
+            // Edit photos validation
+            req.setPhotos(null);
+            assertEquals("photos", service.editListing(req, ADMIN_USER).getInvalidFieldName());
+
+            req.setPhotos(List.of(new Photo("not_found.png")));
+            assertEquals("photos", service.editListing(req, ADMIN_USER).getInvalidFieldName());
         }
 
         @Test
@@ -461,7 +546,7 @@ class AdminListingServiceTest {
             AdminListingEditRequest req = new AdminListingEditRequest(
                     target.getId(), "Calculus 9th Ed (Stewart)", "Updated description with formula sheets",
                     ListingType.SELL, Category.BOOKS, Condition.LIKE_NEW, MeetupLocation.LG1_CANTEEN,
-                    195.0, null, List.of(new Photo("p1.png"), new Photo("p2.png"))
+                    195.0, null, List.of(new Photo(samplePhoto.toString()), new Photo(samplePhoto2.toString()))
             );
 
             AdminListingOperationResult res = service.editListing(req, ADMIN_USER);
@@ -488,7 +573,7 @@ class AdminListingServiceTest {
             AdminListingEditRequest req = new AdminListingEditRequest(
                     target.getId(), "Mini Fridge Compact", "Cleaned and working",
                     ListingType.SELL, Category.FURNITURE, Condition.USED, MeetupLocation.LIBRARY,
-                    350.0, null, List.of(new Photo("fridge.png"))
+                    350.0, null, List.of(new Photo(samplePhoto.toString()))
             );
 
             AdminListingOperationResult res = service.editListing(req, ADMIN_USER);
@@ -505,7 +590,7 @@ class AdminListingServiceTest {
             AdminListingEditRequest req = new AdminListingEditRequest(
                     target.getId(), "Free Charger", "Old charger",
                     ListingType.GIVEAWAY, Category.ELECTRONICS, Condition.USED, MeetupLocation.LIBRARY,
-                    null, null, List.of(new Photo("c.png"))
+                    null, null, List.of(new Photo(samplePhoto.toString()))
             );
 
             AdminListingOperationResult res = service.editListing(req, ADMIN_USER);

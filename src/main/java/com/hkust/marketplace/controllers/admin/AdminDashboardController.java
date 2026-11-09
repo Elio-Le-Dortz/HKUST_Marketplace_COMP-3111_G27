@@ -24,6 +24,17 @@ import java.util.List;
 import java.util.Locale;
 import java.util.stream.Collectors;
 import java.util.Optional;
+import com.hkust.marketplace.services.CreateListingService;
+import javafx.scene.Node;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
+import javafx.stage.FileChooser;
+import java.io.File;
+import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
+import java.nio.file.Path;
+import java.util.HashSet;
+import java.util.Set;
 
 public class AdminDashboardController {
 
@@ -103,6 +114,91 @@ public class AdminDashboardController {
         contentPane.getChildren().add(scroll);
     }
 
+    private static final int CARD_THUMBNAIL_SIZE = 64;
+    private static final int DETAIL_THUMBNAIL_SIZE = 72;
+    private static final int FORM_THUMBNAIL_SIZE = 54;
+
+    private static Path readablePhoto(String path) {
+        if (path == null || path.isBlank()) {
+            return null;
+        }
+        try {
+            Path file = Path.of(path);
+            return Files.isRegularFile(file) ? file : null;
+        } catch (InvalidPathException e) {
+            return null;
+        }
+    }
+
+    private static StackPane listingThumbnail(Listing listing) {
+        StackPane box = new StackPane();
+        box.setMinSize(CARD_THUMBNAIL_SIZE, CARD_THUMBNAIL_SIZE);
+        box.setMaxSize(CARD_THUMBNAIL_SIZE, CARD_THUMBNAIL_SIZE);
+        box.setStyle("-fx-background-color: #f1f5f9; -fx-background-radius: 8; -fx-border-color: #e2e8f0; -fx-border-radius: 8;");
+        Path cover = readablePhoto(listing != null ? listing.getThumbnailPath() : null);
+        if (cover != null) {
+            ImageView view = new ImageView(new Image(cover.toUri().toString(),
+                    CARD_THUMBNAIL_SIZE, CARD_THUMBNAIL_SIZE, true, true, true));
+            view.setFitWidth(CARD_THUMBNAIL_SIZE);
+            view.setFitHeight(CARD_THUMBNAIL_SIZE);
+            view.setPreserveRatio(true);
+            box.getChildren().add(view);
+        } else {
+            String emoji = (listing != null && listing.getType() == ListingType.LEND) ? "ðŸ¤"
+                    : (listing != null && listing.getType() == ListingType.GIVEAWAY) ? "ðŸŽ" : "ðŸ·ï¸";
+            Label icon = new Label(emoji);
+            icon.setStyle("-fx-font-size: 26px;");
+            box.getChildren().add(icon);
+        }
+        return box;
+    }
+
+    private static Node photoThumbnailNode(Path photo, int size) {
+        StackPane box = new StackPane();
+        box.setMinSize(size, size);
+        box.setMaxSize(size, size);
+        box.setStyle("-fx-background-color: #f1f5f9; -fx-background-radius: 6; -fx-border-color: #cbd5e1; -fx-border-radius: 6;");
+        if (photo != null && Files.isRegularFile(photo)) {
+            ImageView view = new ImageView(new Image(photo.toUri().toString(), size, size, true, true, true));
+            view.setFitWidth(size);
+            view.setFitHeight(size);
+            view.setPreserveRatio(true);
+            box.getChildren().add(view);
+        } else {
+            Label missing = new Label("ðŸ“·");
+            missing.setStyle("-fx-font-size: 18px; -fx-text-fill: #94a3b8;");
+            box.getChildren().add(missing);
+        }
+        return box;
+    }
+
+    private void renderFormPhotoThumbnails(HBox container, Label countLabel, Button addBtn,
+                                           List<Path> photos, Label emptyLabel) {
+        container.getChildren().clear();
+        for (int i = 0; i < photos.size(); i++) {
+            final int idx = i;
+            Path p = photos.get(i);
+            StackPane tile = new StackPane();
+            tile.setMinSize(FORM_THUMBNAIL_SIZE + 4, FORM_THUMBNAIL_SIZE + 4);
+            tile.setMaxSize(FORM_THUMBNAIL_SIZE + 4, FORM_THUMBNAIL_SIZE + 4);
+            Node imgNode = photoThumbnailNode(p, FORM_THUMBNAIL_SIZE);
+            Button removeBtn = new Button("Ã—");
+            removeBtn.setStyle("-fx-font-size: 10px; -fx-background-color: #ef4444; -fx-text-fill: white; -fx-padding: 0 4 0 4; -fx-background-radius: 8;");
+            StackPane.setAlignment(removeBtn, Pos.TOP_RIGHT);
+            removeBtn.setOnAction(ev -> {
+                photos.remove(idx);
+                renderFormPhotoThumbnails(container, countLabel, addBtn, photos, emptyLabel);
+            });
+            tile.getChildren().addAll(imgNode, removeBtn);
+            container.getChildren().add(tile);
+        }
+        if (photos.isEmpty()) {
+            container.getChildren().add(emptyLabel);
+        }
+        countLabel.setText(photos.size() + " / " + CreateListingService.MAX_PHOTOS + " photos");
+        addBtn.setDisable(photos.size() >= CreateListingService.MAX_PHOTOS);
+    }
+
     private VBox createPendingCard(Listing l) {
         VBox card = new VBox(10);
         card.getStyleClass().addAll("card", "card-hover");
@@ -160,7 +256,18 @@ public class AdminDashboardController {
         reject.setOnAction(e -> handleReject(l));
 
         actions.getChildren().addAll(viewDetails, spacer, approve, reject);
-        card.getChildren().addAll(topRow, meta, submitted, actions);
+
+        HBox cardLayout = new HBox(14);
+        cardLayout.setAlignment(Pos.TOP_LEFT);
+
+        StackPane thumb = listingThumbnail(l);
+
+        VBox infoBox = new VBox(8);
+        HBox.setHgrow(infoBox, Priority.ALWAYS);
+        infoBox.getChildren().addAll(topRow, meta, submitted, actions);
+
+        cardLayout.getChildren().addAll(thumb, infoBox);
+        card.getChildren().add(cardLayout);
         return card;
     }
 
@@ -292,8 +399,19 @@ public class AdminDashboardController {
         grid.add(new Label(l.getPostedAt() != null ? l.getPostedAt().format(DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm")) : "-"), 1, 7);
 
         grid.add(new Label("Photos:"), 0, 8);
-        int photoCount = l.getPhotos() != null ? l.getPhotos().size() : 0;
-        grid.add(new Label(photoCount + " photo(s) attached"), 1, 8);
+        HBox photoGallery = new HBox(8);
+        photoGallery.setAlignment(Pos.CENTER_LEFT);
+        if (l.getPhotos() != null && !l.getPhotos().isEmpty()) {
+            for (Photo p : l.getPhotos()) {
+                Path r = readablePhoto(p != null ? p.getImagePath() : null);
+                photoGallery.getChildren().add(photoThumbnailNode(r, DETAIL_THUMBNAIL_SIZE));
+            }
+        } else {
+            Label noPhotos = new Label("No photos attached");
+            noPhotos.setStyle("-fx-text-fill: #9aa0b0; -fx-font-style: italic;");
+            photoGallery.getChildren().add(noPhotos);
+        }
+        grid.add(photoGallery, 1, 8);
 
         Label descHeader = new Label("Description:");
         descHeader.setStyle("-fx-font-weight: bold;");
@@ -710,8 +828,50 @@ public class AdminDashboardController {
         descArea.setPromptText("Description");
         descArea.setPrefRowCount(3);
 
-        Label photoNote = new Label("📷 Photos: 1 sample photo attached by default (up to 6 photos allowed)");
-        photoNote.setStyle("-fx-text-fill: #5a5a7a; -fx-font-size: 12px;");
+        List<Path> chosenPhotos = new ArrayList<>();
+        VBox photoSection = new VBox(6);
+        HBox photoHeader = new HBox(12);
+        photoHeader.setAlignment(Pos.CENTER_LEFT);
+        Button addPhotosBtn = new Button("ðŸ“·  Add photosâ€¦");
+        addPhotosBtn.getStyleClass().addAll("btn-outline", "btn-sm");
+        Label photoCountLbl = new Label("0 / " + CreateListingService.MAX_PHOTOS + " photos");
+        photoCountLbl.setStyle("-fx-text-fill: #5a5a7a; -fx-font-size: 12px;");
+        photoHeader.getChildren().addAll(addPhotosBtn, photoCountLbl);
+
+        HBox photoThumbnails = new HBox(8);
+        photoThumbnails.setAlignment(Pos.CENTER_LEFT);
+        Label noPhotosLbl = new Label("No photos selected yet. (1 to 6 photos required)");
+        noPhotosLbl.setStyle("-fx-text-fill: #9aa0b0; -fx-font-size: 11px;");
+        photoThumbnails.getChildren().add(noPhotosLbl);
+
+        addPhotosBtn.setOnAction(ev -> {
+            FileChooser chooser = new FileChooser();
+            chooser.setTitle("Select Listing Photos (PNG, JPG, GIF, BMP)");
+            chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter(
+                    "Images (PNG, JPEG, GIF, BMP)", "*.png", "*.jpg", "*.jpeg", "*.gif", "*.bmp",
+                    "*.PNG", "*.JPG", "*.JPEG", "*.GIF", "*.BMP"
+            ));
+            List<File> files = null;
+            try {
+                files = chooser.showOpenMultipleDialog(SceneManager.getPrimaryStage());
+            } catch (Exception ex) {
+                // In headless mode or test environment
+            }
+            if (files != null && !files.isEmpty()) {
+                PhotoSelectionResult selRes = CreateListingService.addPhotos(chosenPhotos, files.stream().map(File::toPath).toList());
+                chosenPhotos.clear();
+                chosenPhotos.addAll(selRes.getPhotos());
+                renderFormPhotoThumbnails(photoThumbnails, photoCountLbl, addPhotosBtn, chosenPhotos, noPhotosLbl);
+                if (selRes.hasRejections()) {
+                    errLabel.setText(String.join("\n", selRes.getRejections()));
+                    errLabel.setVisible(true);
+                } else {
+                    errLabel.setVisible(false);
+                }
+            }
+        });
+
+        photoSection.getChildren().addAll(new Label("Photos (1 to 6) *:"), photoHeader, photoThumbnails);
 
         content.getChildren().addAll(
                 errLabel,
@@ -723,10 +883,9 @@ public class AdminDashboardController {
                 new Label("Meetup Point *:"), meetupCombo,
                 new Label("Price (for Sell):"), priceField,
                 new Label("Lending Days (for Lend):"), daysField,
-                new Label("Description:"), descArea,
-                photoNote
+                new Label("Description *:"), descArea,
+                photoSection
         );
-
         dialog.getDialogPane().setContent(content);
 
         Button okBtn = (Button) dialog.getDialogPane().lookupButton(ButtonType.OK);
@@ -759,8 +918,23 @@ public class AdminDashboardController {
                 }
             }
 
-            List<Photo> photos = new ArrayList<>();
-            photos.add(new Photo("/images/sample.png"));
+            if (descArea.getText() == null || descArea.getText().trim().isEmpty()) {
+                errLabel.setText("Description is required.");
+                errLabel.setVisible(true);
+                event.consume();
+                return;
+            }
+
+            if (chosenPhotos.isEmpty()) {
+                errLabel.setText("At least one photo is required (1 to 6 photos).");
+                errLabel.setVisible(true);
+                event.consume();
+                return;
+            }
+
+            List<Photo> photos = chosenPhotos.stream()
+                    .map(p -> new Photo(p.toAbsolutePath().normalize().toString()))
+                    .toList();
 
             AdminListingCreateRequest req = new AdminListingCreateRequest(
                     selectedSeller != null ? selectedSeller.getUsername() : null,
@@ -850,6 +1024,61 @@ public class AdminDashboardController {
         TextArea descArea = new TextArea(l.getDescription() != null ? l.getDescription() : "");
         descArea.setPrefRowCount(3);
 
+        List<Path> editPhotos = new ArrayList<>();
+        if (l.getPhotos() != null) {
+            for (Photo p : l.getPhotos()) {
+                Path r = readablePhoto(p != null ? p.getImagePath() : null);
+                if (r != null) {
+                    editPhotos.add(r.toAbsolutePath().normalize());
+                }
+            }
+        }
+
+        VBox editPhotoSection = new VBox(6);
+        HBox editPhotoHeader = new HBox(12);
+        editPhotoHeader.setAlignment(Pos.CENTER_LEFT);
+        Button addEditPhotosBtn = new Button("ðŸ“·  Add photosâ€¦");
+        addEditPhotosBtn.getStyleClass().addAll("btn-outline", "btn-sm");
+        Label editPhotoCountLbl = new Label(editPhotos.size() + " / " + CreateListingService.MAX_PHOTOS + " photos");
+        editPhotoCountLbl.setStyle("-fx-text-fill: #5a5a7a; -fx-font-size: 12px;");
+        editPhotoHeader.getChildren().addAll(addEditPhotosBtn, editPhotoCountLbl);
+
+        HBox editPhotoThumbnails = new HBox(8);
+        editPhotoThumbnails.setAlignment(Pos.CENTER_LEFT);
+        Label noEditPhotosLbl = new Label("No photos selected. (1 to 6 photos required)");
+        noEditPhotosLbl.setStyle("-fx-text-fill: #9aa0b0; -fx-font-size: 11px;");
+
+        renderFormPhotoThumbnails(editPhotoThumbnails, editPhotoCountLbl, addEditPhotosBtn, editPhotos, noEditPhotosLbl);
+
+        addEditPhotosBtn.setOnAction(ev -> {
+            FileChooser chooser = new FileChooser();
+            chooser.setTitle("Select Listing Photos (PNG, JPG, GIF, BMP)");
+            chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter(
+                    "Images (PNG, JPEG, GIF, BMP)", "*.png", "*.jpg", "*.jpeg", "*.gif", "*.bmp",
+                    "*.PNG", "*.JPG", "*.JPEG", "*.GIF", "*.BMP"
+            ));
+            List<File> files = null;
+            try {
+                files = chooser.showOpenMultipleDialog(SceneManager.getPrimaryStage());
+            } catch (Exception ex) {
+                // In headless mode or test environment
+            }
+            if (files != null && !files.isEmpty()) {
+                PhotoSelectionResult selRes = CreateListingService.addPhotos(editPhotos, files.stream().map(File::toPath).toList());
+                editPhotos.clear();
+                editPhotos.addAll(selRes.getPhotos());
+                renderFormPhotoThumbnails(editPhotoThumbnails, editPhotoCountLbl, addEditPhotosBtn, editPhotos, noEditPhotosLbl);
+                if (selRes.hasRejections()) {
+                    errLabel.setText(String.join("\n", selRes.getRejections()));
+                    errLabel.setVisible(true);
+                } else {
+                    errLabel.setVisible(false);
+                }
+            }
+        });
+
+        editPhotoSection.getChildren().addAll(new Label("Photos (1 to 6) *:"), editPhotoHeader, editPhotoThumbnails);
+
         content.getChildren().addAll(
                 errLabel,
                 sellerInfo,
@@ -860,7 +1089,8 @@ public class AdminDashboardController {
                 new Label("Meetup Point *:"), meetupCombo,
                 new Label("Price (for Sell):"), priceField,
                 new Label("Lending Days (for Lend):"), daysField,
-                new Label("Description:"), descArea
+                new Label("Description *:"), descArea,
+                editPhotoSection
         );
 
         dialog.getDialogPane().setContent(content);
@@ -894,10 +1124,23 @@ public class AdminDashboardController {
                 }
             }
 
-            List<Photo> photos = l.getPhotos();
-            if (photos == null || photos.isEmpty()) {
-                photos = List.of(new Photo("/images/sample.png"));
+            if (descArea.getText() == null || descArea.getText().trim().isEmpty()) {
+                errLabel.setText("Description is required.");
+                errLabel.setVisible(true);
+                event.consume();
+                return;
             }
+
+            if (editPhotos.isEmpty()) {
+                errLabel.setText("At least one photo is required (1 to 6 photos).");
+                errLabel.setVisible(true);
+                event.consume();
+                return;
+            }
+
+            List<Photo> photos = editPhotos.stream()
+                    .map(p -> new Photo(p.toAbsolutePath().normalize().toString()))
+                    .toList();
 
             AdminListingEditRequest req = new AdminListingEditRequest(
                     l.getId(),
@@ -1026,11 +1269,26 @@ public class AdminDashboardController {
         grid.add(new Label("Active Offers:"), 0, 8);
         grid.add(new Label(activeOffers + " pending/countered offer(s)"), 1, 8);
 
+        grid.add(new Label("Photos:"), 0, 9);
+        HBox detailsGallery = new HBox(8);
+        detailsGallery.setAlignment(Pos.CENTER_LEFT);
+        if (l.getPhotos() != null && !l.getPhotos().isEmpty()) {
+            for (Photo p : l.getPhotos()) {
+                Path r = readablePhoto(p != null ? p.getImagePath() : null);
+                detailsGallery.getChildren().add(photoThumbnailNode(r, DETAIL_THUMBNAIL_SIZE));
+            }
+        } else {
+            Label noPhotos = new Label("No photos attached");
+            noPhotos.setStyle("-fx-text-fill: #9aa0b0; -fx-font-style: italic;");
+            detailsGallery.getChildren().add(noPhotos);
+        }
+        grid.add(detailsGallery, 1, 9);
+
         if (l.getAdminReason() != null && !l.getAdminReason().trim().isEmpty()) {
-            grid.add(new Label("Admin Reason:"), 0, 9);
+            grid.add(new Label("Admin Reason:"), 0, 10);
             Label rLbl = new Label(l.getAdminReason());
             rLbl.setStyle("-fx-text-fill: #c62828; -fx-font-weight: bold;");
-            grid.add(rLbl, 1, 9);
+            grid.add(rLbl, 1, 10);
         }
 
         Label descHeader = new Label("Description:");

@@ -231,6 +231,8 @@ class AdminNotificationServiceTest {
             assertTrue(result.isSuccess());
             assertEquals(AdminReportResolutionStatus.SUCCESS, result.getStatus());
             assertEquals(ReportStatus.RESOLVED, openReport.getStatus());
+            assertEquals(adminUsername, openReport.getHandledBy());
+            assertNotNull(openReport.getResolvedDate());
 
             // A3 Step 3: Check buyer notification
             List<Notification> buyerNotifs = dataService.getNotificationsFor(openReport.getBuyerUsername());
@@ -243,8 +245,30 @@ class AdminNotificationServiceTest {
             List<Notification> adminNotifs = service.getNotifications(adminUsername, AdminNotificationFilterCriteria.all());
             assertEquals(adminNotifsBefore + 1, adminNotifs.size());
             Notification auditAlert = adminNotifs.get(0);
-            assertEquals("User Accounts", auditAlert.getCategory());
+            assertEquals(AdminNotificationCategory.REPORTS.getDisplayName(), auditAlert.getCategory());
             assertTrue(auditAlert.getTitle().contains("Report Marked Resolved"));
+        }
+
+        @Test
+        @DisplayName("A3: resolveReport sets handledBy and resolvedDate and logs under REPORTS category [F29]")
+        void testResolveReportRecordsHandlingAdminAndReportsCategory() {
+            Report openReport = new Report("REP_F29", "L101", "Textbook", "buyer1", "Damaged item");
+            dataService.addReport(openReport);
+
+            AdminReportResolutionResult res = service.resolveReport("REP_F29", adminUsername, "Refund processed");
+            assertTrue(res.isSuccess());
+
+            Report resolved = dataService.findReport("REP_F29");
+            assertNotNull(resolved);
+            assertEquals(ReportStatus.RESOLVED, resolved.getStatus());
+            assertEquals(adminUsername, resolved.getHandledBy());
+            assertNotNull(resolved.getResolvedDate());
+
+            List<Notification> adminNotifs = service.getNotifications(adminUsername, AdminNotificationCategory.REPORTS);
+            assertTrue(adminNotifs.stream().anyMatch(n ->
+                    n.getMessage().contains("resolved report REP_F29") &&
+                    n.getCategory().equals(AdminNotificationCategory.REPORTS.getDisplayName())
+            ));
         }
 
         @Test

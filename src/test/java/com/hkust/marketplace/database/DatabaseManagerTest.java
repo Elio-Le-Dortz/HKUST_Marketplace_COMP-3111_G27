@@ -349,10 +349,15 @@ class DatabaseManagerTest {
         assertEquals(ReportStatus.OPEN, loaded.getStatus());
 
         loaded.setStatus(ReportStatus.RESOLVED);
+        loaded.setHandledBy("admin");
+        LocalDateTime resolvedAt = LocalDateTime.now().withNano(0);
+        loaded.setResolvedDate(resolvedAt);
         db.saveReport(loaded);
 
         Report updated = db.loadAllReports().get(0);
         assertEquals(ReportStatus.RESOLVED, updated.getStatus());
+        assertEquals("admin", updated.getHandledBy());
+        assertEquals(resolvedAt, updated.getResolvedDate());
 
         db.deleteReport("REP301");
         assertTrue(db.loadAllReports().isEmpty());

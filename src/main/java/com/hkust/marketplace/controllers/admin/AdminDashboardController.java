@@ -2877,6 +2877,10 @@ public class AdminDashboardController {
             Label repStatus = new Label(report.getStatus() != null ? report.getStatus().name() : "OPEN");
             repStatus.getStyleClass().addAll("badge", report.getStatus() == ReportStatus.RESOLVED ? "badge-success" : "badge-danger");
             repGrid.add(repStatus, 1, 4);
+            if (report.getHandledBy() != null && !report.getHandledBy().trim().isEmpty()) {
+                repGrid.add(new Label("Handled By:"), 0, 5);
+                repGrid.add(new Label("@" + report.getHandledBy()), 1, 5);
+            }
 
             relatedBox.getChildren().add(repGrid);
 

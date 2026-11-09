@@ -331,6 +331,8 @@ public class AdminNotificationService {
 
         // Subflow A3 Step 3: Set status to Resolved
         report.setStatus(ReportStatus.RESOLVED);
+        report.setHandledBy(adminUsername.trim());
+        report.setResolvedDate(LocalDateTime.now());
         dataService.updateReport(report);
 
         // Subflow A3 Step 3: Notify buyer who filed it
@@ -354,7 +356,7 @@ public class AdminNotificationService {
                 "admin",
                 "Report Marked Resolved",
                 "Admin @" + adminUsername.trim() + " resolved report " + report.getId() + " on '" + report.getListingTitle() + "'.",
-                AdminNotificationCategory.USER_ACCOUNTS.getDisplayName(),
+                AdminNotificationCategory.REPORTS.getDisplayName(),
                 report.getId(),
                 "REPORT"
         );

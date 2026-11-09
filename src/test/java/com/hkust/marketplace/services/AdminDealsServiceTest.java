@@ -362,6 +362,101 @@ class AdminDealsServiceTest {
     }
 
     @Test
+    @DisplayName("F33: Enrich deal matches review by deal ID and avoids cross-deal mismatch on same listing")
+    void testEnrichDealMatchesReviewByDealIdNotJustUsersAndListingF33() {
+        Deal deal1 = new Deal();
+        deal1.setId("D_F33_1");
+        deal1.setListingId("L_F33");
+        deal1.setBuyerUsername("alice");
+        deal1.setSellerUsername("charlie");
+        deal1.setType(DealType.LOAN);
+        deal1.setStatus(DealStatus.COMPLETED);
+        deal1.setStartDate(LocalDateTime.now().minusDays(10));
+        dataService.addDeal(deal1);
+
+        Deal deal2 = new Deal();
+        deal2.setId("D_F33_2");
+        deal2.setListingId("L_F33");
+        deal2.setBuyerUsername("alice");
+        deal2.setSellerUsername("charlie");
+        deal2.setType(DealType.LOAN);
+        deal2.setStatus(DealStatus.COMPLETED);
+        deal2.setStartDate(LocalDateTime.now().minusDays(2));
+        dataService.addDeal(deal2);
+
+        Review review1 = new Review();
+        review1.setId("R_F33_1");
+        review1.setDealId("D_F33_1");
+        review1.setListingId("L_F33");
+        review1.setBuyerUsername("alice");
+        review1.setSellerUsername("charlie");
+        review1.setRating(5);
+        review1.setComment("First loan went great!");
+        dataService.addReview(review1);
+
+        Review review2 = new Review();
+        review2.setId("R_F33_2");
+        review2.setDealId("D_F33_2");
+        review2.setListingId("L_F33");
+        review2.setBuyerUsername("alice");
+        review2.setSellerUsername("charlie");
+        review2.setRating(1);
+        review2.setComment("Second loan had issues.");
+        dataService.addReview(review2);
+
+        Optional<AdminDealRecord> rec1Opt = service.getDealDetails("D_F33_1");
+        assertTrue(rec1Opt.isPresent());
+        assertEquals("R_F33_1", rec1Opt.get().getReview().getId());
+        assertEquals(5, rec1Opt.get().getReviewRating());
+        assertEquals("First loan went great!", rec1Opt.get().getReviewComment());
+
+        Optional<AdminDealRecord> rec2Opt = service.getDealDetails("D_F33_2");
+        assertTrue(rec2Opt.isPresent());
+        assertEquals("R_F33_2", rec2Opt.get().getReview().getId());
+        assertEquals(1, rec2Opt.get().getReviewRating());
+        assertEquals("Second loan had issues.", rec2Opt.get().getReviewComment());
+    }
+
+    @Test
+    @DisplayName("F33: Enrich deal does not attach another deal's review to an unreviewed deal between same users")
+    void testEnrichDealDoesNotCrossContaminateUnreviewedDealF33() {
+        Deal deal1 = new Deal();
+        deal1.setId("D_F33_RATED");
+        deal1.setListingId("L_F33_MULTI");
+        deal1.setBuyerUsername("alice");
+        deal1.setSellerUsername("diana");
+        deal1.setType(DealType.LOAN);
+        deal1.setStatus(DealStatus.COMPLETED);
+        deal1.setStartDate(LocalDateTime.now().minusDays(5));
+        dataService.addDeal(deal1);
+
+        Deal deal2 = new Deal();
+        deal2.setId("D_F33_UNRATED");
+        deal2.setListingId("L_F33_MULTI");
+        deal2.setBuyerUsername("alice");
+        deal2.setSellerUsername("diana");
+        deal2.setType(DealType.LOAN);
+        deal2.setStatus(DealStatus.COMPLETED);
+        deal2.setStartDate(LocalDateTime.now().minusDays(1));
+        dataService.addDeal(deal2);
+
+        Review review1 = new Review();
+        review1.setId("R_F33_RATED");
+        review1.setDealId("D_F33_RATED");
+        review1.setListingId("L_F33_MULTI");
+        review1.setBuyerUsername("alice");
+        review1.setSellerUsername("diana");
+        review1.setRating(4);
+        review1.setComment("Good item");
+        dataService.addReview(review1);
+
+        Optional<AdminDealRecord> unratedRec = service.getDealDetails("D_F33_UNRATED");
+        assertTrue(unratedRec.isPresent());
+        assertNull(unratedRec.get().getReview());
+        assertFalse(unratedRec.get().hasReview());
+    }
+
+    @Test
     @DisplayName("RBAC: Unauthenticated caller throws SecurityException")
     void testUnauthenticatedAccessThrowsSecurityException() {
         SessionManager.logout();

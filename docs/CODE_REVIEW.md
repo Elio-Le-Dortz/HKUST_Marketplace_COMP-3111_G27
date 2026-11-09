@@ -146,7 +146,7 @@ After F03/F04 (session checks for buyers and admins) the snippets must log in th
 | F30 | P4 | *Decision* | ~~Seeded admin is `admin`, specs say `admin@ust.hk`~~ **[DECIDED - Keep `admin`]** | UC 3.1; CLASS_DIAGRAM §3.1 |
 | F31 | P4 | *Decision* | ~~Seeded listings have no photos~~ **[DECIDED - Demo Limitation Documented]** | CLASS_DIAGRAM `Listing 1 *-- 1..6 Photo` |
 | F32 | P4 | Charles | ~~My Deals cannot rate a returned loan (Deal History can)~~ **[FIXED - PR #47]** | Consistency (UC 1.10) |
-| F33 | P4 | Elio | All Deals matches a deal's review by users + listing, not by deal | UC 3.5 step 4 |
+| F33 | P4 | Elio | ~~All Deals matches a deal's review by users + listing, not by deal~~ **[FIXED]** | UC 3.5 step 4 |
 | F34 | P4 | Antoine — *Decision* | Seller cannot cancel or mark sold a Reserved deal | Brief: sellers can "mark as sold" |
 | F35 | P4 | Team | ~~Documentation out of date or inconsistent~~ **[FIXED - PR #52]** | Brief submission guidelines (README) |
 
@@ -785,7 +785,12 @@ After F03/F04 (session checks for buyers and admins) the snippets must log in th
   and `BuyerReviewService.canRateDeal` accept `COMPLETED` or `RETURNED`.
 - **Suggested fix:** align `MyDealsItem.canRate()` with the service.
 
-### F33 — All Deals matches a deal's review by users and listing instead of by deal
+### F33 — [FIXED] All Deals matches a deal's review by users and listing instead of by deal
+> [!NOTE]
+> **Status: FIXED**
+> - In `services/AdminDealsService.java` (`enrichDeal`), resolved the review by calling `dataService.getReviewForDeal(deal.getId())` first.
+> - Preserved user-and-listing matching strictly as a fallback for legacy / seeded reviews where `dealId` is null or blank, preventing cross-deal contamination between multiple deals on the same listing between the same users.
+> - Added dedicated unit test coverage in `AdminDealsServiceTest` verifying accurate deal-to-review correlation and isolation of unreviewed deals.
 - **Owner:** Elio.
 - **Where:** `services/AdminDealsService.java:131` loops over all reviews matching seller + buyer + listing; with
   two deals between the same people on the same listing (e.g. two loans), the wrong review can be shown.

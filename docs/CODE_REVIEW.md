@@ -123,7 +123,7 @@ After F03/F04 (session checks for buyers and admins) the snippets must log in th
 | F08 | P2 | Charles | ~~Listing detail cannot be reopened from My Deals / Deal History~~ **[FIXED - PR #35]** | Task 1.6; UC 1.4 step 1 |
 | F09 | P2 | Charles + Antoine | ~~Seller cannot reach chats without an offer; chat notifications unlinked~~ **[FIXED - PR #36]** | Task 1.5 "both buyer and seller participate"; UC "Chat About Listing" |
 | F10 | P2 | Antoine | Seller chat has no search | Brief "chat history retained and searchable" |
-| F11 | P2 | Elio | Admin never sees photos; "add listing" attaches a fake photo | Task 3.2 "Photos"; Task 3.7 "same fields as Task 2.3"; UC 3.7 A3 |
+| F11 | P2 | Elio | ~~Admin never sees photos; "add listing" attaches a fake photo~~ **[FIXED]** | Task 3.2 "Photos"; Task 3.7 "same fields as Task 2.3"; UC 3.7 A3 |
 | F12 | P3 | Charles / shared | ~~Buyer-facing seller rating stale after hiding; fake seeded ratings~~ **[FIXED - PR #37]** | CLASS_DIAGRAM rule 4; UC 3.8 postcondition; Task 1.10 |
 | F13 | P3 | Team (seed) | ~~Seeded deals contradict listing statuses~~ **[FIXED - PR #49]** | CLASS_DIAGRAM listing lifecycle |
 | F14 | P3 | Elio | Admin login reveals which credential is wrong; no "use your own portal" | UC 3.1 A2, A3 |
@@ -414,7 +414,20 @@ After F03/F04 (session checks for buyers and admins) the snippets must log in th
 - **Test:** service already tested; add a seller-side test that the seller (a participant) can search, and that
   another seller cannot (`UNAUTHORIZED`).
 
-### F11 — Admin never sees photos; "add listing on behalf" attaches a fake photo
+### F11 — [FIXED] Admin never sees photos; "add listing on behalf" attaches a fake photo
+> [!NOTE]
+> **Status: FIXED**
+> - In `AdminDashboardController.java`:
+>   - Added cover thumbnail to review queue pending listing cards (`createPendingCard`).
+>   - Added photo thumbnail gallery to submission details view (`showListingDetails` and `openListingDetailsDialog`).
+>   - Replaced fake `/images/sample.png` fallback with real photo selection using `FileChooser` and static helpers `CreateListingService.addPhotos(...)` in both `openAddListingDialog` and `openEditListingDialog`, with interactive thumbnail preview and removal controls.
+> - In `AdminListingService.java`:
+>   - Enforced non-empty and length validation for description and title.
+>   - Enforced photo validation matching Task 2.3 (1 to 6 photos, valid image magic bytes, supported formats, file existence, no duplicates).
+>   - Preserved normalized photo paths with standard ID formatting (`<listingId>-P<index>`).
+> - In unit tests (`AdminListingServiceTest.java` and `DummyDataServiceAdminListingTest.java`):
+>   - Added valid temp PNG photos via `@TempDir`.
+>   - Added regression test assertions for missing/too long descriptions and invalid/non-image/duplicate photo files.
 - **Owner:** Elio.
 - **Requirement:** Task 3.2 "For each submission show: … Photos …"; Task 3.7 "Add a listing … — same fields as
   Task 2.3" (1 to 6 photos, description required); UC 3.7 A3 "photos missing, more than 6, or not images".

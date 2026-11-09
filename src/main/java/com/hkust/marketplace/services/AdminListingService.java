@@ -6,6 +6,8 @@ import com.hkust.marketplace.utils.SessionManager;
 
 import java.time.LocalDateTime;
 import java.util.*;
+import java.nio.file.Path;
+import java.nio.file.InvalidPathException;
 import java.util.stream.Collectors;
 
 /**
@@ -89,7 +91,7 @@ public class AdminListingService {
 
         // Alternative Flow A3: Missing Or Invalid Field
         AdminListingOperationResult validation = validateListingFields(
-                request.getTitle(), request.getType(), request.getCategory(),
+                request.getTitle(), request.getDescription(), request.getType(), request.getCategory(),
                 request.getCondition(), request.getMeetupLocation(),
                 request.getPrice(), request.getLendingDays(), request.getPhotos()
         );
@@ -121,9 +123,16 @@ public class AdminListingService {
             listing.setLendingDays(null);
         }
 
-        listing.setPhotos(request.getPhotos());
-
         dataService.addListing(listing);
+
+        List<Photo> storedPhotos = new ArrayList<>();
+        for (int i = 0; i < request.getPhotos().size(); i++) {
+            Photo p = request.getPhotos().get(i);
+            String photoId = listing.getId() + "-P" + (i + 1);
+            storedPhotos.add(new Photo(photoId, Path.of(p.getImagePath().trim()).toAbsolutePath().normalize().toString()));
+        }
+        listing.setPhotos(storedPhotos);
+        dataService.updateListing(listing);
 
         // Subflow S1 Step 5: Notify seller
         Notification sellerNotif = new Notification(
@@ -170,7 +179,7 @@ public class AdminListingService {
 
         // Alternative Flow A3: Missing Or Invalid Field
         AdminListingOperationResult validation = validateListingFields(
-                request.getTitle(), request.getType(), request.getCategory(),
+                request.getTitle(), request.getDescription(), request.getType(), request.getCategory(),
                 request.getCondition(), request.getMeetupLocation(),
                 request.getPrice(), request.getLendingDays(), request.getPhotos()
         );
@@ -197,7 +206,13 @@ public class AdminListingService {
             listing.setLendingDays(null);
         }
 
-        listing.setPhotos(request.getPhotos());
+        List<Photo> storedEditPhotos = new ArrayList<>();
+        for (int i = 0; i < request.getPhotos().size(); i++) {
+            Photo p = request.getPhotos().get(i);
+            String photoId = listing.getId() + "-P" + (i + 1);
+            storedEditPhotos.add(new Photo(photoId, Path.of(p.getImagePath().trim()).toAbsolutePath().normalize().toString()));
+        }
+        listing.setPhotos(storedEditPhotos);
 
         dataService.updateListing(listing);
 
@@ -378,12 +393,21 @@ public class AdminListingService {
     }
 
     private AdminListingOperationResult validateListingFields(
-            String title, ListingType type, Category category,
+            String title, String description, ListingType type, Category category,
             Condition condition, MeetupLocation meetupLocation,
             Double price, Integer lendingDays, List<Photo> photos) {
 
         if (title == null || title.trim().isEmpty()) {
             return AdminListingOperationResult.invalidField("title", "Item name is required.");
+        }
+        if (title.trim().codePointCount(0, title.trim().length()) > CreateListingService.MAX_TITLE_LENGTH) {
+            return AdminListingOperationResult.invalidField("title", CreateListingService.TITLE_TOO_LONG);
+        }
+        if (description == null || description.trim().isEmpty()) {
+            return AdminListingOperationResult.invalidField("description", "Description is required.");
+        }
+        if (description.trim().codePointCount(0, description.trim().length()) > CreateListingService.MAX_DESCRIPTION_LENGTH) {
+            return AdminListingOperationResult.invalidField("description", CreateListingService.DESCRIPTION_TOO_LONG);
         }
         if (category == null) {
             return AdminListingOperationResult.invalidField("category", "Category is required.");
@@ -398,14 +422,6 @@ public class AdminListingService {
             return AdminListingOperationResult.invalidField("type", "Listing type is required.");
         }
 
-        // Photos: 1 to 6 photos
-        if (photos == null || photos.isEmpty()) {
-            return AdminListingOperationResult.invalidField("photos", "At least one photo is required (1 to 6 photos).");
-        }
-        if (photos.size() > 6) {
-            return AdminListingOperationResult.invalidField("photos", "A listing cannot have more than 6 photos.");
-        }
-
         if (type == ListingType.SELL) {
             if (price == null || price <= 0.0) {
                 return AdminListingOperationResult.invalidField("price", "Price must be greater than zero for Sell listings.");
@@ -413,6 +429,36 @@ public class AdminListingService {
         } else if (type == ListingType.LEND) {
             if (lendingDays == null || lendingDays <= 0) {
                 return AdminListingOperationResult.invalidField("lendingDays", "Lending duration must be positive for Lend listings.");
+            }
+        }
+
+        // Photos: 1 to 6 photos
+        if (photos == null || photos.isEmpty()) {
+            return AdminListingOperationResult.invalidField("photos", "At least one photo is required (1 to 6 photos).");
+        }
+        if (photos.size() > CreateListingService.MAX_PHOTOS) {
+            return AdminListingOperationResult.invalidField("photos", "A listing cannot have more than 6 photos.");
+        }
+
+        Set<Path> seenPhotos = new HashSet<>();
+        for (Photo photo : photos) {
+            if (photo == null || photo.getImagePath() == null || photo.getImagePath().trim().isEmpty()) {
+                return AdminListingOperationResult.invalidField("photos", "Photo path cannot be empty.");
+            }
+            Path path;
+            try {
+                path = Path.of(photo.getImagePath().trim());
+            } catch (InvalidPathException e) {
+                return AdminListingOperationResult.invalidField("photos", "Invalid photo path: " + photo.getImagePath());
+            }
+            String problem = CreateListingService.photoProblem(path);
+            if (problem != null) {
+                String name = path.getFileName() != null ? path.getFileName().toString() : path.toString();
+                return AdminListingOperationResult.invalidField("photos", name + " " + problem);
+            }
+            if (!seenPhotos.add(path.toAbsolutePath().normalize())) {
+                String name = path.getFileName() != null ? path.getFileName().toString() : path.toString();
+                return AdminListingOperationResult.invalidField("photos", name + " " + CreateListingService.PHOTO_REPEATED);
             }
         }
 

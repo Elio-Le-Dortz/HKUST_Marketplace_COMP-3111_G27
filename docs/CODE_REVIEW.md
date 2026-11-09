@@ -127,7 +127,7 @@ After F03/F04 (session checks for buyers and admins) the snippets must log in th
 | F12 | P3 | Charles / shared | ~~Buyer-facing seller rating stale after hiding; fake seeded ratings~~ **[FIXED - PR #37]** | CLASS_DIAGRAM rule 4; UC 3.8 postcondition; Task 1.10 |
 | F13 | P3 | Team (seed) | ~~Seeded deals contradict listing statuses~~ **[FIXED - PR #49]** | CLASS_DIAGRAM listing lifecycle |
 | F14 | P3 | Elio | Admin login reveals which credential is wrong; no "use your own portal" | UC 3.1 A2, A3 |
-| F15 | P3 | Elio | Admin rename of a seller does not update their listings | UC 3.3; backlog US-S06 "reflected across all posted listings" |
+| F15 | P3 | Elio | ~~Admin rename of a seller does not update their listings~~ **[FIXED]** | UC 3.3; backlog US-S06 "reflected across all posted listings" |
 | F16 | P3 | Elio | Admin listing form stores lend duration in whole days (lossy) | UC 3.7 "same rules as a new listing"; 5-second minimum |
 | F17 | P3 | Elio | Take-down is not atomic with offer acceptance | UC 3.7 special req.; CLASS_DIAGRAM rule 1 |
 | F18 | P3 | Charles | ~~Accepting a counter offer leaves other countered offers stuck~~ **[FIXED - PR #38]** | CLASS_DIAGRAM rule 1; UC 1.6 S2 |
@@ -518,7 +518,14 @@ After F03/F04 (session checks for buyers and admins) the snippets must log in th
   dummy-hash check for unknown users), and keep the controller thin.
 - **Watch out:** `controllers/admin/AdminLoginTest.java` asserts the current messages.
 
-### F15 — Admin rename of a seller does not update their listings
+### F15 — [FIXED] Admin rename of a seller does not update their listings
+> [!NOTE]
+> **Status: FIXED**
+> - In `UserManagementService.java`:
+>   - Synchronized the full name update across all listings posted by the seller inside the `dataService` lock (`renameListings(target.getUsername(), target.getFullName())`).
+>   - Updated in-memory listings and persisted changes via `dataService.updateListing(listing)`.
+> - In unit tests (`UserManagementServiceTest.java` and `DummyDataServiceUserManagementTest.java`):
+>   - Added regression tests verifying that editing a seller's full name updates `sellerFullName` across all their posted listings.
 - **Owner:** Elio.
 - **Requirement:** UC 3.3 S1 (edit full name); backlog US-S06 acceptance "Updates reflected across all posted
   listings" (the name is copied in `Listing.sellerFullName` and shown everywhere).

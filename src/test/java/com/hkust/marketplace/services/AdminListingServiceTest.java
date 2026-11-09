@@ -743,54 +743,149 @@ class AdminListingServiceTest {
         }
 
         @Test
-        @DisplayName("Concurrency: Atomic take-down with simultaneous offer accept")
-        void testAtomicTakeDownConcurrency() throws InterruptedException, ExecutionException {
+        @DisplayName("F17 Invariant: Take-down fails if offer was already accepted into active deal")
+        void testTakeDownAfterOfferAcceptanceFails() {
+            OfferManagementService offerService = new OfferManagementService(dataService);
             Listing target = getSampleListing("Notebook");
             target.setStatus(ListingStatus.LIVE);
+            dataService.updateListing(target);
 
-            Offer offer = new Offer("O_CONCURRENT", OfferType.PRICE_OFFER, target.getId(), "alice", target.getSellerUsername());
+            Offer offer = new Offer("O_ACCEPTED_FIRST", OfferType.PRICE_OFFER, target.getId(), "alice", target.getSellerUsername());
             offer.setStatus(OfferStatus.PENDING);
+            offer.setPrice(50.0);
             dataService.addOffer(offer);
 
-            int threads = 10;
-            ExecutorService executor = Executors.newFixedThreadPool(threads);
-            CyclicBarrier barrier = new CyclicBarrier(threads);
+            User seller = dataService.findUser(target.getSellerUsername());
+            OfferManagementResult acceptResult = SessionManager.withSession(seller, () -> offerService.acceptOffer(offer.getId()));
+            assertTrue(acceptResult.isSuccess());
+            assertEquals(ListingStatus.RESERVED, dataService.findListing(target.getId()).getStatus());
 
-            AtomicInteger takeDownSuccesses = new AtomicInteger(0);
-            AtomicInteger offerAcceptedSuccesses = new AtomicInteger(0);
+            AdminListingOperationResult takedownResult = service.takeDownListing(target.getId(), "Copyright issue", ADMIN_USER);
+            assertFalse(takedownResult.isSuccess());
+            assertEquals(AdminListingOperationStatus.DEAL_IN_PROGRESS_OR_COMPLETED, takedownResult.getStatus());
+            assertEquals(ListingStatus.RESERVED, dataService.findListing(target.getId()).getStatus());
+        }
 
-            List<Callable<Void>> tasks = new ArrayList<>();
-            for (int i = 0; i < threads; i++) {
-                final int idx = i;
-                tasks.add(() -> {
-                    barrier.await();
-                    if (idx % 2 == 0) {
-                        AdminListingOperationResult res = service.takeDownListing(target.getId(), "Copyright issue", ADMIN_USER);
-                        if (res.isSuccess()) {
-                            takeDownSuccesses.incrementAndGet();
-                        }
+        @Test
+        @DisplayName("F17 Invariant: Offer acceptance fails if listing was already taken down")
+        void testOfferAcceptanceAfterTakeDownFails() {
+            OfferManagementService offerService = new OfferManagementService(dataService);
+            Listing target = getSampleListing("Notebook");
+            target.setStatus(ListingStatus.LIVE);
+            dataService.updateListing(target);
+
+            Offer offer = new Offer("O_TAKEDOWN_FIRST", OfferType.PRICE_OFFER, target.getId(), "alice", target.getSellerUsername());
+            offer.setStatus(OfferStatus.PENDING);
+            offer.setPrice(50.0);
+            dataService.addOffer(offer);
+
+            AdminListingOperationResult takedownResult = service.takeDownListing(target.getId(), "Copyright issue", ADMIN_USER);
+            assertTrue(takedownResult.isSuccess());
+            assertEquals(ListingStatus.REMOVED, dataService.findListing(target.getId()).getStatus());
+
+            User seller = dataService.findUser(target.getSellerUsername());
+            OfferManagementResult acceptResult = SessionManager.withSession(seller, () -> offerService.acceptOffer(offer.getId()));
+            assertFalse(acceptResult.isSuccess());
+            assertEquals(OfferManagementStatus.OFFER_NOT_PENDING, acceptResult.getStatus());
+            assertFalse(dataService.getAllDeals().stream().anyMatch(d -> target.getId().equals(d.getListingId())));
+        }
+
+        @Test
+        @DisplayName("F17 Concurrency: Race between takeDownListing and acceptOffer is atomic")
+        void testTakeDownAtomicWithOfferAcceptanceConcurrency() throws Exception {
+            OfferManagementService offerService = new OfferManagementService(dataService);
+            User seller = dataService.findUser("charlie");
+            User buyer = dataService.findUser("alice");
+            User admin = dataService.findUser(ADMIN_USER);
+
+            int rounds = 100;
+            ExecutorService executor = Executors.newFixedThreadPool(2);
+            int offerWins = 0;
+            int takedownWins = 0;
+
+            try {
+                for (int i = 0; i < rounds; i++) {
+                    String listingId = "L_F17_RACE_" + i;
+                    Listing listing = new Listing();
+                    listing.setId(listingId);
+                    listing.setTitle("Race Item " + i);
+                    listing.setDescription("Description " + i);
+                    listing.setType(ListingType.SELL);
+                    listing.setCategory(Category.BOOKS);
+                    listing.setCondition(Condition.LIKE_NEW);
+                    listing.setMeetupLocation(MeetupLocation.LIBRARY);
+                    listing.setSellerUsername(seller.getUsername());
+                    listing.setSellerFullName(seller.getFullName());
+                    listing.setPrice(100.0);
+                    listing.setStatus(ListingStatus.LIVE);
+                    dataService.addListing(listing);
+
+                    String offerId = "O_F17_RACE_" + i;
+                    Offer offer = new Offer(offerId, OfferType.PRICE_OFFER, listingId, buyer.getUsername(), seller.getUsername());
+                    offer.setStatus(OfferStatus.PENDING);
+                    offer.setPrice(90.0);
+                    dataService.addOffer(offer);
+
+                    CountDownLatch ready = new CountDownLatch(2);
+                    CountDownLatch start = new CountDownLatch(1);
+
+                    Future<OfferManagementResult> offerFuture = executor.submit(() -> {
+                        ready.countDown();
+                        ready.await();
+                        start.await();
+                        return SessionManager.withSession(seller, () -> offerService.acceptOffer(offerId));
+                    });
+
+                    Future<AdminListingOperationResult> takedownFuture = executor.submit(() -> {
+                        ready.countDown();
+                        ready.await();
+                        start.await();
+                        return SessionManager.withSession(admin, () -> service.takeDownListing(listingId, "Policy violation", ADMIN_USER));
+                    });
+
+                    ready.await();
+                    start.countDown();
+
+                    OfferManagementResult offerRes = offerFuture.get(5, TimeUnit.SECONDS);
+                    AdminListingOperationResult takedownRes = takedownFuture.get(5, TimeUnit.SECONDS);
+
+                    boolean offerSuccess = offerRes.isSuccess();
+                    boolean takedownSuccess = takedownRes.isSuccess();
+
+                    // Exactly one action must succeed
+                    assertTrue(offerSuccess ^ takedownSuccess,
+                            "Round " + i + ": exactly one must succeed, but got offer=" + offerSuccess + " takedown=" + takedownSuccess);
+
+                    if (offerSuccess) {
+                        offerWins++;
                     } else {
-                        // Concurrent seller/buyer attempt to reserve listing
-                        synchronized (target) {
-                            if (target.getStatus() == ListingStatus.LIVE) {
-                                target.setStatus(ListingStatus.RESERVED);
-                                offerAcceptedSuccesses.incrementAndGet();
-                            }
-                        }
+                        takedownWins++;
                     }
-                    return null;
-                });
+
+                    Listing finalListing = dataService.findListing(listingId);
+                    assertNotNull(finalListing);
+
+                    boolean hasActiveDeal = dataService.getAllDeals().stream()
+                            .anyMatch(d -> listingId.equals(d.getListingId()) && d.getStatus() == DealStatus.ACTIVE);
+
+                    if (offerSuccess) {
+                        assertEquals(ListingStatus.RESERVED, finalListing.getStatus());
+                        assertEquals(AdminListingOperationStatus.DEAL_IN_PROGRESS_OR_COMPLETED, takedownRes.getStatus());
+                        assertTrue(hasActiveDeal, "Expected active deal for accepted offer in round " + i);
+                    } else {
+                        assertEquals(ListingStatus.REMOVED, finalListing.getStatus());
+                        assertFalse(offerRes.isSuccess());
+                        assertTrue(offerRes.getStatus() == OfferManagementStatus.OFFER_NOT_PENDING
+                                || offerRes.getStatus() == OfferManagementStatus.LISTING_NOT_AVAILABLE,
+                                "Expected OFFER_NOT_PENDING or LISTING_NOT_AVAILABLE, got " + offerRes.getStatus());
+                        assertFalse(hasActiveDeal, "Must never have an active deal on a REMOVED listing in round " + i);
+                    }
+                }
+            } finally {
+                executor.shutdownNow();
             }
 
-            List<Future<Void>> futures = executor.invokeAll(tasks);
-            for (Future<Void> f : futures) {
-                f.get();
-            }
-            executor.shutdown();
-
-            // Either the take-down succeeded first or the offer reservation succeeded first
-            assertTrue(takeDownSuccesses.get() <= 1, "At most one take-down can succeed");
-            assertTrue(target.getStatus() == ListingStatus.REMOVED || target.getStatus() == ListingStatus.RESERVED);
+            assertTrue(offerWins > 0 || takedownWins > 0);
         }
     }
 

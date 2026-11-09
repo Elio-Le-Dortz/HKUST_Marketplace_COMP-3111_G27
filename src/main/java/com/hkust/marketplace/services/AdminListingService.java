@@ -33,9 +33,11 @@ public class AdminListingService {
      *
      * @return list of all listings
      */
-    public synchronized List<Listing> getAllListings() {
+    public List<Listing> getAllListings() {
         SessionManager.requireAdmin();
-        return filterListings(AdminListingFilterCriteria.all());
+        synchronized (dataService) {
+            return filterListings(AdminListingFilterCriteria.all());
+        }
     }
 
     /**
@@ -44,22 +46,24 @@ public class AdminListingService {
      * @param criteria filter criteria (keyword, status, category, listing type)
      * @return filtered listings sorted newest first
      */
-    public synchronized List<Listing> filterListings(AdminListingFilterCriteria criteria) {
+    public List<Listing> filterListings(AdminListingFilterCriteria criteria) {
         SessionManager.requireAdmin();
         AdminListingFilterCriteria effectiveCriteria = (criteria != null) ? criteria : AdminListingFilterCriteria.all();
-        return dataService.getAllListings().stream()
-                .filter(l -> l != null && effectiveCriteria.matches(l))
-                .sorted((l1, l2) -> {
-                    LocalDateTime d1 = l1.getPostedAt();
-                    LocalDateTime d2 = l2.getPostedAt();
-                    if (d1 == null && d2 == null) return 0;
-                    if (d1 == null) return 1;
-                    if (d2 == null) return -1;
-                    int cmp = d2.compareTo(d1); // Newest first
-                    if (cmp != 0) return cmp;
-                    return (l1.getId() != null && l2.getId() != null) ? l2.getId().compareTo(l1.getId()) : 0;
-                })
-                .collect(Collectors.toList());
+        synchronized (dataService) {
+            return dataService.getAllListings().stream()
+                    .filter(l -> l != null && effectiveCriteria.matches(l))
+                    .sorted((l1, l2) -> {
+                        LocalDateTime d1 = l1.getPostedAt();
+                        LocalDateTime d2 = l2.getPostedAt();
+                        if (d1 == null && d2 == null) return 0;
+                        if (d1 == null) return 1;
+                        if (d2 == null) return -1;
+                        int cmp = d2.compareTo(d1); // Newest first
+                        if (cmp != 0) return cmp;
+                        return (l1.getId() != null && l2.getId() != null) ? l2.getId().compareTo(l1.getId()) : 0;
+                    })
+                    .collect(Collectors.toList());
+        }
     }
 
     /**
@@ -70,7 +74,7 @@ public class AdminListingService {
      * @param adminUsername the username of the acting administrator
      * @return an {@link AdminListingOperationResult} detailing the outcome
      */
-    public synchronized AdminListingOperationResult createListingOnBehalfOfSeller(AdminListingCreateRequest request, String adminUsername) {
+    public AdminListingOperationResult createListingOnBehalfOfSeller(AdminListingCreateRequest request, String adminUsername) {
         User admin = verifyAdmin(adminUsername);
         if (admin == null) {
             return AdminListingOperationResult.unauthorized("Action requires an active administrator account.");
@@ -80,72 +84,74 @@ public class AdminListingService {
             return AdminListingOperationResult.invalidField("request", "Listing create request cannot be null.");
         }
 
-        // Alternative Flow A2: Seller Not Active
-        if (request.getSellerUsername() == null || request.getSellerUsername().trim().isEmpty()) {
-            return AdminListingOperationResult.sellerNotActive("A seller must be specified.");
+        synchronized (dataService) {
+            // Alternative Flow A2: Seller Not Active
+            if (request.getSellerUsername() == null || request.getSellerUsername().trim().isEmpty()) {
+                return AdminListingOperationResult.sellerNotActive("A seller must be specified.");
+            }
+            User sellerUser = dataService.findUser(request.getSellerUsername().trim());
+            if (sellerUser == null || sellerUser.getRole() != UserRole.SELLER || !sellerUser.isActive()) {
+                return AdminListingOperationResult.sellerNotActive("Listings can only be added for an active seller.");
+            }
+
+            // Alternative Flow A3: Missing Or Invalid Field
+            AdminListingOperationResult validation = validateListingFields(
+                    request.getTitle(), request.getDescription(), request.getType(), request.getCategory(),
+                    request.getCondition(), request.getMeetupLocation(),
+                    request.getPrice(), request.getLendingDays(), request.getPhotos()
+            );
+            if (validation != null) {
+                return validation;
+            }
+
+            // Subflow S1 Step 5: Store listing for the selected seller with status Live
+            Listing listing = new Listing();
+            listing.setTitle(request.getTitle().trim());
+            listing.setDescription(request.getDescription() != null ? request.getDescription().trim() : "");
+            listing.setType(request.getType());
+            listing.setCategory(request.getCategory());
+            listing.setCondition(request.getCondition());
+            listing.setMeetupLocation(request.getMeetupLocation());
+            listing.setSellerUsername(sellerUser.getUsername());
+            listing.setSellerFullName(sellerUser.getFullName());
+            listing.setPostedDate(LocalDateTime.now());
+            listing.setStatus(ListingStatus.LIVE);
+
+            if (request.getType() == ListingType.SELL) {
+                listing.setPrice(request.getPrice());
+                listing.setLendingDays(null);
+            } else if (request.getType() == ListingType.LEND) {
+                listing.setPrice(null);
+                listing.setLendingDays(request.getLendingDays());
+            } else {
+                listing.setPrice(null);
+                listing.setLendingDays(null);
+            }
+
+            dataService.addListing(listing);
+
+            List<Photo> storedPhotos = new ArrayList<>();
+            for (int i = 0; i < request.getPhotos().size(); i++) {
+                Photo p = request.getPhotos().get(i);
+                String photoId = listing.getId() + "-P" + (i + 1);
+                storedPhotos.add(new Photo(photoId, Path.of(p.getImagePath().trim()).toAbsolutePath().normalize().toString()));
+            }
+            listing.setPhotos(storedPhotos);
+            dataService.updateListing(listing);
+
+            // Subflow S1 Step 5: Notify seller
+            Notification sellerNotif = new Notification(
+                    sellerUser.getUsername(),
+                    "Listing Published by Admin",
+                    "An administrator has published a new listing on your behalf: '" + listing.getTitle() + "'.",
+                    "Listings",
+                    listing.getId(),
+                    "LISTING"
+            );
+            dataService.addNotification(sellerNotif);
+
+            return AdminListingOperationResult.success(listing, "Listing '" + listing.getTitle() + "' published successfully on behalf of " + sellerUser.getFullName() + ".");
         }
-        User sellerUser = dataService.findUser(request.getSellerUsername().trim());
-        if (sellerUser == null || sellerUser.getRole() != UserRole.SELLER || !sellerUser.isActive()) {
-            return AdminListingOperationResult.sellerNotActive("Listings can only be added for an active seller.");
-        }
-
-        // Alternative Flow A3: Missing Or Invalid Field
-        AdminListingOperationResult validation = validateListingFields(
-                request.getTitle(), request.getDescription(), request.getType(), request.getCategory(),
-                request.getCondition(), request.getMeetupLocation(),
-                request.getPrice(), request.getLendingDays(), request.getPhotos()
-        );
-        if (validation != null) {
-            return validation;
-        }
-
-        // Subflow S1 Step 5: Store listing for the selected seller with status Live
-        Listing listing = new Listing();
-        listing.setTitle(request.getTitle().trim());
-        listing.setDescription(request.getDescription() != null ? request.getDescription().trim() : "");
-        listing.setType(request.getType());
-        listing.setCategory(request.getCategory());
-        listing.setCondition(request.getCondition());
-        listing.setMeetupLocation(request.getMeetupLocation());
-        listing.setSellerUsername(sellerUser.getUsername());
-        listing.setSellerFullName(sellerUser.getFullName());
-        listing.setPostedDate(LocalDateTime.now());
-        listing.setStatus(ListingStatus.LIVE);
-
-        if (request.getType() == ListingType.SELL) {
-            listing.setPrice(request.getPrice());
-            listing.setLendingDays(null);
-        } else if (request.getType() == ListingType.LEND) {
-            listing.setPrice(null);
-            listing.setLendingDays(request.getLendingDays());
-        } else {
-            listing.setPrice(null);
-            listing.setLendingDays(null);
-        }
-
-        dataService.addListing(listing);
-
-        List<Photo> storedPhotos = new ArrayList<>();
-        for (int i = 0; i < request.getPhotos().size(); i++) {
-            Photo p = request.getPhotos().get(i);
-            String photoId = listing.getId() + "-P" + (i + 1);
-            storedPhotos.add(new Photo(photoId, Path.of(p.getImagePath().trim()).toAbsolutePath().normalize().toString()));
-        }
-        listing.setPhotos(storedPhotos);
-        dataService.updateListing(listing);
-
-        // Subflow S1 Step 5: Notify seller
-        Notification sellerNotif = new Notification(
-                sellerUser.getUsername(),
-                "Listing Published by Admin",
-                "An administrator has published a new listing on your behalf: '" + listing.getTitle() + "'.",
-                "Listings",
-                listing.getId(),
-                "LISTING"
-        );
-        dataService.addNotification(sellerNotif);
-
-        return AdminListingOperationResult.success(listing, "Listing '" + listing.getTitle() + "' published successfully on behalf of " + sellerUser.getFullName() + ".");
     }
 
     /**
@@ -155,7 +161,7 @@ public class AdminListingService {
      * @param adminUsername the username of the acting administrator
      * @return an {@link AdminListingOperationResult} detailing the outcome
      */
-    public synchronized AdminListingOperationResult editListing(AdminListingEditRequest request, String adminUsername) {
+    public AdminListingOperationResult editListing(AdminListingEditRequest request, String adminUsername) {
         User admin = verifyAdmin(adminUsername);
         if (admin == null) {
             return AdminListingOperationResult.unauthorized("Action requires an active administrator account.");
@@ -165,69 +171,71 @@ public class AdminListingService {
             return AdminListingOperationResult.invalidField("listingId", "Listing ID is required.");
         }
 
-        Listing listing = dataService.findListing(request.getListingId().trim());
-        if (listing == null) {
-            return AdminListingOperationResult.listingNotFound("Listing not found.");
-        }
+        synchronized (dataService) {
+            Listing listing = dataService.findListing(request.getListingId().trim());
+            if (listing == null) {
+                return AdminListingOperationResult.listingNotFound("Listing not found.");
+            }
 
-        // Alternative Flow A4: Deal In Progress Or Completed
-        if (isDealInProgressOrCompleted(listing.getStatus())) {
-            return AdminListingOperationResult.dealInProgressOrCompleted(
-                    "The listing cannot be changed because a deal is in progress or completed."
+            // Alternative Flow A4: Deal In Progress Or Completed
+            if (isDealInProgressOrCompleted(listing.getStatus())) {
+                return AdminListingOperationResult.dealInProgressOrCompleted(
+                        "The listing cannot be changed because a deal is in progress or completed."
+                );
+            }
+
+            // Alternative Flow A3: Missing Or Invalid Field
+            AdminListingOperationResult validation = validateListingFields(
+                    request.getTitle(), request.getDescription(), request.getType(), request.getCategory(),
+                    request.getCondition(), request.getMeetupLocation(),
+                    request.getPrice(), request.getLendingDays(), request.getPhotos()
             );
+            if (validation != null) {
+                return validation;
+            }
+
+            // Subflow S2 Step 5: Save changes, keep status
+            listing.setTitle(request.getTitle().trim());
+            listing.setDescription(request.getDescription() != null ? request.getDescription().trim() : "");
+            listing.setType(request.getType());
+            listing.setCategory(request.getCategory());
+            listing.setCondition(request.getCondition());
+            listing.setMeetupLocation(request.getMeetupLocation());
+
+            if (request.getType() == ListingType.SELL) {
+                listing.setPrice(request.getPrice());
+                listing.setLendingDays(null);
+            } else if (request.getType() == ListingType.LEND) {
+                listing.setPrice(null);
+                listing.setLendingDays(request.getLendingDays());
+            } else {
+                listing.setPrice(null);
+                listing.setLendingDays(null);
+            }
+
+            List<Photo> storedEditPhotos = new ArrayList<>();
+            for (int i = 0; i < request.getPhotos().size(); i++) {
+                Photo p = request.getPhotos().get(i);
+                String photoId = listing.getId() + "-P" + (i + 1);
+                storedEditPhotos.add(new Photo(photoId, Path.of(p.getImagePath().trim()).toAbsolutePath().normalize().toString()));
+            }
+            listing.setPhotos(storedEditPhotos);
+
+            dataService.updateListing(listing);
+
+            // Subflow S2 Step 5: Notify seller
+            Notification sellerNotif = new Notification(
+                    listing.getSellerUsername(),
+                    "Listing Updated by Admin",
+                    "An administrator has updated the details of your listing: '" + listing.getTitle() + "'.",
+                    "Listings",
+                    listing.getId(),
+                    "LISTING"
+            );
+            dataService.addNotification(sellerNotif);
+
+            return AdminListingOperationResult.success(listing, "Listing '" + listing.getTitle() + "' updated successfully.");
         }
-
-        // Alternative Flow A3: Missing Or Invalid Field
-        AdminListingOperationResult validation = validateListingFields(
-                request.getTitle(), request.getDescription(), request.getType(), request.getCategory(),
-                request.getCondition(), request.getMeetupLocation(),
-                request.getPrice(), request.getLendingDays(), request.getPhotos()
-        );
-        if (validation != null) {
-            return validation;
-        }
-
-        // Subflow S2 Step 5: Save changes, keep status
-        listing.setTitle(request.getTitle().trim());
-        listing.setDescription(request.getDescription() != null ? request.getDescription().trim() : "");
-        listing.setType(request.getType());
-        listing.setCategory(request.getCategory());
-        listing.setCondition(request.getCondition());
-        listing.setMeetupLocation(request.getMeetupLocation());
-
-        if (request.getType() == ListingType.SELL) {
-            listing.setPrice(request.getPrice());
-            listing.setLendingDays(null);
-        } else if (request.getType() == ListingType.LEND) {
-            listing.setPrice(null);
-            listing.setLendingDays(request.getLendingDays());
-        } else {
-            listing.setPrice(null);
-            listing.setLendingDays(null);
-        }
-
-        List<Photo> storedEditPhotos = new ArrayList<>();
-        for (int i = 0; i < request.getPhotos().size(); i++) {
-            Photo p = request.getPhotos().get(i);
-            String photoId = listing.getId() + "-P" + (i + 1);
-            storedEditPhotos.add(new Photo(photoId, Path.of(p.getImagePath().trim()).toAbsolutePath().normalize().toString()));
-        }
-        listing.setPhotos(storedEditPhotos);
-
-        dataService.updateListing(listing);
-
-        // Subflow S2 Step 5: Notify seller
-        Notification sellerNotif = new Notification(
-                listing.getSellerUsername(),
-                "Listing Updated by Admin",
-                "An administrator has updated the details of your listing: '" + listing.getTitle() + "'.",
-                "Listings",
-                listing.getId(),
-                "LISTING"
-        );
-        dataService.addNotification(sellerNotif);
-
-        return AdminListingOperationResult.success(listing, "Listing '" + listing.getTitle() + "' updated successfully.");
     }
 
     /**
@@ -239,7 +247,7 @@ public class AdminListingService {
      * @param adminUsername the username of the acting administrator
      * @return an {@link AdminListingOperationResult} detailing the outcome
      */
-    public synchronized AdminListingOperationResult takeDownListing(String listingId, String reason, String adminUsername) {
+    public AdminListingOperationResult takeDownListing(String listingId, String reason, String adminUsername) {
         User admin = verifyAdmin(adminUsername);
         if (admin == null) {
             return AdminListingOperationResult.unauthorized("Action requires an active administrator account.");
@@ -254,13 +262,13 @@ public class AdminListingService {
             return AdminListingOperationResult.listingNotFound("Listing ID is required.");
         }
 
-        Listing listing = dataService.findListing(listingId.trim());
-        if (listing == null) {
-            return AdminListingOperationResult.listingNotFound("Listing not found.");
-        }
+        // Atomic check and mutation on data store
+        synchronized (dataService) {
+            Listing listing = dataService.findListing(listingId.trim());
+            if (listing == null) {
+                return AdminListingOperationResult.listingNotFound("Listing not found.");
+            }
 
-        // Atomic check on listing state
-        synchronized (listing) {
             // Alternative Flow A4: Deal In Progress Or Completed
             if (isDealInProgressOrCompleted(listing.getStatus())) {
                 return AdminListingOperationResult.dealInProgressOrCompleted(
@@ -327,13 +335,15 @@ public class AdminListingService {
      *
      * @return list of active sellers
      */
-    public synchronized List<Seller> getActiveSellers() {
+    public List<Seller> getActiveSellers() {
         SessionManager.requireAdmin();
-        return dataService.getAllUsers().stream()
-                .filter(u -> u instanceof Seller && u.isActive())
-                .map(u -> (Seller) u)
-                .sorted(Comparator.comparing(User::getUsername, String.CASE_INSENSITIVE_ORDER))
-                .collect(Collectors.toList());
+        synchronized (dataService) {
+            return dataService.getAllUsers().stream()
+                    .filter(u -> u instanceof Seller && u.isActive())
+                    .map(u -> (Seller) u)
+                    .sorted(Comparator.comparing(User::getUsername, String.CASE_INSENSITIVE_ORDER))
+                    .collect(Collectors.toList());
+        }
     }
 
     /**
@@ -342,12 +352,14 @@ public class AdminListingService {
      * @param listingId the listing ID
      * @return count of active offers
      */
-    public synchronized int getActiveOffersCount(String listingId) {
+    public int getActiveOffersCount(String listingId) {
         SessionManager.requireAdmin();
         if (listingId == null) return 0;
-        return (int) dataService.getOffersForListing(listingId).stream()
-                .filter(o -> o.getStatus() == OfferStatus.PENDING || o.getStatus() == OfferStatus.COUNTERED)
-                .count();
+        synchronized (dataService) {
+            return (int) dataService.getOffersForListing(listingId).stream()
+                    .filter(o -> o.getStatus() == OfferStatus.PENDING || o.getStatus() == OfferStatus.COUNTERED)
+                    .count();
+        }
     }
 
     /**
@@ -355,18 +367,20 @@ public class AdminListingService {
      *
      * @return map of status to count
      */
-    public synchronized Map<ListingStatus, Long> getListingCountsByStatus() {
+    public Map<ListingStatus, Long> getListingCountsByStatus() {
         SessionManager.requireAdmin();
-        Map<ListingStatus, Long> counts = new EnumMap<>(ListingStatus.class);
-        for (ListingStatus s : ListingStatus.values()) {
-            counts.put(s, 0L);
-        }
-        for (Listing l : dataService.getAllListings()) {
-            if (l != null && l.getStatus() != null) {
-                counts.put(l.getStatus(), counts.get(l.getStatus()) + 1);
+        synchronized (dataService) {
+            Map<ListingStatus, Long> counts = new EnumMap<>(ListingStatus.class);
+            for (ListingStatus s : ListingStatus.values()) {
+                counts.put(s, 0L);
             }
+            for (Listing l : dataService.getAllListings()) {
+                if (l != null && l.getStatus() != null) {
+                    counts.put(l.getStatus(), counts.get(l.getStatus()) + 1);
+                }
+            }
+            return counts;
         }
-        return counts;
     }
 
     private User verifyAdmin(String adminUsername) {

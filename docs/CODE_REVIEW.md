@@ -129,7 +129,7 @@ After F03/F04 (session checks for buyers and admins) the snippets must log in th
 | F14 | P3 | Elio | Admin login reveals which credential is wrong; no "use your own portal" | UC 3.1 A2, A3 |
 | F15 | P3 | Elio | ~~Admin rename of a seller does not update their listings~~ **[FIXED]** | UC 3.3; backlog US-S06 "reflected across all posted listings" |
 | F16 | P3 | Elio | Admin listing form stores lend duration in whole days (lossy) | UC 3.7 "same rules as a new listing"; 5-second minimum |
-| F17 | P3 | Elio | Take-down is not atomic with offer acceptance | UC 3.7 special req.; CLASS_DIAGRAM rule 1 |
+| F17 | P3 | Elio | ~~Take-down is not atomic with offer acceptance~~ **[FIXED]** | UC 3.7 special req.; CLASS_DIAGRAM rule 1 |
 | F18 | P3 | Charles | ~~Accepting a counter offer leaves other countered offers stuck~~ **[FIXED - PR #38]** | CLASS_DIAGRAM rule 1; UC 1.6 S2 |
 | F19 | P3 | Charles | ~~Buyer registration: generic weak-password message; extra username rules~~ **[FIXED - PR #39]** | UC 1.1 A3; README password rules |
 | F20 | P3 | Charles | ~~Buyer-flow notifications have no link (seller deep links fail)~~ **[FIXED - PR #40]** | Backlog US-S07 "deep links to relevant offer/deal"; UC 2.7 step 4 |

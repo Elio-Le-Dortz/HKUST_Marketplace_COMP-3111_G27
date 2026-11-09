@@ -132,11 +132,16 @@ public class AdminDealsService {
         }
 
         Review review = null;
-        if (deal.getSellerUsername() != null && deal.getBuyerUsername() != null) {
+        if (deal.getId() != null && !deal.getId().isBlank()) {
+            review = dataService.getReviewForDeal(deal.getId()).orElse(null);
+        }
+        if (review == null && deal.getSellerUsername() != null && deal.getBuyerUsername() != null) {
             for (Review r : dataService.getAllReviews()) {
-                if (deal.getSellerUsername().equalsIgnoreCase(r.getSellerUsername())
+                if ((r.getDealId() == null || r.getDealId().isBlank())
+                        && deal.getSellerUsername().equalsIgnoreCase(r.getSellerUsername())
                         && deal.getBuyerUsername().equalsIgnoreCase(r.getBuyerUsername())
-                        && (deal.getListingId() == null || deal.getListingId().equalsIgnoreCase(r.getListingId()))) {
+                        && (deal.getListingId() == null || deal.getListingId().equalsIgnoreCase(r.getListingId())
+                                || (r.getListingId() == null && deal.getListingTitle() != null && deal.getListingTitle().equalsIgnoreCase(r.getListingTitle())))) {
                     review = r;
                     break;
                 }

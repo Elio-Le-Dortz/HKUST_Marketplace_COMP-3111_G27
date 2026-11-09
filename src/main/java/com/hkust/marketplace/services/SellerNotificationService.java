@@ -55,6 +55,10 @@ import java.util.regex.Pattern;
  * while buyers send offers, and when the same notifications are marked read at the same time,
  * each one is counted once. Inside the lock, only the data store is called.</p>
  *
+ * <p><b>Persistence.</b> Marking a notification read or unread writes it to the data store
+ * with {@link DummyDataService#updateNotification}, so its read state is kept in the SQLite
+ * database when the application restarts.</p>
+ *
  * <p>This class does not use JavaFX, so every flow is unit tested without a display.</p>
  */
 public class SellerNotificationService {
@@ -214,7 +218,7 @@ public class SellerNotificationService {
             if (notification == null) {
                 return SellerNotificationResult.notFound(NOTIFICATION_NOT_FOUND);
             }
-            notification.setRead(true);
+            saveReadState(notification, true);
             return relatedItemOf(notification, seller);
         }
     }
@@ -254,7 +258,7 @@ public class SellerNotificationService {
             int marked = 0;
             for (Notification notification : notificationsOf(seller)) {
                 if (notification.isUnread()) {
-                    notification.setRead(true);
+                    saveReadState(notification, true);
                     marked++;
                 }
             }
@@ -360,8 +364,22 @@ public class SellerNotificationService {
             if (notification == null) {
                 return false;
             }
-            notification.setRead(read);
+            saveReadState(notification, read);
             return true;
+        }
+    }
+
+    /**
+     * Marks a notification read or unread and, if that changes it, saves it in the data store
+     * (and so in the database), so that the read state is kept after a restart.
+     *
+     * @param notification the notification of the Seller
+     * @param read         {@code true} to mark it read
+     */
+    private void saveReadState(Notification notification, boolean read) {
+        if (notification.isRead() != read) {
+            notification.setRead(read);
+            dataService.updateNotification(notification);
         }
     }
 

@@ -17,10 +17,12 @@ import com.hkust.marketplace.models.OfferStatus;
 import com.hkust.marketplace.models.Photo;
 import com.hkust.marketplace.models.Seller;
 import com.hkust.marketplace.utils.DummyDataService;
+import com.hkust.marketplace.utils.ListingPhotoStorage;
 import com.hkust.marketplace.utils.SessionManager;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.io.IOException;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -46,7 +48,8 @@ import java.util.function.Function;
  *   <li>Editing checks the fields with the same rules as a new listing (use case 2.3, see
  *       {@link CreateListingService#validate}). Editing a Live or Rejected listing sends it
  *       back to Pending Review, so that the admin reviews it again; it leaves the
- *       marketplace until then.</li>
+ *       marketplace until then. The photos are kept as copies in the application's folder
+ *       ({@link ListingPhotoStorage}), as for a new listing.</li>
  *   <li>Deleting is a <em>soft delete</em> (team decision, meeting 1, item 2.3): the listing
  *       gets the status {@link ListingStatus#REMOVED} and is marked as
  *       {@linkplain Listing#isDeletedBySeller() deleted by the seller}, so the deals, reviews
@@ -119,22 +122,38 @@ public class MyListingsService {
 
     /** The store of listings, offers, deals and notifications. */
     private final DummyDataService dataService;
+    /** Keeps the copies of the listing photos in the application's folder. */
+    private final ListingPhotoStorage photoStorage;
 
     /**
-     * Creates the service on the application's shared data store.
+     * Creates the service on the application's shared data store, keeping the photos in the
+     * application's folder ({@value ListingPhotoStorage#DEFAULT_FOLDER}).
      */
     public MyListingsService() {
         this(DummyDataService.getInstance());
     }
 
     /**
-     * Creates the service on the given data store (used by the tests).
+     * Creates the service on the given data store, keeping the photos in the application's
+     * folder ({@value ListingPhotoStorage#DEFAULT_FOLDER}).
      *
      * @param dataService the store of listings, offers, deals and notifications
      * @throws NullPointerException if {@code dataService} is {@code null}
      */
     public MyListingsService(DummyDataService dataService) {
+        this(dataService, new ListingPhotoStorage());
+    }
+
+    /**
+     * Creates the service on the given data store and photo folder (used by the tests).
+     *
+     * @param dataService  the store of listings, offers, deals and notifications
+     * @param photoStorage keeps the copies of the listing photos
+     * @throws NullPointerException if an argument is {@code null}
+     */
+    public MyListingsService(DummyDataService dataService, ListingPhotoStorage photoStorage) {
         this.dataService = Objects.requireNonNull(dataService, "dataService");
+        this.photoStorage = Objects.requireNonNull(photoStorage, "photoStorage");
     }
 
     // =====================================================================
@@ -261,8 +280,18 @@ public class MyListingsService {
                                        Collection<String> confirmedOfferIds) {
         Objects.requireNonNull(request, "request");
         Seller seller = SessionManager.requireSeller();
-        // The photo files are read here, before taking the data store lock.
+        // The photo files are read and copied here, before taking the data store lock.
         Map<ListingField, List<String>> errors = CreateListingService.validate(request);
+        List<Path> storedPhotos = request.photos();
+        if (errors.isEmpty()) {
+            // Review of the seller part, finding 3: the listing keeps its own copies of the photos.
+            // A photo already copied keeps its copy, and copying the same file again reuses it.
+            try {
+                storedPhotos = photoStorage.store(request.photos());
+            } catch (IOException e) {
+                errors = Map.of(ListingField.PHOTOS, List.of(CreateListingService.PHOTOS_NOT_SAVED));
+            }
+        }
         synchronized (dataService) {
             Lookup lookup = findChangeableListing(listingId, seller, true);
             if (lookup.failure() != null) {
@@ -284,7 +313,7 @@ public class MyListingsService {
 
             String oldTitle = listing.getTitle();
             ListingStatus oldStatus = listing.getStatus();
-            applyChanges(listing, request);
+            applyChanges(listing, request, storedPhotos);
             boolean resubmitted = oldStatus == ListingStatus.LIVE || oldStatus == ListingStatus.REJECTED;
             if (resubmitted) {
                 listing.setStatus(ListingStatus.PENDING_REVIEW);
@@ -591,10 +620,11 @@ public class MyListingsService {
      * Saves the values of a valid edit form into the listing. Only the value of the chosen
      * type is kept: the price of a Sell listing, the lending duration of a Lend listing.
      *
-     * @param listing the listing
-     * @param request the valid values of the edit form
+     * @param listing      the listing
+     * @param request      the valid values of the edit form
+     * @param storedPhotos the copies of the form's photos in the application's folder, in order
      */
-    private static void applyChanges(Listing listing, CreateListingRequest request) {
+    private static void applyChanges(Listing listing, CreateListingRequest request, List<Path> storedPhotos) {
         listing.setType(request.type());
         listing.setTitle(request.title().trim());
         listing.setDescription(request.description().trim());
@@ -604,7 +634,7 @@ public class MyListingsService {
         listing.setLendingDuration(request.type() == ListingType.LEND
                 ? CreateListingService.toLendingDuration(request.lendingAmount(), request.lendingUnit()) : null);
         listing.setMeetupLocation(request.meetupLocation());
-        listing.setPhotos(CreateListingService.toPhotos(listing.getId(), request.photos()));
+        listing.setPhotos(CreateListingService.toPhotos(listing.getId(), storedPhotos));
     }
 
     /**

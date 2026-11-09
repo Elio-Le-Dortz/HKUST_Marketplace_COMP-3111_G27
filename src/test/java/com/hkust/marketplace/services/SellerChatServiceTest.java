@@ -6,6 +6,7 @@ import com.hkust.marketplace.utils.SessionManager;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDateTime;
@@ -116,5 +117,240 @@ class SellerChatServiceTest {
     void testDefaultConstructor() {
         SellerChatService defaultService = new SellerChatService();
         assertNotNull(defaultService);
+    }
+
+    @Test
+    @DisplayName("A null data store means the shared singleton")
+    void testNullDataStoreUsesSingleton() {
+        SessionManager.login(dataService.findUser("charlie"));
+        assertNotNull(new SellerChatService(null).getMyChatThreads());
+    }
+
+    // =====================================================================
+    // F10: search the chat history (use case 1.5, subflow S3, alternative flow A3)
+    // =====================================================================
+
+    /** A conversation between alice and charlie about L105, with three messages. */
+    private ChatThread conversation() {
+        ChatThread thread = dataService.getChatService().getOrCreateThread("L105", "alice");
+        dataService.getChatService().sendMessage(thread.getId(), "alice", "Hi, is the notebook set still available?");
+        dataService.getChatService().sendMessage(thread.getId(), "charlie", "Yes, we can meet at the Library.");
+        dataService.getChatService().sendMessage(thread.getId(), "alice", "Great, see you at the LIBRARY tomorrow.");
+        return thread;
+    }
+
+    private static List<String> texts(ChatSearchResult result) {
+        return result.getMatchingMessages().stream().map(Message::getText).toList();
+    }
+
+    @Nested
+    @DisplayName("searchMyChat [F10]")
+    class SearchMyChat {
+
+        @Test
+        @DisplayName("Finds every message containing the keyword, ignoring case, in chronological order")
+        void findsMatchingMessages() {
+            ChatThread thread = conversation();
+            SessionManager.login(dataService.findUser("charlie"));
+
+            ChatSearchResult result = sellerChatService.searchMyChat(thread.getId(), "  library ");
+
+            assertEquals(ChatOperationStatus.SUCCESS, result.getStatus());
+            assertEquals(2, result.getMatchCount());
+            assertEquals(List.of("Yes, we can meet at the Library.", "Great, see you at the LIBRARY tomorrow."),
+                    texts(result));
+            assertEquals("library", result.getQuery());
+        }
+
+        @Test
+        @DisplayName("Searches the whole history, including the oldest message")
+        void searchesWholeHistory() {
+            ChatThread thread = conversation();
+            for (int i = 0; i < 30; i++) {
+                dataService.getChatService().sendMessage(thread.getId(), i % 2 == 0 ? "alice" : "charlie", "Message " + i);
+            }
+            SessionManager.login(dataService.findUser("charlie"));
+
+            ChatSearchResult result = sellerChatService.searchMyChat(thread.getId(), "notebook");
+
+            assertEquals(List.of("Hi, is the notebook set still available?"), texts(result));
+        }
+
+        @Test
+        @DisplayName("A3: no message matches the keyword")
+        void noMatches() {
+            ChatThread thread = conversation();
+            SessionManager.login(dataService.findUser("charlie"));
+
+            ChatSearchResult result = sellerChatService.searchMyChat(thread.getId(), "bicycle");
+
+            assertEquals(ChatOperationStatus.NO_MATCHES, result.getStatus());
+            assertFalse(result.isSuccess());
+            assertEquals(0, result.getMatchCount());
+        }
+
+        @Test
+        @DisplayName("A3: an empty conversation has no match")
+        void emptyConversationHasNoMatch() {
+            ChatThread thread = dataService.getChatService().getOrCreateThread("L105", "bob");
+            SessionManager.login(dataService.findUser("charlie"));
+
+            assertEquals(ChatOperationStatus.NO_MATCHES, sellerChatService.searchMyChat(thread.getId(), "hello").getStatus());
+        }
+
+        @Test
+        @DisplayName("A blank keyword matches every message")
+        void blankKeywordMatchesEverything() {
+            ChatThread thread = conversation();
+            SessionManager.login(dataService.findUser("charlie"));
+
+            ChatSearchResult result = sellerChatService.searchMyChat(thread.getId(), "   ");
+
+            assertTrue(result.isSuccess());
+            assertEquals(3, result.getMatchCount());
+        }
+
+        @Test
+        @DisplayName("Finds a message the buyer has just sent")
+        void findsNewBuyerMessage() {
+            ChatThread thread = conversation();
+            SessionManager.login(dataService.findUser("charlie"));
+            assertEquals(ChatOperationStatus.NO_MATCHES, sellerChatService.searchMyChat(thread.getId(), "discount").getStatus());
+
+            dataService.getChatService().sendMessage(thread.getId(), "alice", "Any discount for students?");
+
+            assertEquals(List.of("Any discount for students?"), texts(sellerChatService.searchMyChat(thread.getId(), "DISCOUNT")));
+        }
+
+        @Test
+        @DisplayName("Another seller cannot search the conversation, and learns nothing about it")
+        void otherSellerIsRefused() {
+            ChatThread thread = conversation();
+            SessionManager.login(dataService.findUser("diana"));
+
+            ChatSearchResult result = sellerChatService.searchMyChat(thread.getId(), "library");
+
+            assertEquals(ChatOperationStatus.UNAUTHORIZED, result.getStatus());
+            assertEquals(SellerChatService.NOT_YOUR_THREAD, result.getMessage());
+            assertTrue(result.getMatchingMessages().isEmpty());
+        }
+
+        @Test
+        @DisplayName("An unknown, empty or null conversation identifier is reported")
+        void unknownConversation() {
+            SessionManager.login(dataService.findUser("charlie"));
+
+            ChatSearchResult unknown = sellerChatService.searchMyChat("T9999", "x");
+            assertEquals(ChatOperationStatus.THREAD_NOT_FOUND, unknown.getStatus());
+            assertEquals(SellerChatService.THREAD_NOT_FOUND, unknown.getMessage());
+            assertEquals(SellerChatService.THREAD_NOT_SELECTED, sellerChatService.searchMyChat(" ", "x").getMessage());
+            assertEquals(SellerChatService.THREAD_NOT_SELECTED, sellerChatService.searchMyChat(null, "x").getMessage());
+        }
+
+        @Test
+        @DisplayName("The identifier is trimmed")
+        void identifierIsTrimmed() {
+            ChatThread thread = conversation();
+            SessionManager.login(dataService.findUser("charlie"));
+
+            assertTrue(sellerChatService.searchMyChat("  " + thread.getId() + " ", "library").isSuccess());
+        }
+
+        @Test
+        @DisplayName("Requires a Seller session: logged out, buyer and admin sessions are refused")
+        void requiresSellerSession() {
+            ChatThread thread = conversation();
+            assertThrows(SecurityException.class, () -> sellerChatService.searchMyChat(thread.getId(), "library"));
+            SessionManager.login(dataService.findUser("alice"));
+            assertThrows(SecurityException.class, () -> sellerChatService.searchMyChat(thread.getId(), "library"));
+            SessionManager.login(dataService.findUser("admin"));
+            assertThrows(SecurityException.class, () -> sellerChatService.searchMyChat(thread.getId(), "library"));
+        }
+    }
+
+    // =====================================================================
+    // F10: send a message from the Seller Portal (use case 1.5, subflow S1)
+    // =====================================================================
+
+    @Nested
+    @DisplayName("sendMessage [F10]")
+    class SendMessage {
+
+        @Test
+        @DisplayName("Stores the message as sent by the logged-in seller and notifies the buyer with a link")
+        void sendsAsSessionSeller() {
+            ChatThread thread = dataService.getChatService().getOrCreateThread("L105", "alice");
+            SessionManager.login(dataService.findUser("charlie"));
+
+            SendMessageResult result = sellerChatService.sendMessage(thread.getId(), "  Still available!  ");
+
+            assertTrue(result.isSuccess());
+            Message last = thread.getLastMessage();
+            assertEquals("charlie", last.getSenderUsername());
+            assertEquals("Still available!", last.getText());
+            assertNotNull(last.getSentDate());
+            assertTrue(dataService.getNotificationsFor("alice").stream().anyMatch(n ->
+                    thread.getId().equals(n.getRelatedItemId())
+                            && NotificationTargetType.CHAT_THREAD.name().equals(n.getRelatedItemType())));
+        }
+
+        @Test
+        @DisplayName("The buyer's search finds the seller's message (same thread on both sides)")
+        void buyerSeesSellerMessage() {
+            ChatThread thread = dataService.getChatService().getOrCreateThread("L105", "alice");
+            SessionManager.login(dataService.findUser("charlie"));
+            sellerChatService.sendMessage(thread.getId(), "Meet at the North Gate?");
+
+            ChatSearchResult buyerSearch = dataService.getChatService().searchChatHistory(thread.getId(), "alice", "north gate");
+
+            assertEquals(1, buyerSearch.getMatchCount());
+        }
+
+        @Test
+        @DisplayName("A1: an empty message is refused and nothing is stored")
+        void emptyMessageRefused() {
+            ChatThread thread = dataService.getChatService().getOrCreateThread("L105", "alice");
+            SessionManager.login(dataService.findUser("charlie"));
+
+            SendMessageResult result = sellerChatService.sendMessage(thread.getId(), "   ");
+
+            assertEquals(ChatOperationStatus.EMPTY_MESSAGE, result.getStatus());
+            assertFalse(thread.hasMessages());
+        }
+
+        @Test
+        @DisplayName("Another seller cannot write in the conversation")
+        void otherSellerRefused() {
+            ChatThread thread = dataService.getChatService().getOrCreateThread("L105", "alice");
+            SessionManager.login(dataService.findUser("diana"));
+
+            SendMessageResult result = sellerChatService.sendMessage(thread.getId(), "Hello");
+
+            assertEquals(ChatOperationStatus.UNAUTHORIZED, result.getStatus());
+            assertEquals(SellerChatService.NOT_YOUR_THREAD, result.getErrorMessage());
+            assertFalse(thread.hasMessages());
+        }
+
+        @Test
+        @DisplayName("An unknown conversation is reported")
+        void unknownConversation() {
+            SessionManager.login(dataService.findUser("charlie"));
+
+            SendMessageResult result = sellerChatService.sendMessage("T9999", "Hello");
+
+            assertEquals(ChatOperationStatus.THREAD_NOT_FOUND, result.getStatus());
+            assertEquals(SellerChatService.THREAD_NOT_FOUND, result.getErrorMessage());
+            assertEquals(SellerChatService.THREAD_NOT_SELECTED, sellerChatService.sendMessage(null, "Hello").getErrorMessage());
+        }
+
+        @Test
+        @DisplayName("Requires a Seller session: a buyer cannot post as the seller through this service")
+        void requiresSellerSession() {
+            ChatThread thread = dataService.getChatService().getOrCreateThread("L105", "alice");
+            assertThrows(SecurityException.class, () -> sellerChatService.sendMessage(thread.getId(), "Hi"));
+            SessionManager.login(dataService.findUser("alice"));
+            assertThrows(SecurityException.class, () -> sellerChatService.sendMessage(thread.getId(), "Hi"));
+            assertFalse(thread.hasMessages());
+        }
     }
 }

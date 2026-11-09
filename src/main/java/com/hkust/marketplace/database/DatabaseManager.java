@@ -237,6 +237,8 @@ public class DatabaseManager {
             for (String sql : ddl) {
                 stmt.execute(sql);
             }
+            try { stmt.execute("ALTER TABLE reports ADD COLUMN handled_by TEXT"); } catch (SQLException ignored) {}
+            try { stmt.execute("ALTER TABLE reports ADD COLUMN resolved_date TEXT"); } catch (SQLException ignored) {}
         } catch (SQLException e) {
             throw new RuntimeException("Failed to initialize database schema: " + e.getMessage(), e);
         }
@@ -933,8 +935,8 @@ public class DatabaseManager {
 
     private void saveReportInternal(Connection conn, Report report) throws SQLException {
         String sql = "INSERT OR REPLACE INTO reports " +
-                "(id, listing_id, listing_title, buyer_username, reason, date, status) " +
-                "VALUES (?, ?, ?, ?, ?, ?, ?)";
+                "(id, listing_id, listing_title, buyer_username, reason, date, status, handled_by, resolved_date) " +
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, report.getId());
             ps.setString(2, report.getListingId());
@@ -943,6 +945,8 @@ public class DatabaseManager {
             ps.setString(5, report.getReason());
             ps.setString(6, report.getDate() != null ? report.getDate().format(ISO_FMT) : LocalDateTime.now().format(ISO_FMT));
             ps.setString(7, report.getStatus() != null ? report.getStatus().name() : ReportStatus.OPEN.name());
+            ps.setString(8, report.getHandledBy());
+            ps.setString(9, report.getResolvedDate() != null ? report.getResolvedDate().format(ISO_FMT) : null);
             ps.executeUpdate();
         }
     }
@@ -981,6 +985,18 @@ public class DatabaseManager {
                         r.setStatus(ReportStatus.valueOf(statusStr));
                     } catch (IllegalArgumentException ignored) {}
                 }
+                try {
+                    String handledBy = rs.getString("handled_by");
+                    if (handledBy != null) {
+                        r.setHandledBy(handledBy);
+                    }
+                } catch (SQLException ignored) {}
+                try {
+                    String resolvedDateStr = rs.getString("resolved_date");
+                    if (resolvedDateStr != null) {
+                        r.setResolvedDate(LocalDateTime.parse(resolvedDateStr, ISO_FMT));
+                    }
+                } catch (SQLException ignored) {}
                 list.add(r);
             }
         } catch (SQLException e) {

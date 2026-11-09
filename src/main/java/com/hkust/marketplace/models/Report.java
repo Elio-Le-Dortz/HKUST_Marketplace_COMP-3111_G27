@@ -3,7 +3,7 @@ package com.hkust.marketplace.models;
 import java.time.LocalDateTime;
 
 /**
- * Domain model for Report as defined in the UML Class Diagram.
+ * Domain model for Report as defined in the UML Class Diagram (CLASS_DIAGRAM §3.9: Admin "1" --> "*" Report : Handles).
  */
 public class Report {
     private String id;
@@ -13,6 +13,8 @@ public class Report {
     private String reason;
     private LocalDateTime date;
     private ReportStatus status;
+    private String handledBy;
+    private LocalDateTime resolvedDate;
 
     public Report() {
         this.date = LocalDateTime.now();
@@ -85,6 +87,22 @@ public class Report {
         this.status = status;
     }
 
+    public String getHandledBy() {
+        return handledBy;
+    }
+
+    public void setHandledBy(String handledBy) {
+        this.handledBy = handledBy;
+    }
+
+    public LocalDateTime getResolvedDate() {
+        return resolvedDate;
+    }
+
+    public void setResolvedDate(LocalDateTime resolvedDate) {
+        this.resolvedDate = resolvedDate;
+    }
+
     @Override
     public String toString() {
         return "Report{" +
@@ -93,7 +111,10 @@ public class Report {
                 ", listingTitle='" + listingTitle + '\'' +
                 ", buyerUsername='" + buyerUsername + '\'' +
                 ", reason='" + reason + '\'' +
+                ", date=" + date +
                 ", status=" + status +
+                ", handledBy='" + handledBy + '\'' +
+                ", resolvedDate=" + resolvedDate +
                 '}';
     }
 }

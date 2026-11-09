@@ -141,7 +141,7 @@ After F03/F04 (session checks for buyers and admins) the snippets must log in th
 | F26 | P4 | Charles | ~~Two classes named `RegistrationResult`~~ **[FIXED - PR #45]** | Brief "readability and maintainability" |
 | F27 | P4 | Charles — *Decision* | ~~"Favourites" screen is a visible placeholder~~ **[FIXED - PR #46]** | Brief (favourites/follow mentioned) |
 | F28 | P4 | Team | ~~Dead / legacy code in `DummyDataService`~~ **[FIXED - PR #48]** | Brief "best coding practices" |
-| F29 | P4 | Elio | Report does not record the handling admin; resolution logged as "User Accounts" | CLASS_DIAGRAM `Admin 1 --> * Report : Handles`; UC 3.6 categories |
+| F29 | P4 | Elio | ~~Report does not record the handling admin; resolution logged as "User Accounts"~~ **[FIXED]** | CLASS_DIAGRAM `Admin 1 --> * Report : Handles`; UC 3.6 categories |
 
 | F30 | P4 | *Decision* | ~~Seeded admin is `admin`, specs say `admin@ust.hk`~~ **[DECIDED - Keep `admin`]** | UC 3.1; CLASS_DIAGRAM §3.1 |
 | F31 | P4 | *Decision* | ~~Seeded listings have no photos~~ **[DECIDED - Demo Limitation Documented]** | CLASS_DIAGRAM `Listing 1 *-- 1..6 Photo` |
@@ -741,7 +741,14 @@ After F03/F04 (session checks for buyers and admins) the snippets must log in th
   directly; used only by `DummyDataServiceTest`); `checkPasswordStrength(...)` (1339, see F19).
 - **Suggested fix:** remove them after replacing their uses (tests: switch to `resetData()`, `submitClaim(...)`).
 
-### F29 — Report does not record the handling admin; resolution logged as "User Accounts"
+### F29 — [FIXED] Report does not record the handling admin; resolution logged as "User Accounts"
+> [!NOTE]
+> **Status: FIXED**
+> - Added `handledBy` (admin username) and `resolvedDate` (`LocalDateTime`) fields with getters and setters to `models/Report.java`.
+> - In `AdminNotificationService.resolveReport`, populated `report.setHandledBy(adminUsername.trim())` and `report.setResolvedDate(LocalDateTime.now())` and corrected the audit notification category from `USER_ACCOUNTS` to `REPORTS` (`AdminNotificationCategory.REPORTS.getDisplayName()`).
+> - In `AdminDashboardController`, display `Handled By: @<admin>` in the report detail drawer when resolved.
+> - In `DatabaseManager`, persisted `handled_by` and `resolved_date` columns in SQLite with schema migrations.
+> - Updated test assertions in `AdminNotificationServiceTest`, `DomainModelTest`, and `DatabaseManagerTest`.
 - **Owner:** Elio.
 - **Requirement:** CLASS_DIAGRAM `Admin "1" --> "*" Report : Handles`; UC 3.6 categories (Reports vs User Accounts).
 - **Where:** `models/Report.java` has no admin field; `services/AdminNotificationService.java:296` `resolveReport`

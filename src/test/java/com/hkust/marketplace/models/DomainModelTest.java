@@ -234,7 +234,16 @@ class DomainModelTest {
         Report report = new Report("REP1", "L100", "Calculus Book", "alice", "Suspicious duplicate listing");
         assertEquals(ReportStatus.OPEN, report.getStatus());
 
+        assertNull(report.getHandledBy());
+        assertNull(report.getResolvedDate());
+
         report.setStatus(ReportStatus.RESOLVED);
+        report.setHandledBy("admin");
+        LocalDateTime now = LocalDateTime.now();
+        report.setResolvedDate(now);
+        assertEquals("admin", report.getHandledBy());
+        assertEquals(now, report.getResolvedDate());
+        assertTrue(report.toString().contains("admin"));
         assertEquals(ReportStatus.RESOLVED, report.getStatus());
     }
 

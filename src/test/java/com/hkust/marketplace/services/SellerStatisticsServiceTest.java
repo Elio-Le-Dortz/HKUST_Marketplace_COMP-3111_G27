@@ -282,8 +282,8 @@ class SellerStatisticsServiceTest {
         @Test
         @DisplayName("A Seller deactivated by the admin during the session is refused (use case 3.3)")
         void deactivatedByAdmin() {
-            UserManagementResult result = DATA.getUserManagementService()
-                    .changeAccountStatus(seller.getUsername(), AccountStatus.DEACTIVATED, ADMIN);
+            UserManagementResult result = SessionManager.withSession(DATA.findUser(ADMIN), () -> DATA.getUserManagementService()
+                    .changeAccountStatus(seller.getUsername(), AccountStatus.DEACTIVATED, ADMIN));
             assertTrue(result.isSuccess(), result.getMessage());
 
             assertThrows(SecurityException.class, service::getMyStatistics);

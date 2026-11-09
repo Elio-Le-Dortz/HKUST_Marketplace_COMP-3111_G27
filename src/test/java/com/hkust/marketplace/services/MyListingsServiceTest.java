@@ -445,7 +445,7 @@ class MyListingsServiceTest {
         void takenDownShown() {
             Listing listing = liveSell();
             AdminListingOperationResult takenDown =
-                    DATA.getAdminListingService().takeDownListing(listing.getId(), "Prohibited item.", ADMIN);
+                    DATA.takeDownListing(listing.getId(), "Prohibited item.", ADMIN);
             assertTrue(takenDown.isSuccess(), takenDown::getMessage);
 
             Listing shown = service.getMyListings().get(0);
@@ -1242,7 +1242,7 @@ class MyListingsServiceTest {
         @DisplayName("A listing taken down by the admin can be deleted from the Seller's list, keeping the reason")
         void deleteTakenDown() {
             Listing listing = liveSell();
-            assertTrue(DATA.getAdminListingService().takeDownListing(listing.getId(), "Prohibited item.", ADMIN).isSuccess());
+            assertTrue(DATA.takeDownListing(listing.getId(), "Prohibited item.", ADMIN).isSuccess());
 
             deleteConfirmed(listing);
 

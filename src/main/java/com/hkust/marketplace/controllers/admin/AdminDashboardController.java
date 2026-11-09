@@ -10,6 +10,7 @@ import com.hkust.marketplace.services.AdminRatingService;
 import java.util.Map;
 import java.util.ArrayList;
 import javafx.collections.FXCollections;
+import javafx.application.Platform;
 import javafx.fxml.FXML;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -35,8 +36,14 @@ public class AdminDashboardController {
 
     @FXML
     public void initialize() {
-        User user = SessionManager.getCurrentUser();
-        if (user != null) welcomeLabel.setText("Admin: " + user.getFullName());
+        Admin admin;
+        try {
+            admin = SessionManager.requireAdmin();
+        } catch (SecurityException e) {
+            Platform.runLater(SceneManager::showAdminLogin);
+            return;
+        }
+        if (welcomeLabel != null) welcomeLabel.setText("Admin: " + admin.getFullName());
         currentActiveBtn = btnReview;
         showReview();
     }
@@ -49,11 +56,7 @@ public class AdminDashboardController {
     }
 
     private String getEffectiveAdminUsername() {
-        User user = SessionManager.getCurrentUser();
-        if (user != null && user.getUsername() != null && !user.getUsername().trim().isEmpty()) {
-            return user.getUsername().trim();
-        }
-        return "admin";
+        return SessionManager.requireAdmin().getUsername();
     }
 
     @FXML

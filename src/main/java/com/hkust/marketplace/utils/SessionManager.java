@@ -1,6 +1,10 @@
 package com.hkust.marketplace.utils;
 
+import com.hkust.marketplace.models.Admin;
+import com.hkust.marketplace.models.Buyer;
+import com.hkust.marketplace.models.Seller;
 import com.hkust.marketplace.models.User;
+import com.hkust.marketplace.models.UserRole;
 
 /**
  * Simple session holder for the currently logged-in user.
@@ -57,7 +61,7 @@ public class SessionManager {
      */
     public static boolean isBuyer() {
         User u = getCurrentUser();
-        return u != null && u.getRole() == com.hkust.marketplace.models.UserRole.BUYER;
+        return u != null && u.getRole() == UserRole.BUYER;
     }
 
     /**
@@ -67,7 +71,7 @@ public class SessionManager {
      */
     public static boolean isSeller() {
         User u = getCurrentUser();
-        return u != null && u.getRole() == com.hkust.marketplace.models.UserRole.SELLER;
+        return u != null && u.getRole() == UserRole.SELLER;
     }
 
     /**
@@ -77,7 +81,7 @@ public class SessionManager {
      */
     public static boolean isAdmin() {
         User u = getCurrentUser();
-        return u != null && u.getRole() == com.hkust.marketplace.models.UserRole.ADMIN;
+        return u != null && u.getRole() == UserRole.ADMIN;
     }
 
     /**
@@ -87,9 +91,14 @@ public class SessionManager {
      * @param username the username of the user whose session should end
      */
     public static void endSessionForUser(String username) {
-        User u = getCurrentUser();
-        if (u != null && username != null && username.trim().equalsIgnoreCase(u.getUsername())) {
-            logout();
+        if (username == null) return;
+        String clean = username.trim();
+        if (globalUser != null && clean.equalsIgnoreCase(globalUser.getUsername())) {
+            globalUser = null;
+        }
+        User tu = threadUser.get();
+        if (tu != null && clean.equalsIgnoreCase(tu.getUsername())) {
+            threadUser.remove();
         }
     }
 
@@ -98,10 +107,10 @@ public class SessionManager {
      *
      * @return Buyer instance or null if not logged in or not a Buyer
      */
-    public static com.hkust.marketplace.models.Buyer getCurrentBuyer() {
+    public static Buyer getCurrentBuyer() {
         User u = getCurrentUser();
-        if (u instanceof com.hkust.marketplace.models.Buyer) {
-            return (com.hkust.marketplace.models.Buyer) u;
+        if (u instanceof Buyer) {
+            return (Buyer) u;
         }
         return null;
     }
@@ -114,11 +123,11 @@ public class SessionManager {
      * @return the active Buyer of the current session
      * @throws SecurityException if not logged in, not a Buyer, or account is not active
      */
-    public static com.hkust.marketplace.models.Buyer requireBuyer() {
+    public static Buyer requireBuyer() {
         if (!isLoggedIn()) {
             throw new SecurityException("Unauthorized: No user is currently logged in.");
         }
-        com.hkust.marketplace.models.Buyer buyer = getCurrentBuyer();
+        Buyer buyer = getCurrentBuyer();
         if (!isBuyer() || buyer == null) {
             throw new SecurityException("Unauthorized: Access requires a Buyer account.");
         }
@@ -146,7 +155,7 @@ public class SessionManager {
         } catch (Exception e) {
             throw new RuntimeException(e);
         } finally {
-            if (prev != null) {
+            if (prev != null && prev.isActive() && !prev.isDeleted()) {
                 threadUser.set(prev);
             } else {
                 threadUser.remove();
@@ -166,7 +175,7 @@ public class SessionManager {
         try {
             action.run();
         } finally {
-            if (prev != null) {
+            if (prev != null && prev.isActive() && !prev.isDeleted()) {
                 threadUser.set(prev);
             } else {
                 threadUser.remove();
@@ -179,10 +188,10 @@ public class SessionManager {
      *
      * @return Seller instance or null if not logged in or not a Seller
      */
-    public static com.hkust.marketplace.models.Seller getCurrentSeller() {
+    public static Seller getCurrentSeller() {
         User u = getCurrentUser();
-        if (u instanceof com.hkust.marketplace.models.Seller) {
-            return (com.hkust.marketplace.models.Seller) u;
+        if (u instanceof Seller) {
+            return (Seller) u;
         }
         return null;
     }
@@ -198,11 +207,11 @@ public class SessionManager {
      * @return the active Seller of the current session
      * @throws SecurityException if not logged in, not a Seller, or the account is not active
      */
-    public static com.hkust.marketplace.models.Seller requireSeller() {
+    public static Seller requireSeller() {
         if (!isLoggedIn()) {
             throw new SecurityException("Unauthorized: No user is currently logged in.");
         }
-        com.hkust.marketplace.models.Seller seller = getCurrentSeller();
+        Seller seller = getCurrentSeller();
         if (!isSeller() || seller == null) {
             throw new SecurityException("Unauthorized: Access requires a Seller account.");
         }
@@ -210,5 +219,42 @@ public class SessionManager {
             throw new SecurityException("Unauthorized: Seller account is not active.");
         }
         return seller;
+    }
+
+    /**
+     * Returns the currently authenticated user cast to Admin if logged in as an Admin.
+     *
+     * @return Admin instance or null if not logged in or not an Admin
+     */
+    public static Admin getCurrentAdmin() {
+        User u = getCurrentUser();
+        if (u instanceof Admin) {
+            return (Admin) u;
+        }
+        return null;
+    }
+
+    /**
+     * Enforces that an active Admin session is present (US-A01, UC 3.1).
+     * Fulfills the special requirement of use case 3.1 that every Admin-only function
+     * checks the Admin session on the service side, so a buyer or seller session cannot
+     * call it even without the user interface. Because the session holds the stored
+     * account object, an admin deactivated after logging in is refused as well.
+     *
+     * @return the active Admin of the current session
+     * @throws SecurityException if not logged in, not an Admin, or the account is not active
+     */
+    public static Admin requireAdmin() {
+        if (!isLoggedIn()) {
+            throw new SecurityException("Unauthorized: No user is currently logged in.");
+        }
+        Admin admin = getCurrentAdmin();
+        if (!isAdmin() || admin == null) {
+            throw new SecurityException("Unauthorized: Access requires an Admin account.");
+        }
+        if (!admin.isActive()) {
+            throw new SecurityException("Unauthorized: Admin account is not active.");
+        }
+        return admin;
     }
 }

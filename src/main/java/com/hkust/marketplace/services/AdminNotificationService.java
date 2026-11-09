@@ -2,6 +2,7 @@ package com.hkust.marketplace.services;
 
 import com.hkust.marketplace.models.*;
 import com.hkust.marketplace.utils.DummyDataService;
+import com.hkust.marketplace.utils.SessionManager;
 
 import java.time.LocalDateTime;
 import java.util.*;
@@ -35,8 +36,14 @@ public class AdminNotificationService {
         if (username == null || username.trim().isEmpty()) {
             return false;
         }
-        User u = dataService.findUser(username.trim());
-        return u != null && u.getRole() == UserRole.ADMIN && u.isActive();
+        if (!SessionManager.isAdmin()) {
+            return false;
+        }
+        Admin admin = SessionManager.getCurrentAdmin();
+        if (admin == null || !admin.isActive()) {
+            return false;
+        }
+        return admin.getUsername().equalsIgnoreCase(username.trim());
     }
 
     /**
@@ -48,6 +55,7 @@ public class AdminNotificationService {
      * @return list of matching notifications sorted by timestamp descending
      */
     public synchronized List<Notification> getNotifications(String adminUsername, AdminNotificationFilterCriteria criteria) {
+        SessionManager.requireAdmin();
         AdminNotificationFilterCriteria effectiveCriteria = criteria != null ? criteria : AdminNotificationFilterCriteria.all();
 
         // Admin notifications are addressed to "admin" or to specific admin usernames (e.g., admin@ust.hk)
@@ -92,6 +100,7 @@ public class AdminNotificationService {
      * @return Optional containing notification if found
      */
     public synchronized Optional<Notification> getNotification(String notificationId) {
+        SessionManager.requireAdmin();
         if (notificationId == null || notificationId.trim().isEmpty()) {
             return Optional.empty();
         }
@@ -108,6 +117,7 @@ public class AdminNotificationService {
      * @return true if marked as read, false if notification not found or unauthorized
      */
     public synchronized boolean markAsRead(String notificationId, String adminUsername) {
+        SessionManager.requireAdmin();
         if (!isAdminAuthorized(adminUsername)) {
             return false;
         }
@@ -126,6 +136,7 @@ public class AdminNotificationService {
      * @return count of notifications updated to read
      */
     public synchronized int markAllAsRead(String adminUsername) {
+        SessionManager.requireAdmin();
         if (!isAdminAuthorized(adminUsername)) {
             return 0;
         }
@@ -145,6 +156,7 @@ public class AdminNotificationService {
      * @return unread notification count
      */
     public synchronized int getUnreadCount(String adminUsername) {
+        SessionManager.requireAdmin();
         return (int) getNotifications(adminUsername, AdminNotificationFilterCriteria.all()).stream()
                 .filter(Notification::isUnread)
                 .count();
@@ -157,6 +169,7 @@ public class AdminNotificationService {
      * @return map from category to total count
      */
     public synchronized Map<AdminNotificationCategory, Long> getCategoryCounts(String adminUsername) {
+        SessionManager.requireAdmin();
         Map<AdminNotificationCategory, Long> map = new EnumMap<>(AdminNotificationCategory.class);
         for (AdminNotificationCategory cat : AdminNotificationCategory.values()) {
             map.put(cat, 0L);
@@ -176,6 +189,7 @@ public class AdminNotificationService {
      * @return map from category to unread count
      */
     public synchronized Map<AdminNotificationCategory, Long> getCategoryUnreadCounts(String adminUsername) {
+        SessionManager.requireAdmin();
         Map<AdminNotificationCategory, Long> map = new EnumMap<>(AdminNotificationCategory.class);
         for (AdminNotificationCategory cat : AdminNotificationCategory.values()) {
             map.put(cat, 0L);
@@ -199,6 +213,7 @@ public class AdminNotificationService {
      * @return {@link AdminNotificationDetailResult} containing status and resolved domain model
      */
     public synchronized AdminNotificationDetailResult getNotificationDetail(String notificationId, String adminUsername) {
+        SessionManager.requireAdmin();
         if (!isAdminAuthorized(adminUsername)) {
             return AdminNotificationDetailResult.unauthorized("User '" + adminUsername + "' is not an active administrator.");
         }
@@ -294,6 +309,7 @@ public class AdminNotificationService {
      * @return outcome of the resolution operation
      */
     public synchronized AdminReportResolutionResult resolveReport(String reportId, String adminUsername, String resolutionNote) {
+        SessionManager.requireAdmin();
         if (reportId == null || reportId.trim().isEmpty()) {
             return AdminReportResolutionResult.failure(AdminReportResolutionStatus.INVALID_INPUT, "Report ID cannot be empty.");
         }

@@ -116,7 +116,7 @@ After F03/F04 (session checks for buyers and admins) the snippets must log in th
 | F01 | P1 | Elio / shared | ~~Seeded admin password stored in plaintext; plaintext accepted at login~~ **[FIXED]** | Brief NFR "credentials hashed, never plaintext"; CLASS_DIAGRAM §3.1 |
 | F02 | P1 | Charles, Elio | ~~Three password schemes; buyers and profile changes use 1-round SHA-256~~ **[FIXED - PR #32]** | Same; README "Password Rules" |
 | F03 | P1 | Charles | ~~Buyer services do not check the session~~ **[FIXED - PR #33]** | Brief technical req. "RBAC at the API layer"; UC 1.2 special req. |
-| F04 | P1 | Elio | Admin services trust a username argument; dashboard has no session guard | Same; UC 3.1 special req. |
+| F04 | P1 | Elio | ~~Admin services trust a username argument; dashboard has no session guard~~ **[FIXED]** | Same; UC 3.1 special req. |
 | F05 | P1 | Team | Branch coverage 58.6 % < 65 % | Backlog QA-01 |
 | F06 | P1 | Team (+Antoine) | `javadoc:javadoc` fails; 1,817 missing Javadoc items | Backlog QA-02; brief "well-commented" |
 | F07 | P2 | Charles | ~~No auto-return timer: expired loans stay Lent~~ **[FIXED - PR #34]** | Task 1.6; UC 1.6 A4; CLASS_DIAGRAM rule 2 |
@@ -239,7 +239,16 @@ After F03/F04 (session checks for buyers and admins) the snippets must log in th
   `SellerStatisticsServiceTest`, `SellerProfileServiceTest`) create offers through buyer flows while a seller is
   logged in: give them a helper that switches to the buyer around those calls. Agree on this with the team first.
 
-### F04 — Admin services trust a username argument; admin dashboard has no session guard
+### F04 — [FIXED] Admin services trust a username argument; admin dashboard has no session guard
+> [!NOTE]
+> **Status: FIXED**
+> - Added SessionManager.requireAdmin() and SessionManager.getCurrentAdmin() returning the authenticated Admin and verifying active account status.
+> - Enhanced SessionManager.endSessionForUser and withSession to properly clear and isolate thread/global sessions upon account deactivation/deletion.
+> - Enforced strict admin session authentication and RBAC checks across all 7 Admin services (ListingReviewService, AdminListingService, AdminRatingService, AdminDealsService, AdminNotificationService, UserManagementService, AdminProfileService).
+> - Removed hardcoded "admin" fallback in AdminRatingService.isAdmin(...) and secured AdminNotificationService.isAdminAuthorized(...).
+> - Added session guard in AdminDashboardController.initialize(), redirecting unauthenticated or non-admin callers to SceneManager.showAdminLogin().
+> - Bridged session delegation in DummyDataService administrative convenience methods.
+> - Added exhaustive regression and RBAC test coverage across all admin service test suites.
 - **Owner:** Elio.
 - **Requirement:** same as F03; UC 3.1 special req. "Every Admin-only function checks the Admin session on the
   server side".

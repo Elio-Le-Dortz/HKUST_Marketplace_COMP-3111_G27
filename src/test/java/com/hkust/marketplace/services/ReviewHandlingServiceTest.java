@@ -915,12 +915,12 @@ class ReviewHandlingServiceTest {
         void flaggedFirstForAdmin() {
             Review older = storeReview(seller, buyer1, 2, "Older", 10);
             Review newer = storeReview(seller, buyer2, 5, "Newer, not flagged", 1);
-            List<Review> before = DATA.getAdminRatingService().getOrderedReviews();
+            List<Review> before = SessionManager.withSession(DATA.findUser(ADMIN), () -> DATA.getAdminRatingService().getOrderedReviews());
             assertTrue(before.indexOf(newer) < before.indexOf(older), "Newest first while nothing is flagged");
 
             service.flagReview(older.getId(), ReviewFlagReason.OFFENSIVE_LANGUAGE, null);
 
-            List<Review> after = DATA.getAdminRatingService().getOrderedReviews();
+            List<Review> after = SessionManager.withSession(DATA.findUser(ADMIN), () -> DATA.getAdminRatingService().getOrderedReviews());
             assertTrue(after.indexOf(older) < after.indexOf(newer), "Flagged reviews come first");
             assertEquals("Offensive language", after.get(after.indexOf(older)).getFlagReason());
         }
@@ -932,8 +932,8 @@ class ReviewHandlingServiceTest {
             service.flagReview(review.getId(), ReviewFlagReason.SPAM, null);
             Notification notification = onlyFlagNotification(review);
 
-            AdminNotificationDetailResult detail = DATA.getAdminNotificationService()
-                    .getNotificationDetail(notification.getId(), ADMIN);
+            AdminNotificationDetailResult detail = SessionManager.withSession(DATA.findUser(ADMIN), () ->
+                    DATA.getAdminNotificationService().getNotificationDetail(notification.getId(), ADMIN));
 
             assertTrue(detail.isSuccess(), detail.getMessage());
             assertSame(review, detail.getReview());
@@ -946,7 +946,7 @@ class ReviewHandlingServiceTest {
             Review review = storeReview(seller, buyer1, 1, "Rude review", 1);
             service.flagReview(review.getId(), ReviewFlagReason.OFFENSIVE_LANGUAGE, null);
 
-            AdminRatingOperationResult hidden = DATA.getAdminRatingService().hideReview(review.getId(), ADMIN);
+            AdminRatingOperationResult hidden = DATA.hideReviewByAdmin(review.getId(), ADMIN);
             assertTrue(hidden.isSuccess(), hidden.getMessage());
 
             assertEquals(List.of(kept), service.getMyReviews());
@@ -960,10 +960,10 @@ class ReviewHandlingServiceTest {
         @DisplayName("Once the admin unhides a review, the Seller sees and counts it again")
         void adminUnhides() {
             Review review = storeReview();
-            DATA.getAdminRatingService().hideReview(review.getId(), ADMIN);
+            DATA.hideReviewByAdmin(review.getId(), ADMIN);
             assertTrue(service.getMyReviews().isEmpty());
 
-            DATA.getAdminRatingService().unhideReview(review.getId(), ADMIN);
+            DATA.unhideReviewByAdmin(review.getId(), ADMIN);
 
             assertEquals(List.of(review), service.getMyReviews());
             assertTrue(service.replyToReview(review.getId(), "Thanks!").isSuccess());
@@ -975,7 +975,7 @@ class ReviewHandlingServiceTest {
             Review review = storeReview();
             service.flagReview(review.getId(), ReviewFlagReason.SPAM, null);
 
-            AdminRatingOperationResult dismissed = DATA.getAdminRatingService().dismissFlag(review.getId(), ADMIN);
+            AdminRatingOperationResult dismissed = DATA.dismissReviewFlagByAdmin(review.getId(), ADMIN);
             assertTrue(dismissed.isSuccess(), dismissed.getMessage());
 
             assertEquals(List.of(review), service.getMyReviews());

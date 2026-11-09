@@ -37,6 +37,7 @@ public class UserManagementService {
      * @return list of matching non-admin users
      */
     public synchronized List<User> getUsers(UserManagementFilterCriteria criteria) {
+        SessionManager.requireAdmin();
         UserManagementFilterCriteria effectiveCriteria = criteria != null ? criteria : UserManagementFilterCriteria.all();
 
         return dataService.getAllUsers().stream()
@@ -54,6 +55,7 @@ public class UserManagementService {
      * @return an {@link Optional} containing the user if found and not an admin, or empty otherwise
      */
     public synchronized Optional<User> getUser(String username) {
+        SessionManager.requireAdmin();
         if (username == null || username.trim().isEmpty()) {
             return Optional.empty();
         }
@@ -71,6 +73,7 @@ public class UserManagementService {
      * @return list of active deals
      */
     public synchronized List<Deal> getActiveDealsForUser(String username) {
+        SessionManager.requireAdmin();
         if (username == null || username.trim().isEmpty()) {
             return Collections.emptyList();
         }
@@ -99,6 +102,7 @@ public class UserManagementService {
      * @return outcome of the operation
      */
     public synchronized UserManagementResult editUser(UserEditRequest request) {
+        Admin sessionAdmin = SessionManager.requireAdmin();
         if (request == null) {
             return UserManagementResult.failure(UserManagementStatus.INVALID_INPUT, "Edit request cannot be null.");
         }
@@ -111,7 +115,8 @@ public class UserManagementService {
 
         // 1. Authorize administrator
         User adminUser = dataService.findUser(request.getAdminUsername().trim());
-        if (adminUser == null || adminUser.getRole() != UserRole.ADMIN || !adminUser.isActive()) {
+        if (adminUser == null || adminUser.getRole() != UserRole.ADMIN || !adminUser.isActive()
+                || !sessionAdmin.getUsername().equalsIgnoreCase(adminUser.getUsername())) {
             return UserManagementResult.failure(UserManagementStatus.UNAUTHORIZED,
                     "User '" + request.getAdminUsername() + "' is not an active administrator.");
         }
@@ -186,6 +191,7 @@ public class UserManagementService {
      * @return outcome of the operation
      */
     public synchronized UserManagementResult changeAccountStatus(String targetUsername, AccountStatus newStatus, String adminUsername) {
+        Admin sessionAdmin = SessionManager.requireAdmin();
         if (targetUsername == null || targetUsername.trim().isEmpty()) {
             return UserManagementResult.failure(UserManagementStatus.INVALID_INPUT, "Target username cannot be empty.");
         }
@@ -199,7 +205,8 @@ public class UserManagementService {
 
         // 1. Authorize administrator
         User adminUser = dataService.findUser(adminUsername.trim());
-        if (adminUser == null || adminUser.getRole() != UserRole.ADMIN || !adminUser.isActive()) {
+        if (adminUser == null || adminUser.getRole() != UserRole.ADMIN || !adminUser.isActive()
+                || !sessionAdmin.getUsername().equalsIgnoreCase(adminUser.getUsername())) {
             return UserManagementResult.failure(UserManagementStatus.UNAUTHORIZED,
                     "User '" + adminUsername + "' is not an active administrator.");
         }
@@ -290,6 +297,7 @@ public class UserManagementService {
      * @return outcome containing counts of affected listings and offers, or active deals blocking deletion
      */
     public synchronized UserManagementResult deleteUser(String targetUsername, String adminUsername) {
+        Admin sessionAdmin = SessionManager.requireAdmin();
         if (targetUsername == null || targetUsername.trim().isEmpty()) {
             return UserManagementResult.failure(UserManagementStatus.INVALID_INPUT, "Target username cannot be empty.");
         }
@@ -299,7 +307,8 @@ public class UserManagementService {
 
         // 1. Authorize administrator
         User adminUser = dataService.findUser(adminUsername.trim());
-        if (adminUser == null || adminUser.getRole() != UserRole.ADMIN || !adminUser.isActive()) {
+        if (adminUser == null || adminUser.getRole() != UserRole.ADMIN || !adminUser.isActive()
+                || !sessionAdmin.getUsername().equalsIgnoreCase(adminUser.getUsername())) {
             return UserManagementResult.failure(UserManagementStatus.UNAUTHORIZED,
                     "User '" + adminUsername + "' is not an active administrator.");
         }

@@ -19,6 +19,11 @@ class DummyDataServiceUserManagementTest {
     void setUp() {
         dataService = DummyDataService.getInstance();
         dataService.resetData();
+        SessionManager.login(dataService.findUser(DummyDataService.SEEDED_ADMIN_USERNAME));
+    }
+
+    @org.junit.jupiter.api.AfterEach
+    void tearDown() {
         SessionManager.logout();
     }
 
@@ -66,6 +71,9 @@ class DummyDataServiceUserManagementTest {
         // Delete user
         dataService.getUserManagementService().deleteUser("login_buyer", "admin");
         assertEquals(AccountStatus.DELETED, buyer.getAccountStatus());
+
+        // Log out admin before buyer login attempt
+        SessionManager.logout();
 
         // Verify login fails
         LoginResult loginResult = dataService.loginBuyer("login_buyer", "Pass1234!");

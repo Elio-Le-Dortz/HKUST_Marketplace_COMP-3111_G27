@@ -3,6 +3,8 @@ package com.hkust.marketplace.services;
 import com.hkust.marketplace.models.*;
 import com.hkust.marketplace.utils.DummyDataService;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.AfterEach;
+import com.hkust.marketplace.utils.SessionManager;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -26,6 +28,12 @@ class AdminNotificationServiceTest {
         dataService = DummyDataService.getInstance();
         dataService.resetData();
         service = new AdminNotificationService(dataService);
+        SessionManager.login(dataService.findUser(adminUsername));
+    }
+
+    @AfterEach
+    void tearDown() {
+        SessionManager.logout();
     }
 
     @Nested
@@ -571,5 +579,35 @@ class AdminNotificationServiceTest {
             executor.shutdown();
             assertTrue(executor.awaitTermination(5, TimeUnit.SECONDS));
         }
+    }
+
+    @Test
+    @DisplayName("RBAC: Unauthenticated caller throws SecurityException")
+    void testUnauthenticatedAccessThrowsSecurityException() {
+        SessionManager.logout();
+        assertThrows(SecurityException.class, () -> service.getNotifications(adminUsername, AdminNotificationFilterCriteria.all()));
+        assertThrows(SecurityException.class, () -> service.getNotification("N1"));
+        assertThrows(SecurityException.class, () -> service.markAsRead("N1", adminUsername));
+        assertThrows(SecurityException.class, () -> service.markAllAsRead(adminUsername));
+        assertThrows(SecurityException.class, () -> service.getUnreadCount(adminUsername));
+        assertThrows(SecurityException.class, () -> service.getCategoryCounts(adminUsername));
+        assertThrows(SecurityException.class, () -> service.getCategoryUnreadCounts(adminUsername));
+        assertThrows(SecurityException.class, () -> service.getNotificationDetail("N1", adminUsername));
+        assertThrows(SecurityException.class, () -> service.resolveReport("REP1", adminUsername, "Resolved"));
+    }
+
+    @Test
+    @DisplayName("RBAC: Non-admin caller throws SecurityException")
+    void testNonAdminAccessThrowsSecurityException() {
+        SessionManager.login(dataService.findUser("alice"));
+        assertThrows(SecurityException.class, () -> service.getNotifications(adminUsername, AdminNotificationFilterCriteria.all()));
+        assertThrows(SecurityException.class, () -> service.getNotification("N1"));
+        assertThrows(SecurityException.class, () -> service.markAsRead("N1", adminUsername));
+        assertThrows(SecurityException.class, () -> service.markAllAsRead(adminUsername));
+        assertThrows(SecurityException.class, () -> service.getUnreadCount(adminUsername));
+        assertThrows(SecurityException.class, () -> service.getCategoryCounts(adminUsername));
+        assertThrows(SecurityException.class, () -> service.getCategoryUnreadCounts(adminUsername));
+        assertThrows(SecurityException.class, () -> service.getNotificationDetail("N1", adminUsername));
+        assertThrows(SecurityException.class, () -> service.resolveReport("REP1", adminUsername, "Resolved"));
     }
 }

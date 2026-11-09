@@ -31,7 +31,7 @@ class AdminProfileServiceTest {
         dataService = DummyDataService.getInstance();
         dataService.resetData();
         profileService = new AdminProfileService(dataService);
-        SessionManager.logout();
+        SessionManager.login(dataService.findUser("admin"));
     }
 
     @AfterEach
@@ -337,12 +337,10 @@ class AdminProfileServiceTest {
             assertNotNull(admin);
             admin.setActive(false);
 
-            assertNull(profileService.getProfile("admin"));
+            assertThrows(SecurityException.class, () -> profileService.getProfile("admin"));
 
             AdminProfileUpdateRequest req = new AdminProfileUpdateRequest("admin", "Admin Name");
-            AdminProfileUpdateResult result = profileService.updateProfile("admin", req);
-            assertFalse(result.isSuccess());
-            assertEquals(AdminProfileUpdateStatus.UNAUTHORIZED, result.getStatus());
+            assertThrows(SecurityException.class, () -> profileService.updateProfile("admin", req));
         }
 
         @Test
@@ -411,5 +409,21 @@ class AdminProfileServiceTest {
             assertNotNull(admin);
             assertTrue(admin.getFullName().startsWith("Admin Thread "));
         }
+    }
+
+    @Test
+    @DisplayName("RBAC: Unauthenticated caller throws SecurityException")
+    void testUnauthenticatedAccessThrowsSecurityException() {
+        SessionManager.logout();
+        assertThrows(SecurityException.class, () -> profileService.getProfile("admin"));
+        assertThrows(SecurityException.class, () -> profileService.updateProfile("admin", new AdminProfileUpdateRequest("admin", "Name")));
+    }
+
+    @Test
+    @DisplayName("RBAC: Non-admin caller throws SecurityException")
+    void testNonAdminAccessThrowsSecurityException() {
+        SessionManager.login(dataService.findUser("alice"));
+        assertThrows(SecurityException.class, () -> profileService.getProfile("admin"));
+        assertThrows(SecurityException.class, () -> profileService.updateProfile("admin", new AdminProfileUpdateRequest("admin", "Name")));
     }
 }

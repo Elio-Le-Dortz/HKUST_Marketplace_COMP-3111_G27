@@ -2,6 +2,7 @@ package com.hkust.marketplace.services;
 
 import com.hkust.marketplace.models.*;
 import com.hkust.marketplace.utils.DummyDataService;
+import com.hkust.marketplace.utils.SessionManager;
 
 import java.time.LocalDateTime;
 import java.util.*;
@@ -31,6 +32,7 @@ public class AdminListingService {
      * @return list of all listings
      */
     public synchronized List<Listing> getAllListings() {
+        SessionManager.requireAdmin();
         return filterListings(AdminListingFilterCriteria.all());
     }
 
@@ -41,6 +43,7 @@ public class AdminListingService {
      * @return filtered listings sorted newest first
      */
     public synchronized List<Listing> filterListings(AdminListingFilterCriteria criteria) {
+        SessionManager.requireAdmin();
         AdminListingFilterCriteria effectiveCriteria = (criteria != null) ? criteria : AdminListingFilterCriteria.all();
         return dataService.getAllListings().stream()
                 .filter(l -> l != null && effectiveCriteria.matches(l))
@@ -310,6 +313,7 @@ public class AdminListingService {
      * @return list of active sellers
      */
     public synchronized List<Seller> getActiveSellers() {
+        SessionManager.requireAdmin();
         return dataService.getAllUsers().stream()
                 .filter(u -> u instanceof Seller && u.isActive())
                 .map(u -> (Seller) u)
@@ -324,6 +328,7 @@ public class AdminListingService {
      * @return count of active offers
      */
     public synchronized int getActiveOffersCount(String listingId) {
+        SessionManager.requireAdmin();
         if (listingId == null) return 0;
         return (int) dataService.getOffersForListing(listingId).stream()
                 .filter(o -> o.getStatus() == OfferStatus.PENDING || o.getStatus() == OfferStatus.COUNTERED)
@@ -336,6 +341,7 @@ public class AdminListingService {
      * @return map of status to count
      */
     public synchronized Map<ListingStatus, Long> getListingCountsByStatus() {
+        SessionManager.requireAdmin();
         Map<ListingStatus, Long> counts = new EnumMap<>(ListingStatus.class);
         for (ListingStatus s : ListingStatus.values()) {
             counts.put(s, 0L);
@@ -349,11 +355,15 @@ public class AdminListingService {
     }
 
     private User verifyAdmin(String adminUsername) {
+        Admin sessionAdmin = SessionManager.requireAdmin();
         if (adminUsername == null || adminUsername.trim().isEmpty()) {
             return null;
         }
         User u = dataService.findUser(adminUsername.trim());
         if (u == null || u.getRole() != UserRole.ADMIN || !u.isActive()) {
+            return null;
+        }
+        if (!sessionAdmin.getUsername().equalsIgnoreCase(u.getUsername())) {
             return null;
         }
         return u;

@@ -291,7 +291,7 @@ class SellerProfileServiceTest {
             saveOk(SellerProfileUpdateRequest.withoutPasswordChange("Sam Lee", "New bio",
                     List.of(MeetupLocation.ATRIUM)));
 
-            User seen = DATA.getUserManagementService().getUser(seller.getUsername()).orElseThrow();
+            User seen = SessionManager.withSession(DATA.findUser(ADMIN), () -> DATA.getUserManagementService().getUser(seller.getUsername()).orElseThrow());
             assertEquals("Sam Lee", seen.getFullName());
             assertEquals("New bio", seen.getBio());
             assertEquals(List.of(MeetupLocation.ATRIUM), ((Seller) seen).getPreferredMeetups());
@@ -300,9 +300,9 @@ class SellerProfileServiceTest {
         @Test
         @DisplayName("The Seller's form shows the changes the admin made to the account (use case 3.3)")
         void formShowsAdminChanges() {
-            UserManagementResult edited = DATA.getUserManagementService().editUser(UserEditRequest.builder()
+            UserManagementResult edited = SessionManager.withSession(DATA.findUser(ADMIN), () -> DATA.getUserManagementService().editUser(UserEditRequest.builder()
                     .targetUsername(seller.getUsername()).adminUsername(ADMIN).newFullName("Sam Admin-Edited")
-                    .bio("Edited by the admin").preferredMeetups(List.of(MeetupLocation.NORTH_GATE)).build());
+                    .bio("Edited by the admin").preferredMeetups(List.of(MeetupLocation.NORTH_GATE)).build()));
             assertTrue(edited.isSuccess(), edited.getMessage());
 
             SellerProfileUpdateRequest shown = SellerProfileService.toEditRequest(service.getMyProfile());
@@ -1113,8 +1113,8 @@ class SellerProfileServiceTest {
             saveOk(withName("Samantha Lee"));
             AdminListingService admin = new AdminListingService(DATA);
 
-            List<Listing> byNewName = admin.filterListings(AdminListingFilterCriteria.byKeyword("Samantha"));
-            List<Listing> byOldName = admin.filterListings(AdminListingFilterCriteria.byKeyword("Sam Seller"));
+            List<Listing> byNewName = SessionManager.withSession(DATA.findUser(ADMIN), () -> admin.filterListings(AdminListingFilterCriteria.byKeyword("Samantha")));
+            List<Listing> byOldName = SessionManager.withSession(DATA.findUser(ADMIN), () -> admin.filterListings(AdminListingFilterCriteria.byKeyword("Sam Seller")));
 
             assertTrue(byNewName.contains(listing));
             assertFalse(byOldName.contains(listing));

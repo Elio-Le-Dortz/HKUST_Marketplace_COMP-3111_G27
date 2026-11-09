@@ -3,6 +3,8 @@ package com.hkust.marketplace.services;
 import com.hkust.marketplace.models.*;
 import com.hkust.marketplace.utils.DummyDataService;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.AfterEach;
+import com.hkust.marketplace.utils.SessionManager;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -26,6 +28,12 @@ class AdminDealsServiceTest {
         dataService = DummyDataService.getInstance();
         dataService.resetData();
         service = new AdminDealsService(dataService);
+        SessionManager.login(dataService.findUser(DummyDataService.SEEDED_ADMIN_USERNAME));
+    }
+
+    @AfterEach
+    void tearDown() {
+        SessionManager.logout();
     }
 
     @Test
@@ -351,5 +359,23 @@ class AdminDealsServiceTest {
         assertEquals("O_TEST_FALLBACK", record.getOffer().getId());
         assertNotNull(record.getReview());
         assertEquals("R_TEST_FALLBACK", record.getReview().getId());
+    }
+
+    @Test
+    @DisplayName("RBAC: Unauthenticated caller throws SecurityException")
+    void testUnauthenticatedAccessThrowsSecurityException() {
+        SessionManager.logout();
+        assertThrows(SecurityException.class, () -> service.queryDeals(null));
+        assertThrows(SecurityException.class, () -> service.getDealDetails("D1"));
+        assertThrows(SecurityException.class, () -> service.getTotalDealsCount());
+    }
+
+    @Test
+    @DisplayName("RBAC: Non-admin caller throws SecurityException")
+    void testNonAdminAccessThrowsSecurityException() {
+        SessionManager.login(dataService.findUser("alice"));
+        assertThrows(SecurityException.class, () -> service.queryDeals(null));
+        assertThrows(SecurityException.class, () -> service.getDealDetails("D1"));
+        assertThrows(SecurityException.class, () -> service.getTotalDealsCount());
     }
 }

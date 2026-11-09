@@ -2,6 +2,7 @@ package com.hkust.marketplace.services;
 
 import com.hkust.marketplace.models.*;
 import com.hkust.marketplace.utils.DummyDataService;
+import com.hkust.marketplace.utils.SessionManager;
 
 import java.time.LocalDateTime;
 import java.util.*;
@@ -31,6 +32,7 @@ public class ListingReviewService {
      * @return a list of listings with status {@link ListingStatus#PENDING_REVIEW}, sorted by postedDate ascending.
      */
     public synchronized List<Listing> getPendingListingsOldestFirst() {
+        SessionManager.requireAdmin();
         return dataService.getAllListings().stream()
                 .filter(l -> l != null && l.getStatus() == ListingStatus.PENDING_REVIEW)
                 .sorted((l1, l2) -> {
@@ -62,6 +64,7 @@ public class ListingReviewService {
      * @return an {@link Optional} containing the listing if found, or empty otherwise.
      */
     public synchronized Optional<Listing> getListingDetails(String listingId) {
+        SessionManager.requireAdmin();
         if (listingId == null || listingId.trim().isEmpty()) {
             return Optional.empty();
         }
@@ -84,6 +87,7 @@ public class ListingReviewService {
      * @return a {@link ListingReviewResult} detailing the outcome.
      */
     public synchronized ListingReviewResult approveListing(String listingId, String adminUsername) {
+        Admin sessionAdmin = SessionManager.requireAdmin();
         if (listingId == null || listingId.trim().isEmpty()) {
             return ListingReviewResult.invalidInput("Listing ID cannot be null or empty.");
         }
@@ -93,7 +97,8 @@ public class ListingReviewService {
 
         // Verify administrator authorization
         User adminUser = dataService.findUser(adminUsername.trim());
-        if (adminUser == null || adminUser.getRole() != UserRole.ADMIN || !adminUser.isActive()) {
+        if (adminUser == null || adminUser.getRole() != UserRole.ADMIN || !adminUser.isActive()
+                || !sessionAdmin.getUsername().equalsIgnoreCase(adminUser.getUsername())) {
             return ListingReviewResult.unauthorized("User '" + adminUsername + "' is not an active administrator.");
         }
 
@@ -150,6 +155,7 @@ public class ListingReviewService {
      * @return a {@link ListingReviewResult} detailing the outcome.
      */
     public synchronized ListingReviewResult rejectListing(String listingId, String adminUsername, String reason) {
+        Admin sessionAdmin = SessionManager.requireAdmin();
         if (listingId == null || listingId.trim().isEmpty()) {
             return ListingReviewResult.invalidInput("Listing ID cannot be null or empty.");
         }
@@ -159,7 +165,8 @@ public class ListingReviewService {
 
         // Verify administrator authorization
         User adminUser = dataService.findUser(adminUsername.trim());
-        if (adminUser == null || adminUser.getRole() != UserRole.ADMIN || !adminUser.isActive()) {
+        if (adminUser == null || adminUser.getRole() != UserRole.ADMIN || !adminUser.isActive()
+                || !sessionAdmin.getUsername().equalsIgnoreCase(adminUser.getUsername())) {
             return ListingReviewResult.unauthorized("User '" + adminUsername + "' is not an active administrator.");
         }
 
@@ -211,6 +218,7 @@ public class ListingReviewService {
      * @return a {@link ListingReviewResult} detailing the outcome.
      */
     public synchronized ListingReviewResult reviewListing(ListingReviewRequest request) {
+        SessionManager.requireAdmin();
         if (request == null) {
             return ListingReviewResult.invalidInput("Review request cannot be null.");
         }

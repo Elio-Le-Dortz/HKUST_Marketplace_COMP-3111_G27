@@ -15,11 +15,13 @@ import com.hkust.marketplace.utils.DummyDataService;
 import com.hkust.marketplace.utils.SessionManager;
 
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.EnumMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.regex.Matcher;
@@ -58,6 +60,10 @@ import java.util.regex.Pattern;
  * <p>This class does not use JavaFX, so every flow is unit tested without a display.</p>
  */
 public class SellerNotificationService {
+
+    /** Format of the timestamp of a notification on the board, in English whatever the default locale. */
+    private static final DateTimeFormatter TIMESTAMP_FORMAT =
+            DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm", Locale.ENGLISH);
 
     /** Message when no notification is selected. */
     public static final String NOTIFICATION_NOT_SELECTED = "No notification was selected.";
@@ -289,6 +295,22 @@ public class SellerNotificationService {
         }
         String reason = matcher.group(1).trim();
         return reason.isEmpty() ? null : reason;
+    }
+
+    /**
+     * Formats the timestamp of a notification as the Seller's board shows it (basic flow,
+     * step 2), for example {@code 03 Nov 2026 14:30}. The month is always written in English,
+     * as every other date of the Seller Portal, whatever the default locale of the computer
+     * (for example {@code fr_FR}, where {@link Notification#getFormattedTimestamp()} would write
+     * {@code 03 nov. 2026}).
+     *
+     * @param notification the notification
+     * @return the formatted timestamp, or an empty string if the notification has none
+     * @throws NullPointerException if {@code notification} is {@code null}
+     */
+    public static String formatTimestamp(Notification notification) {
+        Objects.requireNonNull(notification, "notification");
+        return notification.getTimestamp() == null ? "" : notification.getTimestamp().format(TIMESTAMP_FORMAT);
     }
 
     // =====================================================================

@@ -2503,7 +2503,7 @@ public class SellerDashboardController {
         }
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
-        Label time = new Label(notification.getFormattedTimestamp());
+        Label time = new Label(SellerNotificationService.formatTimestamp(notification));
         time.setStyle("-fx-text-fill: #9aa0b0; -fx-font-size: 11px;");
         header.getChildren().addAll(spacer, time);
 
@@ -2765,7 +2765,7 @@ public class SellerDashboardController {
         alert.initOwner(SceneManager.getPrimaryStage());
         alert.setTitle(notification == null ? "Notifications"
                 : "Notifications · " + SellerNotificationCategory.of(notification).getDisplayName()
-                + " · " + notification.getFormattedTimestamp());
+                + " · " + SellerNotificationService.formatTimestamp(notification));
         alert.setHeaderText(header);
         alert.getDialogPane().setMinWidth(460);
         return alert;

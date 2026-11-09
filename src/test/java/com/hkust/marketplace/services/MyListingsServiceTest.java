@@ -35,6 +35,7 @@ import com.hkust.marketplace.models.Photo;
 import com.hkust.marketplace.models.Seller;
 import com.hkust.marketplace.models.User;
 import com.hkust.marketplace.utils.DummyDataService;
+import com.hkust.marketplace.utils.ListingPhotoStorage;
 import com.hkust.marketplace.utils.SessionManager;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -92,7 +93,9 @@ class MyListingsServiceTest {
     @TempDir
     Path photoDir;
 
-    private final MyListingsService service = new MyListingsService(DATA);
+    /** Keeps the copies of the photos in the temporary folder, never in the project's data folder. */
+    private ListingPhotoStorage storage;
+    private MyListingsService service;
     private final OfferManagementService offerService = new OfferManagementService(DATA);
 
     private Seller seller;
@@ -119,6 +122,8 @@ class MyListingsServiceTest {
         photo1 = writePng("lamp-front.png");
         photo2 = writePng("lamp-side.png");
         photo3 = writePng("lamp-box.png");
+        storage = new ListingPhotoStorage(photoDir.resolve("uploads"));
+        service = new MyListingsService(DATA, storage);
         SessionManager.login(seller);
     }
 
@@ -245,6 +250,15 @@ class MyListingsServiceTest {
         return all.subList(0, all.size() - before);
     }
 
+    /** Returns the copies the storage keeps of photo files (storing the same file again reuses its copy). */
+    private List<Path> copiesOf(Path... photos) {
+        try {
+            return storage.store(List.of(photos));
+        } catch (IOException e) {
+            throw new java.io.UncheckedIOException(e);
+        }
+    }
+
     private static List<Path> photoPathsOf(Listing listing) {
         return listing.getPhotos().stream().map(photo -> Path.of(photo.getImagePath())).toList();
     }
@@ -363,6 +377,8 @@ class MyListingsServiceTest {
         @DisplayName("The data store is required")
         void nullDataService() {
             assertThrows(NullPointerException.class, () -> new MyListingsService(null));
+            assertThrows(NullPointerException.class, () -> new MyListingsService(DATA, null));
+            assertThrows(NullPointerException.class, () -> new MyListingsService(null, storage));
             assertNotNull(new MyListingsService());
         }
     }
@@ -811,8 +827,9 @@ class MyListingsServiceTest {
             assertEquals(2, photos.size());
             assertEquals(listing.getId() + CreateListingService.PHOTO_ID_SEPARATOR + "1", photos.get(0).getId());
             assertEquals(listing.getId() + CreateListingService.PHOTO_ID_SEPARATOR + "2", photos.get(1).getId());
-            assertEquals(List.of(photo3, photo2), photoPathsOf(listing));
-            assertEquals(photo3.toString(), listing.getThumbnailPath(), "The first photo is the new cover");
+            // Review of the seller part, finding 3: the listing keeps copies of the chosen files.
+            assertEquals(copiesOf(photo3, photo2), photoPathsOf(listing));
+            assertEquals(copiesOf(photo3).get(0).toString(), listing.getThumbnailPath(), "The first photo is the new cover");
         }
 
         @Test
@@ -1501,6 +1518,98 @@ class MyListingsServiceTest {
     // Integration with the other use cases
     // ------------------------------------------------------------------
 
+    // ------------------------------------------------------------------
+    // Review of the seller part, finding 3: edited photos are copied into the application's folder
+    // ------------------------------------------------------------------
+
+    @Nested
+    @DisplayName("Edited photos are kept as copies in the application's folder [RS3]")
+    class PhotoCopies {
+
+        private long copiesInStorage() throws IOException {
+            if (!Files.isDirectory(storage.getRoot())) {
+                return 0;
+            }
+            try (Stream<Path> files = Files.list(storage.getRoot())) {
+                return files.filter(f -> !f.getFileName().toString().startsWith(".")).count();
+            }
+        }
+
+        @Test
+        @DisplayName("A photo added by an edit is copied, and still shown after its original is deleted")
+        void addedPhotoIsCopied() throws IOException {
+            Listing listing = liveSell();
+            Path added = writePng("lamp-new.png");
+
+            editConfirmed(listing, formOf(listing).photos(List.of(photo1, added)).build());
+            Files.delete(added);
+
+            Path copy = Path.of(listing.getPhotos().get(1).getImagePath());
+            assertTrue(storage.isStored(copy), copy::toString);
+            assertTrue(Files.isRegularFile(copy));
+        }
+
+        @Test
+        @DisplayName("Saving again after the pending-offers warning does not duplicate the copies")
+        void warningThenConfirmNoDuplicate() throws IOException {
+            Listing listing = liveSell();
+            priceOffer(listing, buyer1, 100.0);
+            CreateListingRequest request = formOf(listing).photos(List.of(photo2, photo3)).build();
+
+            MyListingResult warned = edit(listing, request);
+            assertEquals(MyListingStatus.PENDING_OFFERS, warned.getStatus());
+            long afterWarning = copiesInStorage();
+            MyListingResult confirmed = service.editListing(listing.getId(), request, warned.getOfferIds());
+
+            assertTrue(confirmed.isSuccess(), confirmed::toString);
+            assertEquals(afterWarning, copiesInStorage());
+            assertEquals(copiesOf(photo2, photo3), photoPathsOf(listing));
+        }
+
+        @Test
+        @DisplayName("A photo that is already a copy is kept as it is when the listing is edited again")
+        void existingCopyKept() throws IOException {
+            Listing listing = liveSell();
+            editConfirmed(listing, formOf(listing).photos(List.of(photo2)).build());
+            assertTrue(DATA.approveListing(listing.getId(), ADMIN).isSuccess());
+            List<Path> copies = photoPathsOf(listing);
+            long before = copiesInStorage();
+
+            editConfirmed(listing, formOf(listing).title("Renamed lamp").build());
+
+            assertEquals(copies, photoPathsOf(listing));
+            assertEquals(before, copiesInStorage());
+        }
+
+        @Test
+        @DisplayName("An unchanged form of a listing whose photos are not copies yet changes nothing")
+        void unchangedOldListing() {
+            Listing listing = liveSell();
+            assertFalse(storage.isStored(photo1));
+
+            MyListingResult result = edit(listing, formOf(listing).build());
+
+            assertEquals(MyListingStatus.NO_CHANGES, result.getStatus());
+            assertEquals(ListingStatus.LIVE, listing.getStatus());
+            assertEquals(List.of(photo1), photoPathsOf(listing));
+        }
+
+        @Test
+        @DisplayName("A photo that cannot be copied is reported and nothing changes")
+        void copyFailure() throws IOException {
+            Listing listing = liveSell();
+            Path notAFolder = Files.write(photoDir.resolve("not-a-folder"), new byte[] {1});
+            MyListingsService failing = new MyListingsService(DATA, new ListingPhotoStorage(notAFolder));
+
+            MyListingResult result = failing.editListing(listing.getId(), formOf(listing).title("Changed").build(), null);
+
+            assertEquals(MyListingStatus.INVALID_FIELDS, result.getStatus());
+            assertEquals(List.of(CreateListingService.PHOTOS_NOT_SAVED), result.getErrors(ListingField.PHOTOS));
+            assertNotEquals("Changed", listing.getTitle());
+            assertEquals(ListingStatus.LIVE, listing.getStatus());
+        }
+    }
+
     @Nested
     @DisplayName("Integration: create, review, edit, offer and delete")
     class Integration {
@@ -1508,7 +1617,7 @@ class MyListingsServiceTest {
         @Test
         @DisplayName("A rejected listing is corrected, approved, receives an offer, then is deleted")
         void fullLifeCycle() {
-            CreateListingResult created = new CreateListingService(DATA).createListing(new CreateListingRequest(
+            CreateListingResult created = new CreateListingService(DATA, storage).createListing(new CreateListingRequest(
                     ListingType.SELL, "Rice cooker", "Small rice cooker, 3 cups.", Category.OTHER, Condition.USED,
                     "500", null, null, MeetupLocation.STUDENT_HALLS, List.of(photo1)));
             assertTrue(created.isSuccess(), created::getMessage);

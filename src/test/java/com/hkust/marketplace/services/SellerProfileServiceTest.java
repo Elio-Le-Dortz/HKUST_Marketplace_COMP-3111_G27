@@ -26,6 +26,7 @@ import com.hkust.marketplace.models.User;
 import com.hkust.marketplace.models.UserEditRequest;
 import com.hkust.marketplace.models.UserManagementResult;
 import com.hkust.marketplace.utils.DummyDataService;
+import com.hkust.marketplace.utils.ListingPhotoStorage;
 import com.hkust.marketplace.utils.PasswordHasher;
 import com.hkust.marketplace.utils.PasswordPolicy;
 import com.hkust.marketplace.utils.PasswordUtil;
@@ -1125,7 +1126,7 @@ class SellerProfileServiceTest {
         void newListing() throws IOException {
             saveOk(withName("Sam Lee"));
 
-            CreateListingResult created = new CreateListingService(DATA).createListing(sellForm("Desk", photo("desk.png")));
+            CreateListingResult created = new CreateListingService(DATA, new ListingPhotoStorage(tempDir.resolve("uploads"))).createListing(sellForm("Desk", photo("desk.png")));
 
             assertTrue(created.isSuccess(), created.getAllMessages().toString());
             assertEquals("Sam Lee", created.getListing().getSellerFullName());
@@ -1231,7 +1232,7 @@ class SellerProfileServiceTest {
         @Test
         @DisplayName("A rename while listings are being created: every listing ends with the final name")
         void renameWhileCreatingListings() throws Exception {
-            CreateListingService create = new CreateListingService(DATA);
+            CreateListingService create = new CreateListingService(DATA, new ListingPhotoStorage(tempDir.resolve("uploads")));
             List<Callable<Boolean>> tasks = new ArrayList<>();
             for (int i = 0; i < 6; i++) {
                 Path file = photo("item" + i + ".png");

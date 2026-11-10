@@ -286,6 +286,23 @@ seller's own listings. Business logic lives in `services/OfferManagementService.
 tested by `OfferManagementServiceTest` (all flows, integration with the buyer side, concurrency)
 and `OfferManagementModelsTest`.
 
+## Messages: Chat With Buyers (use case 1.5, F09 / F10)
+
+Seller sidebar → **Messages** lists every conversation with a buyer about one of the seller's
+listings, the most recent first. A chat also opens from an offer (**Chat**) or from a chat notification.
+
+- The whole history is shown in chronological order; messages are never deleted.
+- **Search** (field above the messages, Enter or 🔍 Search) highlights every message that contains the
+  keyword, ignoring case, and scrolls to the first one; "No messages match" is shown when none does.
+  **Clear** removes the highlights. A message sent while a search is active is highlighted if it matches.
+- **Send** stores the message with a timestamp and notifies the buyer with a link to the conversation;
+  an empty message is refused.
+
+Searching and sending require a Seller session and only work in the seller's own conversations: the
+sender is always the logged-in seller. Business logic lives in `services/SellerChatService.java` (on top
+of the shared `ChatService`), tested by `SellerChatServiceTest`; the screen is
+`controllers/seller/SellerChatView.java`.
+
 ## Manage Seller Profile (US-S06)
 
 Seller sidebar → **My Profile**. The screen shows the seller's **username** (it identifies the account and cannot

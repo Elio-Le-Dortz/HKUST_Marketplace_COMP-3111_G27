@@ -3311,7 +3311,7 @@ public class SellerDashboardController {
     /** Style of the error label of a dialog. */
     private static final String ERROR_STYLE = "-fx-text-fill: #c62828; -fx-font-size: 12px;";
     /** Style of secondary text. */
-    private static final String MUTED_STYLE = "-fx-text-fill: #5a5a7a; -fx-font-size: 12px;";
+    static final String MUTED_STYLE = "-fx-text-fill: #5a5a7a; -fx-font-size: 12px;";
 
     /**
      * Shows the offers to handle (the Offers &amp; Requests button of the sidebar). See
@@ -3823,8 +3823,9 @@ public class SellerDashboardController {
     }
 
     /**
-     * Shows a chat thread between the Seller and a buyer, with the same bubbles as the
-     * Buyer Portal, and lets the Seller send a message.
+     * Shows a chat thread between the Seller and a buyer ({@link SellerChatView}): the whole
+     * history with the same bubbles as the Buyer Portal, a search of the history that highlights
+     * the matching messages (use case 1.5, subflow S3, F10), and a field to send a message.
      *
      * @param thread   the chat thread
      * @param offer    the offer the chat was opened from, {@code null} if it was opened from
@@ -3842,98 +3843,11 @@ public class SellerDashboardController {
         }
         pageTitle.setText("Chat — " + thread.getListingTitle());
         contentPane.getChildren().clear();
-
-        VBox root = new VBox(12);
-        root.setPadding(new Insets(4));
-
-        String buyer = buyerName(thread.getBuyerUsername());
-        Button backButton = smallButton(backText, "btn-outline", back);
-        Label heading = new Label("Chat with " + buyer);
-        heading.setStyle("-fx-font-size: 15px; -fx-font-weight: bold; -fx-text-fill: #003974;");
-        Label about = new Label("Listing: " + thread.getListingTitle()
-                + (offer != null ? "  ·  " + termsLine(offer) : ""));
-        about.setStyle(MUTED_STYLE);
-        HBox topBar = new HBox(12, backButton, new VBox(2, heading, about));
-        topBar.setAlignment(Pos.CENTER_LEFT);
-
-        VBox messages = new VBox(10);
-        messages.setPadding(new Insets(14));
-        if (!thread.hasMessages()) {
-            messages.getChildren().add(emptyStateCard("💬", "No messages yet",
-                    "Start the conversation with " + buyer + "."));
-        } else {
-            DateTimeFormatter timeFormat = DateTimeFormatter.ofPattern("MMM d, HH:mm", Locale.ENGLISH);
-            for (Message message : thread.getMessages()) {
-                messages.getChildren().add(chatBubble(message, seller, timeFormat));
-            }
-        }
-        ScrollPane scroll = new ScrollPane(messages);
-        scroll.setFitToWidth(true);
-        scroll.setPrefHeight(420);
-        VBox.setVgrow(scroll, Priority.ALWAYS);
-        scroll.setStyle("-fx-background: white; -fx-background-color: white; -fx-border-color: #e2e8f0; -fx-border-radius: 8;");
-        scroll.setVvalue(1.0);
-
-        Label error = dialogErrorLabel();
-        TextField input = new TextField();
-        input.setPromptText("Type your message to @" + thread.getBuyerUsername() + "...");
-        HBox.setHgrow(input, Priority.ALWAYS);
-        input.textProperty().addListener((observable, oldText, newText) -> hideError(error));
-        Runnable send = () -> {
-            SendMessageResult sent = DummyDataService.getInstance().getChatService()
-                    .sendMessage(thread.getId(), seller.getUsername(), input.getText());
-            if (sent.isSuccess()) {
-                showChat(thread, offer, backText, back);
-            } else {
-                showError(error, sent.getStatus() == ChatOperationStatus.EMPTY_MESSAGE
-                        ? "Message cannot be empty." : sent.getErrorMessage());
-            }
-        };
-        input.setOnAction(e -> send.run());
-        Button sendButton = new Button("Send ✉️");
-        sendButton.getStyleClass().add("btn-primary");
-        sendButton.setOnAction(e -> send.run());
-        HBox inputRow = new HBox(8, input, sendButton);
-        inputRow.setAlignment(Pos.CENTER_LEFT);
-
-        root.getChildren().addAll(topBar, scroll, error, inputRow);
-        contentPane.getChildren().add(root);
-        input.requestFocus();
-    }
-
-    /**
-     * Builds the bubble of a chat message, aligned right for the Seller's own messages.
-     *
-     * @param message    the message
-     * @param seller     the logged-in Seller
-     * @param timeFormat format of the message time
-     * @return the row holding the bubble
-     */
-    private HBox chatBubble(Message message, Seller seller, DateTimeFormatter timeFormat) {
-        boolean mine = message.getSenderUsername() != null && message.getSenderUsername().equalsIgnoreCase(seller.getUsername());
-        VBox bubble = new VBox(4);
-        bubble.setMaxWidth(520);
-        String time = message.getSentDate() != null ? message.getSentDate().format(timeFormat) : "";
-        Label meta = new Label((mine ? "You" : "@" + message.getSenderUsername()) + " • " + time);
-        Label text = new Label(message.getText());
-        text.setWrapText(true);
-        if (message.isFormalOffer()) {
-            bubble.getStyleClass().add("chat-bubble-offer");
-            meta.setStyle("-fx-font-size: 11px; -fx-font-weight: bold; -fx-text-fill: #b45309;");
-            text.setStyle("-fx-font-size: 13px; -fx-font-weight: bold; -fx-text-fill: #78350f;");
-        } else if (mine) {
-            bubble.getStyleClass().add("chat-bubble-me");
-            meta.setStyle("-fx-font-size: 10px; -fx-text-fill: #cbd5e1;");
-            text.setStyle("-fx-font-size: 13px; -fx-text-fill: white;");
-        } else {
-            bubble.getStyleClass().add("chat-bubble-other");
-            meta.setStyle("-fx-font-size: 10px; -fx-text-fill: #64748b;");
-            text.setStyle("-fx-font-size: 13px; -fx-text-fill: #1e293b;");
-        }
-        bubble.getChildren().addAll(meta, text);
-        HBox row = new HBox(bubble);
-        row.setAlignment(mine ? Pos.CENTER_RIGHT : Pos.CENTER_LEFT);
-        return row;
+        String about = "Listing: " + thread.getListingTitle() + (offer != null ? "  ·  " + termsLine(offer) : "");
+        SellerChatView chat = new SellerChatView(sellerChatService, thread, seller.getUsername(),
+                buyerName(thread.getBuyerUsername()), about, backText, back, this::endSellerSession);
+        contentPane.getChildren().add(chat.getRoot());
+        chat.focusInput();
     }
 
     /**
@@ -4033,7 +3947,7 @@ public class SellerDashboardController {
      * @param action     what the button does
      * @return the button
      */
-    private static Button smallButton(String text, String styleClass, Runnable action) {
+    static Button smallButton(String text, String styleClass, Runnable action) {
         Button button = new Button(text);
         button.getStyleClass().addAll(styleClass, "btn-sm");
         button.setOnAction(e -> action.run());
@@ -4123,7 +4037,7 @@ public class SellerDashboardController {
      *
      * @return the label
      */
-    private static Label dialogErrorLabel() {
+    static Label dialogErrorLabel() {
         Label label = new Label();
         label.setStyle(ERROR_STYLE);
         label.setWrapText(true);
@@ -4137,7 +4051,7 @@ public class SellerDashboardController {
      * @param label   the error label
      * @param message the message
      */
-    private static void showError(Label label, String message) {
+    static void showError(Label label, String message) {
         label.setText(message);
         label.setVisible(true);
         label.setManaged(true);
@@ -4148,7 +4062,7 @@ public class SellerDashboardController {
      *
      * @param label the error label
      */
-    private static void hideError(Label label) {
+    static void hideError(Label label) {
         label.setVisible(false);
         label.setManaged(false);
     }
@@ -4161,7 +4075,7 @@ public class SellerDashboardController {
      * @param description explanation
      * @return the card
      */
-    private static VBox emptyStateCard(String icon, String title, String description) {
+    static VBox emptyStateCard(String icon, String title, String description) {
         Label iconLabel = new Label(icon);
         iconLabel.setStyle("-fx-font-size: 36px;");
         Label titleLabel = new Label(title);

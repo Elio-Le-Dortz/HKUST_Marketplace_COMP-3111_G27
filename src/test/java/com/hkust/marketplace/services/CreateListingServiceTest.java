@@ -26,6 +26,7 @@ import com.hkust.marketplace.models.PhotoSelectionResult;
 import com.hkust.marketplace.models.Seller;
 import com.hkust.marketplace.models.User;
 import com.hkust.marketplace.utils.DummyDataService;
+import com.hkust.marketplace.utils.ListingPhotoStorage;
 import com.hkust.marketplace.utils.SessionManager;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -99,7 +100,9 @@ class CreateListingServiceTest {
     @TempDir
     Path photoDir;
 
-    private final CreateListingService service = new CreateListingService(DATA);
+    /** Keeps the copies of the photos in the temporary folder, never in the project's data folder. */
+    private ListingPhotoStorage storage;
+    private CreateListingService service;
 
     private Seller seller;
     private Path photo1;
@@ -120,6 +123,8 @@ class CreateListingServiceTest {
         assertTrue(DATA.registerUserIfAbsent(seller), "Test seller could not be stored");
         photo1 = write("lamp-front.png", PNG_HEADER);
         photo2 = write("lamp-side.jpg", JPEG_HEADER);
+        storage = new ListingPhotoStorage(photoDir.resolve("uploads"));
+        service = new CreateListingService(DATA, storage);
         listingsBefore = DATA.getAllListings().size();
         adminNotificationsBefore = DATA.getNotificationsFor(ADMIN).size();
         SessionManager.login(seller);
@@ -176,6 +181,25 @@ class CreateListingServiceTest {
         Path file = photoDir.resolve(name);
         Files.createDirectories(file.getParent());
         return Files.write(file, content);
+    }
+
+    /** Returns the copy the storage keeps of a photo file (storing the same file again reuses its copy). */
+    private Path copyOf(Path photo) {
+        try {
+            return storage.store(photo);
+        } catch (IOException e) {
+            throw new java.io.UncheckedIOException(e);
+        }
+    }
+
+    /** Lists the copies in the storage folder, without temporary files. */
+    private List<Path> copiesInStorage() throws IOException {
+        if (!Files.isDirectory(storage.getRoot())) {
+            return List.of();
+        }
+        try (java.util.stream.Stream<Path> files = Files.list(storage.getRoot())) {
+            return files.filter(f -> !f.getFileName().toString().startsWith(".")).sorted().toList();
+        }
     }
 
     private List<Path> pngs(String prefix, int count) throws IOException {
@@ -375,8 +399,9 @@ class CreateListingServiceTest {
             assertEquals(2, photos.size());
             assertEquals(listing.getId() + "-P1", photos.get(0).getId());
             assertEquals(listing.getId() + "-P2", photos.get(1).getId());
-            assertEquals(photo1.toAbsolutePath().normalize().toString(), photos.get(0).getImagePath());
-            assertEquals(photo2.toAbsolutePath().normalize().toString(), photos.get(1).getImagePath());
+            // Review of the seller part, finding 3: the listing keeps copies of the chosen files.
+            assertEquals(copyOf(photo1).toString(), photos.get(0).getImagePath());
+            assertEquals(copyOf(photo2).toString(), photos.get(1).getImagePath());
             assertEquals(photos.get(0).getImagePath(), listing.getThumbnailPath());
             assertTrue(photos.get(0).getImageFile().exists(), "The Buyer Portal must be able to open the photo file");
         }
@@ -437,9 +462,15 @@ class CreateListingServiceTest {
 
         @Test
         @DisplayName("The default constructor uses the application's shared data store")
-        void defaultConstructor() {
+        void defaultConstructor() throws IOException {
             Listing listing = new CreateListingService().createListing(form().build()).getListing();
             assertSame(listing, DummyDataService.getInstance().findListing(listing.getId()));
+            // The default service keeps the copies in the application's folder: remove them again.
+            for (Photo photo : listing.getPhotos()) {
+                Path copy = Path.of(photo.getImagePath());
+                assertTrue(new ListingPhotoStorage().isStored(copy), copy::toString);
+                Files.deleteIfExists(copy);
+            }
         }
     }
 
@@ -1160,6 +1191,8 @@ class CreateListingServiceTest {
             assertThrows(NullPointerException.class, () -> service.createListing(null));
             assertThrows(NullPointerException.class, () -> CreateListingService.validate(null));
             assertThrows(NullPointerException.class, () -> new CreateListingService(null));
+            assertThrows(NullPointerException.class, () -> new CreateListingService(DATA, null));
+            assertThrows(NullPointerException.class, () -> new CreateListingService(null, storage));
         }
     }
 
@@ -1253,6 +1286,93 @@ class CreateListingServiceTest {
             assertTrue(mine.stream().allMatch(l -> allowed.contains(l.getStatus())));
             User stored = DATA.findUser("s03_seller");
             assertSame(seller, stored);
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Review of the seller part, finding 3: photos are copied into the application's folder
+    // ------------------------------------------------------------------
+
+    @Nested
+    @DisplayName("Photos are kept as copies in the application's folder [RS3]")
+    class PhotoCopies {
+
+        @Test
+        @DisplayName("The listing still shows its photos after the Seller deletes the original files")
+        void survivesDeletedOriginals() throws IOException {
+            Listing listing = createValid(form().build());
+
+            Files.delete(photo1);
+            Files.delete(photo2);
+
+            for (Photo photo : listing.getPhotos()) {
+                Path copy = Path.of(photo.getImagePath());
+                assertTrue(storage.isStored(copy), copy::toString);
+                assertTrue(Files.isRegularFile(copy), "The copy must still exist: " + copy);
+                assertNull(CreateListingService.photoProblem(copy), "The copy must still be a valid image");
+            }
+        }
+
+        @Test
+        @DisplayName("Each copy has the content of its original and keeps its file name")
+        void copiesKeepContentAndName() throws IOException {
+            Listing listing = createValid(form().build());
+
+            Path front = Path.of(listing.getPhotos().get(0).getImagePath());
+            Path side = Path.of(listing.getPhotos().get(1).getImagePath());
+            assertEquals(-1, Files.mismatch(photo1, front));
+            assertEquals(-1, Files.mismatch(photo2, side));
+            assertTrue(front.getFileName().toString().endsWith("-lamp-front.png"), front::toString);
+            assertTrue(side.getFileName().toString().endsWith("-lamp-side.jpg"), side::toString);
+        }
+
+        @Test
+        @DisplayName("Posting the same files twice keeps one copy of each")
+        void noDuplicateCopies() throws IOException {
+            Listing first = createValid(form().build());
+            Listing second = createValid(form().title("Second lamp").build());
+
+            assertEquals(first.getPhotoPaths(), second.getPhotoPaths());
+            assertEquals(2, copiesInStorage().size());
+        }
+
+        @Test
+        @DisplayName("Two different files with the same content keep separate copies, in order")
+        void sameContentDifferentFiles() throws IOException {
+            Path copyA = write("a.png", PNG_HEADER);
+            Path copyB = write("b.png", PNG_HEADER);
+
+            Listing listing = createValid(form().photos(List.of(copyA, copyB)).build());
+
+            assertEquals(2, listing.getPhotos().size());
+            assertNotEquals(listing.getPhotoPaths().get(0), listing.getPhotoPaths().get(1));
+        }
+
+        @Test
+        @DisplayName("A photo that cannot be copied is reported and nothing is stored")
+        void copyFailure() throws IOException {
+            Path notAFolder = write("not-a-folder", TEXT);
+            CreateListingService failing = new CreateListingService(DATA, new ListingPhotoStorage(notAFolder));
+
+            CreateListingResult result = failing.createListing(form().build());
+
+            assertFalse(result.isSuccess());
+            assertEquals(List.of(CreateListingService.PHOTOS_NOT_SAVED), result.getErrors(ListingField.PHOTOS));
+            assertEquals(listingsBefore, DATA.getAllListings().size(), "Nothing is stored");
+            assertEquals(adminNotificationsBefore, DATA.getNotificationsFor(ADMIN).size(), "The admin is not notified");
+        }
+
+        @Test
+        @DisplayName("An invalid listing copies nothing, and no temporary file is left after a listing is posted")
+        void nothingLeftBehind() throws IOException {
+            createInvalid(form().title(" ").build());
+            assertTrue(copiesInStorage().isEmpty());
+
+            createValid(form().build());
+
+            try (java.util.stream.Stream<Path> files = Files.list(storage.getRoot())) {
+                assertTrue(files.noneMatch(f -> f.getFileName().toString().endsWith(".tmp")));
+            }
         }
     }
 }

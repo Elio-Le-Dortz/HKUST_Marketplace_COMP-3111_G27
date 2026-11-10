@@ -11,6 +11,7 @@ import com.hkust.marketplace.models.Photo;
 import com.hkust.marketplace.models.PhotoSelectionResult;
 import com.hkust.marketplace.models.Seller;
 import com.hkust.marketplace.utils.DummyDataService;
+import com.hkust.marketplace.utils.ListingPhotoStorage;
 import com.hkust.marketplace.utils.SessionManager;
 
 import java.io.IOException;
@@ -63,7 +64,8 @@ import java.util.regex.Pattern;
  * the data of this in-memory demo, the listing only lasts until the application closes.</p>
  *
  * <p><b>Persistence.</b> A submitted listing is written to the data store, with its photos,
- * so it is kept in the SQLite database when the application restarts.</p>
+ * so it is kept in the SQLite database when the application restarts. The photos are copies
+ * kept in the application's folder ({@link ListingPhotoStorage}), not the Seller's own files.</p>
  *
  * <p>This class does not use JavaFX, so every flow is unit tested without a display.</p>
  */
@@ -148,6 +150,9 @@ public class CreateListingService {
     public static final String PHOTOS_REQUIRED = "Add at least one photo of the item.";
     /** Error of a listing with more than {@link #MAX_PHOTOS} photos. */
     public static final String PHOTOS_TOO_MANY = "A listing can have at most " + MAX_PHOTOS + " photos.";
+    /** Error of a photo that was valid but could not be copied into the application's folder. */
+    public static final String PHOTOS_NOT_SAVED =
+            "The photos could not be saved in the application's folder. Check that the files still exist and try again.";
 
     /** Reason, after the file name, of a photo file that no longer exists. */
     public static final String PHOTO_NOT_FOUND = "can no longer be found.";
@@ -190,22 +195,38 @@ public class CreateListingService {
 
     /** The store of listings and notifications. */
     private final DummyDataService dataService;
+    /** Keeps the copies of the listing photos in the application's folder. */
+    private final ListingPhotoStorage photoStorage;
 
     /**
-     * Creates the service on the application's shared data store.
+     * Creates the service on the application's shared data store, keeping the photos in the
+     * application's folder ({@value ListingPhotoStorage#DEFAULT_FOLDER}).
      */
     public CreateListingService() {
         this(DummyDataService.getInstance());
     }
 
     /**
-     * Creates the service on the given data store (used by the tests).
+     * Creates the service on the given data store, keeping the photos in the application's
+     * folder ({@value ListingPhotoStorage#DEFAULT_FOLDER}).
      *
      * @param dataService the store of listings and notifications
      * @throws NullPointerException if {@code dataService} is {@code null}
      */
     public CreateListingService(DummyDataService dataService) {
+        this(dataService, new ListingPhotoStorage());
+    }
+
+    /**
+     * Creates the service on the given data store and photo folder (used by the tests).
+     *
+     * @param dataService  the store of listings and notifications
+     * @param photoStorage keeps the copies of the listing photos
+     * @throws NullPointerException if an argument is {@code null}
+     */
+    public CreateListingService(DummyDataService dataService, ListingPhotoStorage photoStorage) {
         this.dataService = Objects.requireNonNull(dataService, "dataService");
+        this.photoStorage = Objects.requireNonNull(photoStorage, "photoStorage");
     }
 
     // =====================================================================
@@ -214,9 +235,11 @@ public class CreateListingService {
 
     /**
      * Submits a listing for the logged-in Seller (basic flow, steps 7 to 10). If every field
-     * required by the chosen type is valid, the listing is stored with status Pending Review,
-     * in the Seller's name, and the admin is notified of the new submission. Otherwise nothing
-     * is stored and every invalid field is reported.
+     * required by the chosen type is valid, the photos are copied into the application's folder
+     * (see {@link ListingPhotoStorage}), the listing is stored with status Pending Review, in the
+     * Seller's name, with the copies of its photos, and the admin is notified of the new
+     * submission. Otherwise nothing is stored and every invalid field is reported; a photo that
+     * cannot be copied is reported on the photos field.
      *
      * @param request the values entered in the listing form
      * @return the stored listing and the confirmation for the Seller, or the errors of every
@@ -232,6 +255,14 @@ public class CreateListingService {
         if (!errors.isEmpty()) {
             return CreateListingResult.failure(errors);
         }
+        // Review of the seller part, finding 3: the listing keeps its own copies of the photos, so
+        // it still shows them if the Seller moves or deletes the files. Copied before the lock.
+        List<Path> storedPhotos;
+        try {
+            storedPhotos = photoStorage.store(request.photos());
+        } catch (IOException e) {
+            return CreateListingResult.failure(Map.of(ListingField.PHOTOS, List.of(PHOTOS_NOT_SAVED)));
+        }
 
         Listing listing = newListing(request, seller);
         synchronized (dataService) {
@@ -241,7 +272,7 @@ public class CreateListingService {
             dataService.addListing(listing);
             // The photos are named after the identifier the data store has just given the
             // listing, so the listing is saved again to write them to the database.
-            listing.setPhotos(toPhotos(listing.getId(), request.photos()));
+            listing.setPhotos(toPhotos(listing.getId(), storedPhotos));
             dataService.updateListing(listing);
         }
         // Step 9: notify the admin, after releasing the data store lock (see the class comment).

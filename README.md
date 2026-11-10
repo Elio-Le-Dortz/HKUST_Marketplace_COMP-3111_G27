@@ -227,7 +227,14 @@ no longer applies. Every field is checked at once and each invalid field is high
 On submission the listing is stored with status **Pending Review** in the logged-in seller's name,
 the admin gets a "Listing Submissions" notification that opens it, and the seller is told it awaits
 review. Buyers only see it once the admin approves it. **Cancel** asks for confirmation if something
-was entered and stores nothing. A photo is stored as the absolute path of the chosen file (not copied).
+was entered and stores nothing.
+
+**Photos are copied** into the application's folder `data/uploads/listings/` (next to the database, ignored
+by Git) when the listing is submitted or edited, and the listing stores the path of the copy. The listing
+therefore keeps its photos if the seller later moves, renames or deletes the original files. A copy is
+named after a hash of its content and the original file name (for example `3fa9c1e0b2d4a6f8-lamp-front.png`),
+so saving the same file again reuses its copy. Code: `utils/ListingPhotoStorage.java`, tested by
+`ListingPhotoStorageTest`. (Listings added by the admin on behalf of a seller keep the admin's file paths.)
 
 Submitting requires a Seller session (`SessionManager.requireSeller()`). Business logic lives in
 `services/CreateListingService.java` (no JavaFX); its static validation methods can be reused to

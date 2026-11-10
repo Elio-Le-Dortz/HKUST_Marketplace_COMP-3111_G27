@@ -25,6 +25,7 @@ import com.hkust.marketplace.models.SellerProfileResult;
 import com.hkust.marketplace.models.SellerProfileUpdateRequest;
 import com.hkust.marketplace.models.User;
 import com.hkust.marketplace.utils.DummyDataService;
+import com.hkust.marketplace.utils.ListingPhotoStorage;
 import com.hkust.marketplace.utils.PasswordHasher;
 import com.hkust.marketplace.utils.SessionManager;
 import org.junit.jupiter.api.AfterEach;
@@ -154,7 +155,8 @@ class SellerPersistenceTest {
             Path front = png("front.png");
             Path back = png("back.png");
             loginAs("charlie");
-            CreateListingResult result = new CreateListingService(data).createListing(new CreateListingRequest(
+            ListingPhotoStorage storage = new ListingPhotoStorage(tempDir.resolve("uploads"));
+            CreateListingResult result = new CreateListingService(data, storage).createListing(new CreateListingRequest(
                     ListingType.SELL, "Desk lamp", "Works well.", Category.FURNITURE, Condition.USED,
                     "80", "", LendingDurationUnit.DAYS, MeetupLocation.LIBRARY, List.of(front, back)));
             assertTrue(result.isSuccess());
@@ -163,8 +165,7 @@ class SellerPersistenceTest {
 
             assertNotNull(reloaded);
             assertEquals(ListingStatus.PENDING_REVIEW, reloaded.getStatus());
-            assertEquals(List.of(front.toAbsolutePath().normalize().toString(), back.toAbsolutePath().normalize().toString()),
-                    reloaded.getPhotoPaths());
+            assertEquals(storage.store(List.of(front, back)).stream().map(Path::toString).toList(), reloaded.getPhotoPaths());
         }
     }
 
@@ -183,7 +184,7 @@ class SellerPersistenceTest {
             listing.setPhotos(List.of(new Photo(png("lamp.png").toString())));
             Offer offer = priceOffer(listing.getId(), "alice", 60.0);
             loginAs("charlie");
-            MyListingsService service = new MyListingsService(data);
+            MyListingsService service = new MyListingsService(data, new ListingPhotoStorage(tempDir.resolve("uploads")));
             CreateListingRequest edit = MyListingsService.toEditRequest(listing);
             edit = new CreateListingRequest(edit.type(), "Renamed lamp", edit.description(), edit.category(),
                     edit.condition(), edit.price(), edit.lendingAmount(), edit.lendingUnit(), edit.meetupLocation(),

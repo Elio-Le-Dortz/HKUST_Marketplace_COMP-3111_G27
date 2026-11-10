@@ -50,6 +50,10 @@ import java.util.Objects;
  * Admin Portal shows it on its notification board (use case 3.6) and marks it read once the
  * flag is handled (use case 3.8).</p>
  *
+ * <p><b>Persistence.</b> A reply or a flag is written to the data store with
+ * {@link DummyDataService#updateReview}, so it is kept in the SQLite database when the
+ * application restarts.</p>
+ *
  * <p>This class does not use JavaFX, so every flow is unit tested without a display.</p>
  */
 public class ReviewHandlingService {
@@ -206,6 +210,8 @@ public class ReviewHandlingService {
                 return ReviewHandlingResult.failure(ReviewHandlingStatus.REPLY_TOO_LONG, review, REPLY_TOO_LONG);
             }
             review.setReply(cleanReply);
+            // Write the reply to the database, so it is kept after a restart.
+            dataService.updateReview(review);
         }
         // Step 3: notify the buyer, after releasing the data store lock (see the class comment).
         dataService.getBuyerNotificationService().notifyReviewReply(review);
@@ -269,6 +275,8 @@ public class ReviewHandlingService {
             String flagReason = reason.describe(details);
             review.setFlagged(true);
             review.setFlagReason(flagReason);
+            // Write the flag to the database, so the admin still sees it after a restart.
+            dataService.updateReview(review);
             notifyAdmin(review, seller, flagReason);
             return ReviewHandlingResult.success(review, "The review of @" + review.getBuyerUsername()
                     + " has been flagged (" + flagReason + "). The admin has been notified; the review"

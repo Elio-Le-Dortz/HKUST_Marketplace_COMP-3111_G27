@@ -305,6 +305,11 @@ public class SellerDashboardController {
         if (!openOffers.isEmpty()) {
             actions.getChildren().add(smallButton("View offers", "btn-outline", this::showOffers));
         }
+        if (listing.getStatus() == ListingStatus.RESERVED) {
+            Button complete = smallButton(completeDealText(listing), "btn-primary", () -> handleCompleteDeal(listing));
+            complete.setId("completeDeal-" + listing.getId());
+            actions.getChildren().add(0, complete);
+        }
         actions.getChildren().forEach(node -> ((Button) node).setMaxWidth(Double.MAX_VALUE));
         actions.setMinWidth(Region.USE_PREF_SIZE);
 
@@ -332,6 +337,9 @@ public class SellerDashboardController {
             boolean completed = listing.getStatus() == ListingStatus.SOLD || listing.getStatus() == ListingStatus.GIVEN;
             note.setText(completed
                     ? "✅  Deal completed: this listing can no longer be edited or deleted."
+                    : listing.getStatus() == ListingStatus.RESERVED
+                    ? "🤝  Deal in progress: once you have handed the item over, use " + completeDealText(listing)
+                            + " (or wait for the buyer to complete the deal). Until then the listing cannot be edited or deleted."
                     : "🤝  Deal in progress: this listing cannot be edited or deleted until the deal is over.");
             note.setStyle(NOTE_DEAL_STYLE);
         } else if (listing.getStatus() == ListingStatus.REJECTED) {
@@ -468,6 +476,53 @@ public class SellerDashboardController {
             showListingResult(result, "Listing deleted");
             showMyListings();
         }
+    }
+
+    /**
+     * F34 (the brief's "mark as sold"): once the Seller has handed a Reserved listing over, asks
+     * them to confirm, then marks its deal complete. The listing becomes Sold or Given, as when
+     * the buyer completes the deal (use case 1.6), and the buyer is asked to rate the Seller. If
+     * the deal can no longer be completed (for example the buyer has just completed it), tells
+     * the Seller why and refreshes the list.
+     *
+     * @param listing the Reserved listing
+     */
+    private void handleCompleteDeal(Listing listing) {
+        MyListingResult check;
+        try {
+            check = myListingsService.checkCanCompleteDeal(listing.getId());
+        } catch (SecurityException e) {
+            endSellerSession();
+            return;
+        }
+        if (!check.isSuccess()) {
+            showListingResult(check, null);
+            showMyListings();
+            return;
+        }
+        String action = completeDealText(listing);
+        if (!confirm(action, action + ": \"" + listing.getTitle() + "\"?", check.getMessage())) {
+            return;
+        }
+        MyListingResult result;
+        try {
+            result = myListingsService.completeDeal(listing.getId());
+        } catch (SecurityException e) {
+            endSellerSession();
+            return;
+        }
+        showListingResult(result, "Deal completed");
+        showMyListings(listing.getId());
+    }
+
+    /**
+     * Names the action that completes the deal of a Reserved listing.
+     *
+     * @param listing the listing
+     * @return {@code Mark as given} for a Give Away listing, {@code Mark as sold} otherwise
+     */
+    private static String completeDealText(Listing listing) {
+        return listing.getType() == ListingType.GIVEAWAY ? "Mark as given" : "Mark as sold";
     }
 
     /**

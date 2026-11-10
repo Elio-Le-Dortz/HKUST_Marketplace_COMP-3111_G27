@@ -41,5 +41,18 @@ public enum MyListingStatus {
     INVALID_FIELDS,
 
     /** The Seller saved the listing without changing anything, so nothing is changed. */
-    NO_CHANGES
+    NO_CHANGES,
+
+    /**
+     * Marking a deal complete (F34): the listing is not Reserved, so it has no sale or giveaway
+     * waiting to be handed over. For example it is already Sold or Given, or it is Lent (a loan
+     * ends when the item is returned). Nothing is changed.
+     */
+    NOT_RESERVED,
+
+    /**
+     * Marking a deal complete (F34): the listing is Reserved but no active sale or giveaway deal
+     * with a buyer exists on it. Nothing is changed.
+     */
+    NO_ACTIVE_DEAL
 }

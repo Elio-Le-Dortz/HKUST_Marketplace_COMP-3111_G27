@@ -181,7 +181,8 @@ class MyListingModelsTest {
 
         @ParameterizedTest
         @EnumSource(value = MyListingStatus.class,
-                names = {"LISTING_NOT_FOUND", "UNAUTHORIZED", "DEAL_IN_PROGRESS_OR_COMPLETED", "TAKEN_DOWN", "NO_CHANGES"})
+                names = {"LISTING_NOT_FOUND", "UNAUTHORIZED", "DEAL_IN_PROGRESS_OR_COMPLETED", "TAKEN_DOWN", "NO_CHANGES",
+                        "NOT_RESERVED", "NO_ACTIVE_DEAL"})
         @DisplayName("failure() accepts the statuses without their own factory, with or without listing")
         void failure(MyListingStatus status) {
             MyListingResult withoutListing = MyListingResult.failure(status, null, "Why");
@@ -227,7 +228,7 @@ class MyListingModelsTest {
     @Test
     @DisplayName("MyListingStatus lists every outcome of the use case")
     void statuses() {
-        assertEquals(8, MyListingStatus.values().length);
+        assertEquals(10, MyListingStatus.values().length);
         assertEquals(MyListingStatus.PENDING_OFFERS, MyListingStatus.valueOf("PENDING_OFFERS"));
     }
 

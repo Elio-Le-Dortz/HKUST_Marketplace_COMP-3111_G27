@@ -252,6 +252,13 @@ the admin's reason too.
   arrives after the warning is shown in a new warning instead of being declined silently.
 - Edits and deletes are **atomic** with buyer offers and with offer acceptance (US-S05): when a seller
   accepts an offer and deletes the listing at the same time, exactly one of the two succeeds.
+- **Mark as sold / Mark as given** (F34, the brief's "mark as sold"): a **Reserved** listing has this button.
+  Once the seller has handed the item over and confirms, the deal becomes **Completed**, the listing
+  **Sold** (Sell) or **Given** (Give Away), and the buyer is notified and can rate the seller, exactly as
+  when the buyer marks the deal complete from My Deals (UC 1.6 S5). So a deal the buyer never completes no
+  longer leaves the listing Reserved for ever. If the buyer and the seller complete it at the same time,
+  only the first succeeds. A **Lent** listing has no such button: a loan ends when the item is returned
+  (or automatically at its due date).
 
 Seeded listings have no photos, so editing one requires adding at least one photo first.
 

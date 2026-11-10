@@ -1,7 +1,7 @@
 package com.hkust.marketplace.models;
 
 /**
- * Result object for sending a chat message (US-B06 Subflow S1 & Alternative Flow A1).
+ * Result object for sending a chat message (US-B06 Subflow S1 &amp; Alternative Flow A1).
  */
 public class SendMessageResult {
     private final ChatOperationStatus status;

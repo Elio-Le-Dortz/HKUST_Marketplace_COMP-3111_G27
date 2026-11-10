@@ -118,7 +118,7 @@ After F03/F04 (session checks for buyers and admins) the snippets must log in th
 | F03 | P1 | Charles | ~~Buyer services do not check the session~~ **[FIXED - PR #33]** | Brief technical req. "RBAC at the API layer"; UC 1.2 special req. |
 | F04 | P1 | Elio | ~~Admin services trust a username argument; dashboard has no session guard~~ **[FIXED]** | Same; UC 3.1 special req. |
 | F05 | P1 | Team | Branch coverage 58.6 % < 65 % | Backlog QA-01 |
-| F06 | P1 | Team (+Antoine) | `javadoc:javadoc` fails; 1,817 missing Javadoc items | Backlog QA-02; brief "well-commented" |
+| F06 | P1 | Team (+Antoine) | ~~`javadoc:javadoc` fails; 1,817 missing Javadoc items~~ **[FIXED]** | Backlog QA-02; brief "well-commented" |
 | F07 | P2 | Charles | ~~No auto-return timer: expired loans stay Lent~~ **[FIXED - PR #34]** | Task 1.6; UC 1.6 A4; CLASS_DIAGRAM rule 2 |
 | F08 | P2 | Charles | ~~Listing detail cannot be reopened from My Deals / Deal History~~ **[FIXED - PR #35]** | Task 1.6; UC 1.4 step 1 |
 | F09 | P2 | Charles + Antoine | ~~Seller cannot reach chats without an offer; chat notifications unlinked~~ **[FIXED - PR #36]** | Task 1.5 "both buyer and seller participate"; UC "Chat About Listing" |
@@ -286,7 +286,12 @@ After F03/F04 (session checks for buyers and admins) the snippets must log in th
   3. Move remaining logic out of the controllers into services, and test it.
 - **Check:** `./mvnw -q clean test`, then the coverage one-liner in section 0.
 
-### F06 — Javadoc build fails; 1,817 missing Javadoc items
+### F06 — [FIXED] Javadoc build fails; 1,817 missing Javadoc items
+> [!NOTE]
+> **Status: FIXED**
+> - Fixed all 17 unescaped `&` entities in Javadoc comments across models (`AdminDealFilterCriteria`, `AdminNotificationDetailResult`, `AdminNotificationDetailStatus`, `ChatSearchResult`, `DealHistoryFilterCriteria`, `SendMessageResult`) and services (`ActOnListingService`, `AdminDealsService`, `AdminNotificationService`, `BuyerNotificationService`, `BuyerReviewService`, `DealHistoryService`, `DealService`, `UserManagementService`), replacing them with standard HTML `&amp;`.
+> - Fixed concurrent file move race condition on Windows in `ListingPhotoStorage.store` and `moveIntoPlace`.
+> - `./mvnw javadoc:javadoc` now executes and finishes with **`BUILD SUCCESS`**.
 - **Owner:** Team (Antoine for the seller part).
 - **Requirement:** backlog QA-02 "Full docstrings on all methods and classes. No missing `@param`, `@return`, or
   `@throws` tags"; brief "Code should be well-commented".

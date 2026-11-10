@@ -5,7 +5,7 @@ import java.util.Objects;
 
 /**
  * Filter and search criteria for querying Deal History
- * (Sprint 2 US-B10, Subflows S1: Filter History & S2: Search History in specs_buyer.tex).
+ * (Sprint 2 US-B10, Subflows S1: Filter History &amp; S2: Search History in specs_buyer.tex).
  */
 public class DealHistoryFilterCriteria {
 

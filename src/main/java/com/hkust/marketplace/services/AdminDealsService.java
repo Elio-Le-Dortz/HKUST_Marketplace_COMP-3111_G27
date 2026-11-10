@@ -27,7 +27,7 @@ public class AdminDealsService {
 
     /**
      * Queries and filters all deals system-wide, ordered newest first.
-     * Enforces Alternative Flow A1 (No deals yet), A2 (Filtering & search),
+     * Enforces Alternative Flow A1 (No deals yet), A2 (Filtering &amp; search),
      * A3 (No matching deals), and A4 (Invalid date range).
      *
      * @param criteria search and filter criteria; if null, retrieves all deals
@@ -80,7 +80,7 @@ public class AdminDealsService {
     }
 
     /**
-     * Looks up and enriches a specific deal for the detailed oversight view (Basic Flow Steps 3 & 4).
+     * Looks up and enriches a specific deal for the detailed oversight view (Basic Flow Steps 3 &amp; 4).
      *
      * @param dealId deal identifier
      * @return an {@link Optional} containing the enriched record if found, or empty otherwise

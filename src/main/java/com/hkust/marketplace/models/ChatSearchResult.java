@@ -5,7 +5,7 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * Result object for searching chat thread history (US-B06 Subflow S3 & Alternative Flow A3).
+ * Result object for searching chat thread history (US-B06 Subflow S3 &amp; Alternative Flow A3).
  */
 public class ChatSearchResult {
     private final ChatOperationStatus status;

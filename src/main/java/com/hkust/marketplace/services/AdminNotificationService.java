@@ -48,7 +48,7 @@ public class AdminNotificationService {
 
     /**
      * Retrieves all notifications addressed to the administrator, filtered by the given criteria
-     * and ordered newest first (Basic Flow Step 2 & Alternative Flow A2).
+     * and ordered newest first (Basic Flow Step 2 &amp; Alternative Flow A2).
      *
      * @param adminUsername the requesting administrator's username
      * @param criteria      filter and search criteria (or null for all)
@@ -206,7 +206,7 @@ public class AdminNotificationService {
 
     /**
      * Inspects a notification: marks it as read and retrieves its related domain object
-     * (Basic Flow Step 3 & 4 and Alternative Flow A4).
+     * (Basic Flow Step 3 &amp; 4 and Alternative Flow A4).
      *
      * @param notificationId identifier of the notification
      * @param adminUsername  requesting administrator username

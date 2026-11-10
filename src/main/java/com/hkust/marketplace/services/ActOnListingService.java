@@ -251,7 +251,7 @@ public class ActOnListingService {
     /**
      * Validates shared preconditions across all listing actions:
      * - Buyer username validation
-     * - Listing existence & LIVE status check (Alternative Flow A1)
+     * - Listing existence &amp; LIVE status check (Alternative Flow A1)
      * - Listing type match
      * - Prohibition of acting on own listing
      */

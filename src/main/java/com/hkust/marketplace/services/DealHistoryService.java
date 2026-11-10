@@ -36,7 +36,7 @@ public class DealHistoryService {
 
     /**
      * Retrieves the buyer's completed and returned deals, applying any active filter criteria
-     * or keyword search, and sorted newest first (Basic Flow, S1 & S2).
+     * or keyword search, and sorted newest first (Basic Flow, S1 &amp; S2).
      *
      * <p>Automatically triggers auto-return evaluation for any expired loans before querying,
      * ensuring that freshly returned deals appear in history without delay.

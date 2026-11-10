@@ -2,7 +2,7 @@ package com.hkust.marketplace.models;
 
 /**
  * Result model wrapping the payload returned when an administrator inspects a notification
- * (Sprint 2 US-A06, Basic Flow Step 4 & Alternative Flow A4).
+ * (Sprint 2 US-A06, Basic Flow Step 4 &amp; Alternative Flow A4).
  */
 public class AdminNotificationDetailResult {
 

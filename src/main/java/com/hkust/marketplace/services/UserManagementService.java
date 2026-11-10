@@ -312,7 +312,7 @@ public class UserManagementService {
      *
      * <p>Enforces:
      * <ul>
-     *   <li>Precondition & Alternative Flow A3: Checks that the user has NO deals with status {@link DealStatus#ACTIVE}.
+     *   <li>Precondition &amp; Alternative Flow A3: Checks that the user has NO deals with status {@link DealStatus#ACTIVE}.
      *       If active deals exist, deletion is completely blocked and active deals are returned.</li>
      *   <li>Soft-delete: Account status set to {@link AccountStatus#DELETED}, username stays reserved in the store.</li>
      *   <li>Session: Terminates any open session of the deleted user.</li>

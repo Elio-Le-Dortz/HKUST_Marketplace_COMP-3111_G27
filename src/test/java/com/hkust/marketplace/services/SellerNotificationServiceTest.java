@@ -48,6 +48,7 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
@@ -1149,6 +1150,45 @@ class SellerNotificationServiceTest {
             });
             assertTrue(n.isRead());
             assertEquals(unreadBefore - 1, service.getUnreadCount());
+        }
+    }
+
+    // =====================================================================
+    // Basic flow, step 2: timestamps shown on the board (SB1)
+    // =====================================================================
+
+    @Nested
+    @DisplayName("Timestamps on the board [SB1]")
+    class Timestamps {
+
+        @Test
+        @DisplayName("The month is written in English even when the computer's locale is French (IntelliJ in fr_FR)")
+        void englishMonthWhateverTheDefaultLocale() {
+            Notification notification = new Notification("charlie", "T", "M", "Offer");
+            notification.setTimestamp(LocalDateTime.of(2026, 11, 3, 14, 30));
+            Locale before = Locale.getDefault();
+            try {
+                Locale.setDefault(Locale.FRANCE);
+                assertEquals("03 Nov 2026 14:30", SellerNotificationService.formatTimestamp(notification));
+                Locale.setDefault(Locale.CHINA);
+                assertEquals("03 Nov 2026 14:30", SellerNotificationService.formatTimestamp(notification));
+            } finally {
+                Locale.setDefault(before);
+            }
+        }
+
+        @Test
+        @DisplayName("A notification without timestamp shows nothing")
+        void noTimestamp() {
+            Notification notification = new Notification("charlie", "T", "M", "Offer");
+            notification.setTimestamp(null);
+            assertEquals("", SellerNotificationService.formatTimestamp(notification));
+        }
+
+        @Test
+        @DisplayName("A null notification is refused")
+        void nullNotification() {
+            assertThrows(NullPointerException.class, () -> SellerNotificationService.formatTimestamp(null));
         }
     }
 }

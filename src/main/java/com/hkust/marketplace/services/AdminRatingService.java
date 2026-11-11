@@ -411,6 +411,7 @@ public class AdminRatingService {
             if (n != null && "REVIEW".equalsIgnoreCase(n.getRelatedItemType())
                     && reviewId.trim().equalsIgnoreCase(n.getRelatedItemId())) {
                 n.setRead(true);
+                dataService.updateNotification(n);
             }
         }
     }

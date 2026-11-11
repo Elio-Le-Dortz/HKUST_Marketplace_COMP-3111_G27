@@ -530,6 +530,12 @@ declines, seller rating moderation (hidden reviews and dismissed flags), admin p
 - **Report Resolution**: Resolve user-filed reports with resolution notes, automatically logging audit entries.
 - **Architecture**: Handled by `services/AdminNotificationService.java`, tested by `AdminNotificationServiceTest`.
 
+## Unified Admin Notification & Audit Recipient Consistency (Finding 6)
+- **Standardized Recipient Addressing**: All administrative notifications and audit trail entries (user profile edits, account deactivations/reactivations, soft deletions, report filings, listing submissions, and report resolution logs) consistently target the canonical administrative username constant `DummyDataService.SEEDED_ADMIN_USERNAME` (`"admin"`).
+- **Service Alignment**: Standardized across `UserManagementService`, `AdminNotificationService`, `ListingDetailService`, and `DummyDataService`, harmonizing with `MyListingsService` and `ReviewHandlingService`.
+- **Backward & Alias Compatibility**: `AdminNotificationService` indexes both canonical usernames and system aliases (`adminAliases`), ensuring notifications created across all services and seed fixtures are consistently routed and retrievable on the admin board.
+- **Test Suite**: Verified by `AdminNotificationRecipientTest` (8 unit tests covering user management audits, direct notification methods, listing report fallbacks, and notification board retrieval) and `UserManagementServiceTest`.
+
 ## Modular Admin Portal Architecture (Finding 5)
 - **Decomposed Controllers**: In adherence to single-responsibility principles and maintainable UI design, the monolithic `AdminDashboardController` was refactored into a lean coordinator (~140 lines) delegating view creation and tab lifecycle to dedicated sub-controllers under `controllers/admin`:
   - `AdminReviewController`: UC 3.2 / US-A02 Listing Review Queue, inspection, and approval/rejection workflows.

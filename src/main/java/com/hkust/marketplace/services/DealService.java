@@ -444,7 +444,7 @@ public class DealService {
     }
 
     /**
-     * Submits a rating and optional written review for a completed deal (Subflow S5 Step 5 & Task 1.10).
+     * Submits a rating and optional written review for a completed deal (Subflow S5 Step 5 &amp; Task 1.10).
      *
      * @param dealId        the deal ID
      * @param buyerUsername the buyer's username

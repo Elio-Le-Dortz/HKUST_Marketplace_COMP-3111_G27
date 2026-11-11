@@ -31,11 +31,11 @@ public class BuyerReviewService {
 
     /**
      * Submits a rating (1 to 5 stars) and optional written review for a completed or returned deal
-     * (Use Case 1.10 Basic Flow & Alternative Flows A1 and A2).
+     * (Use Case 1.10 Basic Flow &amp; Alternative Flows A1 and A2).
      *
      * <p>Enforces:
      * <ul>
-     *   <li>Basic Flow Step 5 & Alternative Flow A1: Star rating must be provided and between 1 and 5.</li>
+     *   <li>Basic Flow Step 5 &amp; Alternative Flow A1: Star rating must be provided and between 1 and 5.</li>
      *   <li>Alternative Flow A2: Duplicate review for the same deal is strictly rejected.</li>
      *   <li>Deal eligibility: Deal must exist, belong to requesting buyer, and be completed or returned.</li>
      *   <li>Basic Flow Step 6: Persists review and atomically recalculates seller's average rating and count.</li>

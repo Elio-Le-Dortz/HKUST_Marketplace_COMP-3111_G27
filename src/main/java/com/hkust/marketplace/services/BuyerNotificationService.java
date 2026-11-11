@@ -237,7 +237,7 @@ public class BuyerNotificationService {
     }
 
     /**
-     * Resolves the linked item when a user selects a notification (Basic Flow step 4 & Alternative Flow A3).
+     * Resolves the linked item when a user selects a notification (Basic Flow step 4 &amp; Alternative Flow A3).
      * Marks the notification as read, and resolves the related entity.
      * If the related item is no longer available, returns ITEM_DELETED status.
      *

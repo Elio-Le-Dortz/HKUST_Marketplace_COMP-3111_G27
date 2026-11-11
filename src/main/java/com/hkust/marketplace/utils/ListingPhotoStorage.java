@@ -115,7 +115,7 @@ public final class ListingPhotoStorage {
      * @throws IOException          if the photo cannot be read or copied
      * @throws NullPointerException if {@code photo} is {@code null}
      */
-    public Path store(Path photo) throws IOException {
+    public synchronized Path store(Path photo) throws IOException {
         Path source = Objects.requireNonNull(photo, "photo").toAbsolutePath().normalize();
         if (source.startsWith(root)) {
             return source;
@@ -181,6 +181,11 @@ public final class ListingPhotoStorage {
             Files.move(temp, target, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
         } catch (AtomicMoveNotSupportedException e) {
             Files.move(temp, target, StandardCopyOption.REPLACE_EXISTING);
+        } catch (IOException e) {
+            if (Files.isRegularFile(target)) {
+                return;
+            }
+            throw e;
         }
     }
 

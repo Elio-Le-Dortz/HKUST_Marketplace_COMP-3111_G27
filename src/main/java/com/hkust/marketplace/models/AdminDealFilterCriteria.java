@@ -5,7 +5,7 @@ import java.util.Objects;
 
 /**
  * Filter and search criteria for Admin Deal Oversight querying
- * (Sprint 2 US-A05, Alternative Flows A2 & A4 in specs_admin.tex).
+ * (Sprint 2 US-A05, Alternative Flows A2 &amp; A4 in specs_admin.tex).
  */
 public class AdminDealFilterCriteria {
 

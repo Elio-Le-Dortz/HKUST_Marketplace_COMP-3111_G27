@@ -263,7 +263,7 @@ class UserManagementServiceTest {
         @DisplayName("Edit Buyer: updates full name and residence, notifies user and logs audit")
         void testEditBuyerSuccess() {
             int notifCountBefore = dataService.getNotificationsFor("alice").size();
-            int adminNotifCountBefore = dataService.getNotificationsFor("admin").size();
+            int adminNotifCountBefore = dataService.getNotificationsFor(DummyDataService.SEEDED_ADMIN_USERNAME).size();
 
             UserEditRequest req = UserEditRequest.builder()
                     .targetUsername("alice")
@@ -283,7 +283,7 @@ class UserManagementServiceTest {
             assertTrue(userNotifs.get(0).getMessage().contains("administrator has updated your profile"));
 
             // Special Requirement: Admin audit log (newest notification is at index 0)
-            List<Notification> adminNotifs = dataService.getNotificationsFor("admin");
+            List<Notification> adminNotifs = dataService.getNotificationsFor(DummyDataService.SEEDED_ADMIN_USERNAME);
             assertEquals(adminNotifCountBefore + 1, adminNotifs.size());
             Notification audit = adminNotifs.get(0);
             assertEquals(UserManagementService.AUDIT_LOG_CATEGORY, audit.getCategory());
@@ -405,7 +405,7 @@ class UserManagementServiceTest {
             assertTrue(userNotifs.stream().anyMatch(n -> n.getTitle().contains("Account Deactivated")));
 
             // Audit log
-            List<Notification> adminNotifs = dataService.getNotificationsFor("admin");
+            List<Notification> adminNotifs = dataService.getNotificationsFor(DummyDataService.SEEDED_ADMIN_USERNAME);
             assertTrue(adminNotifs.stream().anyMatch(n -> n.getCategory().equals(UserManagementService.AUDIT_LOG_CATEGORY)
                     && n.getMessage().contains("deactivated account @alice")));
         }
@@ -426,7 +426,7 @@ class UserManagementServiceTest {
             assertTrue(userNotifs.stream().anyMatch(n -> n.getTitle().contains("Account Reactivated")));
 
             // Audit log
-            List<Notification> adminNotifs = dataService.getNotificationsFor("admin");
+            List<Notification> adminNotifs = dataService.getNotificationsFor(DummyDataService.SEEDED_ADMIN_USERNAME);
             assertTrue(adminNotifs.stream().anyMatch(n -> n.getCategory().equals(UserManagementService.AUDIT_LOG_CATEGORY)
                     && n.getMessage().contains("reactivated account @alice")));
         }
@@ -531,7 +531,7 @@ class UserManagementServiceTest {
             assertTrue(aliceNotifs.stream().anyMatch(n -> n.getTitle().contains("Offer Declined")));
 
             // Admin audit log
-            List<Notification> adminNotifs = dataService.getNotificationsFor("admin");
+            List<Notification> adminNotifs = dataService.getNotificationsFor(DummyDataService.SEEDED_ADMIN_USERNAME);
             assertTrue(adminNotifs.stream().anyMatch(n -> n.getCategory().equals(UserManagementService.AUDIT_LOG_CATEGORY)
                     && n.getMessage().contains("soft-deleted account @seller_clean")));
 
@@ -570,7 +570,7 @@ class UserManagementServiceTest {
             assertTrue(charlieNotifs.stream().anyMatch(n -> n.getTitle().contains("Offer Withdrawn")));
 
             // Audit log
-            List<Notification> adminNotifs = dataService.getNotificationsFor("admin");
+            List<Notification> adminNotifs = dataService.getNotificationsFor(DummyDataService.SEEDED_ADMIN_USERNAME);
             assertTrue(adminNotifs.stream().anyMatch(n -> n.getCategory().equals(UserManagementService.AUDIT_LOG_CATEGORY)
                     && n.getMessage().contains("soft-deleted account @buyer_clean")));
 

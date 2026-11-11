@@ -356,7 +356,7 @@ public class AdminNotificationService {
 
         // Record resolution in Admin audit log
         Notification auditNotif = new Notification(
-                "admin",
+                DummyDataService.SEEDED_ADMIN_USERNAME,
                 "Report Marked Resolved",
                 "Admin @" + adminUsername.trim() + " resolved report " + report.getId() + " on '" + report.getListingTitle() + "'.",
                 AdminNotificationCategory.REPORTS.getDisplayName(),
@@ -410,7 +410,7 @@ public class AdminNotificationService {
         if (listing == null) return;
         String typeStr = listing.getType() != null ? listing.getType().toString() : "Listing";
         Notification notif = new Notification(
-                "admin",
+                DummyDataService.SEEDED_ADMIN_USERNAME,
                 "New Submission: " + listing.getTitle(),
                 "Seller @" + listing.getSellerUsername() + " submitted '" + listing.getTitle() + "' (" + typeStr + ") awaiting review.",
                 AdminNotificationCategory.LISTING_SUBMISSIONS.getDisplayName(),
@@ -428,7 +428,7 @@ public class AdminNotificationService {
     public synchronized void notifyReportFiled(Report report) {
         if (report == null) return;
         Notification notif = new Notification(
-                "admin",
+                DummyDataService.SEEDED_ADMIN_USERNAME,
                 "Report Filed: " + report.getListingTitle(),
                 "Buyer @" + report.getBuyerUsername() + " reported '" + report.getListingTitle() + "': " + report.getReason(),
                 AdminNotificationCategory.REPORTS.getDisplayName(),
@@ -447,7 +447,7 @@ public class AdminNotificationService {
      */
     public synchronized void notifyUserAudit(String title, String message, String targetUsername) {
         Notification notif = new Notification(
-                "admin",
+                DummyDataService.SEEDED_ADMIN_USERNAME,
                 title != null ? title : "User Audit Event",
                 message != null ? message : "",
                 AdminNotificationCategory.USER_ACCOUNTS.getDisplayName(),

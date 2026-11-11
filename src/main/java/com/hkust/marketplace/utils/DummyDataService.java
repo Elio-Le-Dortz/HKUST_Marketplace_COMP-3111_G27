@@ -584,13 +584,13 @@ public class DummyDataService {
         nDiana.setTimestamp(LocalDateTime.now().minusHours(2));
         notifications.add(nDiana);
 
-        Notification nAdmin = new Notification("admin", "New Listing Submitted",
+        Notification nAdmin = new Notification(SEEDED_ADMIN_USERNAME, "New Listing Submitted",
                 "Diana submitted 'Mini Fridge' for review.", "Listing Submissions", l5.getId(), "LISTING");
         nAdmin.setId("N" + notifIdCounter.getAndIncrement());
         nAdmin.setTimestamp(LocalDateTime.now().minusHours(1));
         notifications.add(nAdmin);
 
-        Notification nAdminReport = new Notification("admin", "Report Filed: " + l2.getTitle(),
+        Notification nAdminReport = new Notification(SEEDED_ADMIN_USERNAME, "Report Filed: " + l2.getTitle(),
                 "Buyer @alice reported listing '" + l2.getTitle() + "': Suspected counterfeit goods.",
                 "Reports", rep1.getId(), "REPORT");
         nAdminReport.setId("N" + notifIdCounter.getAndIncrement());
@@ -598,7 +598,7 @@ public class DummyDataService {
         nAdminReport.setRead(false);
         notifications.add(nAdminReport);
 
-        Notification nAdminFlag = new Notification("admin", "Flagged Review for @charlie",
+        Notification nAdminFlag = new Notification(SEEDED_ADMIN_USERNAME, "Flagged Review for @charlie",
                 "Seller @charlie flagged review " + r1.getId() + " by @bob: 'Buyer requested off-platform payment method.'",
                 "Flagged Reviews", r1.getId(), "REVIEW");
         nAdminFlag.setId("N" + notifIdCounter.getAndIncrement());
@@ -606,7 +606,7 @@ public class DummyDataService {
         nAdminFlag.setRead(false);
         notifications.add(nAdminFlag);
 
-        Notification nAdminAudit = new Notification("admin", "User Account Modified",
+        Notification nAdminAudit = new Notification(SEEDED_ADMIN_USERNAME, "User Account Modified",
                 "Admin @admin updated profile details for buyer @alice.",
                 "User Accounts", "alice", "USER");
         nAdminAudit.setId("N" + notifIdCounter.getAndIncrement());
@@ -614,7 +614,7 @@ public class DummyDataService {
         nAdminAudit.setRead(true);
         notifications.add(nAdminAudit);
 
-        Notification nAdminAnn = new Notification("admin", "Platform Update v2.0",
+        Notification nAdminAnn = new Notification(SEEDED_ADMIN_USERNAME, "Platform Update v2.0",
                 "Marketplace system upgrade completed. Audit logging and review queues are active.",
                 "Announcements", null, "ANNOUNCEMENT");
         nAdminAnn.setId("N" + notifIdCounter.getAndIncrement());

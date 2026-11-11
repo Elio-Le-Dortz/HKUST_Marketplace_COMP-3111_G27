@@ -170,8 +170,9 @@ public class AdminProfileService {
             admin.setPasswordHash(newHashedPassword);
         }
 
-        // Basic Flow step 7: Save changes (full name)
+        // Basic Flow step 7: Save changes (full name and password) to data store & database
         admin.setFullName(request.getFullName().trim());
+        dataService.updateUser(admin);
 
         // Synchronize active session user if currently logged in
         User sessionUser = SessionManager.getCurrentUser();

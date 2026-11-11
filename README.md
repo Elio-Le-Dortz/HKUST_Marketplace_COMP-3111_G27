@@ -474,6 +474,14 @@ and the review by `bob` is already flagged in the seeded data.
 
 # Task 3: Admin Portal (Owner: Elio Le Dortz)
 
+**Persistence.** Every change made in the Admin Portal is written to the SQLite database
+(`data/marketplace.db`) as soon as it is made, so it is still there after the application restarts:
+moderation actions (approvals and rejections), user edits, deactivations and soft deletions with
+deal cascades, listings added or edited on behalf of sellers, listing take-downs and automatic offer
+declines, seller rating moderation (hidden reviews and dismissed flags), admin profile updates
+(including full name and new hashed passwords), and the read state of admin notifications. Tested by
+`AdminPersistenceTest`, which makes each change and then reloads the data from the database.
+
 ## Admin Login (US-A01)
 - **Authentication**: Authenticates the seeded administrator account (`admin` / `admin123`).
 - **Role Enforcement**: Prevents buyer and seller accounts from accessing administrative functions (`SessionManager.requireAdmin()`).

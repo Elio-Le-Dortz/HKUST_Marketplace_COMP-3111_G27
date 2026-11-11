@@ -530,6 +530,18 @@ declines, seller rating moderation (hidden reviews and dismissed flags), admin p
 - **Report Resolution**: Resolve user-filed reports with resolution notes, automatically logging audit entries.
 - **Architecture**: Handled by `services/AdminNotificationService.java`, tested by `AdminNotificationServiceTest`.
 
+## Modular Admin Portal Architecture (Finding 5)
+- **Decomposed Controllers**: In adherence to single-responsibility principles and maintainable UI design, the monolithic `AdminDashboardController` was refactored into a lean coordinator (~140 lines) delegating view creation and tab lifecycle to dedicated sub-controllers under `controllers/admin`:
+  - `AdminReviewController`: UC 3.2 / US-A02 Listing Review Queue, inspection, and approval/rejection workflows.
+  - `AdminListingsController`: UC 3.7 / US-A07 Platform Listings Management, add on-behalf dialog, edit dialog, and violation takedowns.
+  - `AdminUsersController`: UC 3.3 / US-A03 User Directory, role/status filtering, user editing, deactivation, and soft-deletion.
+  - `AdminDealsController`: UC 3.5 / US-A05 All Deals platform ledger, date range filters, and transaction details inspection.
+  - `AdminRatingsController`: UC 3.8 / US-A08 Seller Ratings oversight, flagged review queue, dismiss flags, and review hide/unhide.
+  - `AdminNotificationsController`: UC 3.6 / US-A06 Admin Notification Board, report resolution, and cross-tab navigation.
+  - `AdminProfileController`: UC 3.1 / US-A01 Admin profile viewing, full name updates, and password management.
+  - `AdminUIUtils`: Shared thumbnail caching, safe photo path resolution, and metric card constructors.
+- **Test Suite**: Verified by `AdminModularControllersTest` (11 unit tests covering sub-controller instantiation, view generation, photo utilities, and metric card generation).
+
 ---
 
 ## System Architecture & Features Summary

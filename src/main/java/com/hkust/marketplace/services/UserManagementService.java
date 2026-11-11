@@ -175,7 +175,7 @@ public class UserManagementService {
 
         // 6. Special Requirement: Admin Audit Log
         dataService.addNotification(new Notification(
-                "admin",
+                DummyDataService.SEEDED_ADMIN_USERNAME,
                 "User Profile Updated",
                 "Admin @" + adminUser.getUsername() + " updated profile of @" + target.getUsername() + ".",
                 AUDIT_LOG_CATEGORY,
@@ -276,7 +276,7 @@ public class UserManagementService {
             ));
 
             dataService.addNotification(new Notification(
-                    "admin",
+                    DummyDataService.SEEDED_ADMIN_USERNAME,
                     "User Deactivated",
                     "Admin @" + adminUser.getUsername() + " deactivated account @" + target.getUsername() + ".",
                     AUDIT_LOG_CATEGORY,
@@ -295,7 +295,7 @@ public class UserManagementService {
             ));
 
             dataService.addNotification(new Notification(
-                    "admin",
+                    DummyDataService.SEEDED_ADMIN_USERNAME,
                     "User Reactivated",
                     "Admin @" + adminUser.getUsername() + " reactivated account @" + target.getUsername() + ".",
                     AUDIT_LOG_CATEGORY,
@@ -445,7 +445,7 @@ public class UserManagementService {
 
         // 7. Special Requirement: Admin audit log
         dataService.addNotification(new Notification(
-                "admin",
+                DummyDataService.SEEDED_ADMIN_USERNAME,
                 "User Deleted",
                 "Admin @" + adminUser.getUsername() + " soft-deleted account @" + target.getUsername() + ".",
                 AUDIT_LOG_CATEGORY,

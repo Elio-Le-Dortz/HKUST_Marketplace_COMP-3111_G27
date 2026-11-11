@@ -304,7 +304,9 @@ public class AdminListingService {
                 if (offer.getCounterOffer() != null) {
                     offer.getCounterOffer().setStatus(OfferStatus.DECLINED);
                     offer.getCounterOffer().setDeclineReason("Listing removed by administrator: " + cleanReason);
+                    dataService.updateOffer(offer.getCounterOffer());
                 }
+                dataService.updateOffer(offer);
 
                 // Notify buyer who held the active offer
                 Notification buyerNotif = new Notification(

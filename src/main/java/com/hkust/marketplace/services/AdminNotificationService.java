@@ -124,6 +124,7 @@ public class AdminNotificationService {
         Optional<Notification> opt = getNotification(notificationId);
         if (opt.isPresent()) {
             opt.get().setRead(true);
+            dataService.updateNotification(opt.get());
             return true;
         }
         return false;
@@ -144,6 +145,7 @@ public class AdminNotificationService {
         int count = 0;
         for (Notification n : notifs) {
             n.setRead(true);
+            dataService.updateNotification(n);
             count++;
         }
         return count;
@@ -228,6 +230,7 @@ public class AdminNotificationService {
 
         // Basic Flow Step 4: Mark notification as read
         notification.setRead(true);
+        dataService.updateNotification(notification);
 
         String rawType = notification.getRelatedItemType();
         String relatedId = notification.getRelatedItemId();

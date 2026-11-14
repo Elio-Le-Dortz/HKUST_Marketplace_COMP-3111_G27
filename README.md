@@ -3,6 +3,11 @@
 A complete **JavaFX + Maven** full-stack desktop application of the HKUST Campus Marketplace platform.  
 Implements all 28 use cases across the **Buyer**, **Seller**, and **Admin** portals with clean layered architecture, rich UI, session-based role access control (RBAC), thread-safe concurrency handling, and an extensive JUnit 5 test suite (2,008 tests passing, >70% branch coverage).
 
+> [!IMPORTANT]
+> **COMP 3111 Assessment & TA Grading Deliverables**:  
+> For the comprehensive final submission report integrating the **Unit Testing Report (100% pass)**, **Coverage Test Report (70.95% branch coverage)**, **JavaDoc Documentation**, **Execution Walkthrough / Screenshots Guide**, and **Supplementary Notes (WoW factors & algorithms)**, please refer directly to:  
+> 📄 **[Final Project Submission & Assessment Report](docs/SUBMISSION_REPORT.md)**.
+
 ## Prerequisites
 
 1. **JDK 17 or newer** (full JDK, not only JRE)

@@ -6,14 +6,18 @@ import javafx.application.Application;
 import javafx.stage.Stage;
 
 /**
- * HKUST Marketplace - Main Application Entry Point
- * Frontend-only demo / skeleton for student development.
+ * Main JavaFX application entry point for the HKUST Marketplace desktop client.
  *
- * This application provides a complete UI skeleton for the Buyer, Seller and Admin portals.
- * All data is in-memory / dummy. Backend integration points are marked with TODO comments.
+ * <p>Initializes the primary window stage, launches the periodic {@link AutoReturnScheduler}
+ * daemon for borrowed loan lifecycles, and loads the initial welcome portal.</p>
  */
 public class MarketplaceApp extends Application {
 
+    /**
+     * Starts the JavaFX desktop application.
+     *
+     * @param primaryStage the primary application stage window
+     */
     @Override
     public void start(Stage primaryStage) {
         AutoReturnScheduler.getInstance().start();
@@ -25,12 +29,22 @@ public class MarketplaceApp extends Application {
         primaryStage.show();
     }
 
+    /**
+     * Cleanly stops background services and scheduled executors upon application exit.
+     *
+     * @throws Exception if superclass stop encounters an error
+     */
     @Override
     public void stop() throws Exception {
         AutoReturnScheduler.getInstance().stop();
         super.stop();
     }
 
+    /**
+     * Standard Java application launcher method.
+     *
+     * @param args command-line arguments
+     */
     public static void main(String[] args) {
         launch(args);
     }

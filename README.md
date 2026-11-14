@@ -1,7 +1,7 @@
 # HKUST Marketplace — COMP 3111 Group 27
 
 A complete **JavaFX + Maven** full-stack desktop application of the HKUST Campus Marketplace platform.  
-Implements all 28 use cases across the **Buyer**, **Seller**, and **Admin** portals with clean layered architecture, rich UI, session-based role access control (RBAC), thread-safe concurrency handling, and an extensive JUnit 5 test suite (1,761 tests passing).
+Implements all 28 use cases across the **Buyer**, **Seller**, and **Admin** portals with clean layered architecture, rich UI, session-based role access control (RBAC), thread-safe concurrency handling, and an extensive JUnit 5 test suite (2,008 tests passing, >70% branch coverage).
 
 ## Prerequisites
 
@@ -50,7 +50,7 @@ To start the app without the run configuration, open `Launcher.java` → right-c
 ## Tests, Coverage and Javadoc (command line)
 
 ```bash
-./mvnw clean test          # all 1,761 tests + JaCoCo report in target/site/jacoco/index.html
+./mvnw clean test          # all 2,008 tests + JaCoCo report (>70% branch coverage) in target/site/jacoco/index.html
 ./mvnw javadoc:javadoc     # API documentation in target/site/apidocs/index.html
 ```
 
@@ -558,7 +558,7 @@ declines, seller rating moderation (hidden reviews and dismissed flags), admin p
 - **Persistence & Services**: Thread-safe in-memory domain model with synchronized concurrent operations, complemented by embedded SQLite database support (`DatabaseManager`).
 - **Security & Authorization**: Session-based RBAC (`SessionManager`), PBKDF2-HMAC-SHA256 and salted SHA-256 password hashing, PasswordPolicy validator.
 - **Background Tasks**: Periodic auto-return daemon (`AutoReturnScheduler`) for borrowed item lifecycle.
-- **Testing & Verification**: JUnit 5, Mockito, AssertJ, and JaCoCo coverage (1,761 unit and integration tests passing).
+- **Testing & Verification**: JUnit 5, Mockito, AssertJ, and JaCoCo coverage (2,008 unit and integration tests passing, 70.95% branch coverage exceeding the >65% requirement).
 
 ### Summary of Implemented Use Cases (28 / 28 Complete)
 
@@ -592,12 +592,13 @@ HKUST-Marketplace/
     │       ├── fxml/
     │       ├── css/styles.css
     │       └── images/hkust_logo.png
-    └── test/java/com/hkust/marketplace/   ← JUnit 5 test suite (1,761 tests)
+    └── test/java/com/hkust/marketplace/   ← JUnit 5 test suite (2,008 tests)
 ```
 
 ## Quality Assurance & Verification
 
-- **Automated Test Suite**: 1,761 automated tests covering normal flows, alternative flows, exception flows, input validation boundaries, and multi-threaded race conditions.
+- **Automated Test Suite**: 2,008 automated tests covering normal flows, alternative flows, exception flows, input validation boundaries, UI controllers, and multi-threaded race conditions.
+- **Coverage**: Global branch coverage reaches **70.95%** (5,389 / 7,596 branches), instruction coverage **76.92%**, and line coverage **77.03%** across 100% of repository classes with zero JaCoCo exclusions, surpassing the course requirement (>65% branch coverage).
 - **Run Tests**:
   ```bash
   ./mvnw clean test

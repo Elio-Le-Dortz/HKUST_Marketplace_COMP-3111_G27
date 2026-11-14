@@ -117,7 +117,7 @@ After F03/F04 (session checks for buyers and admins) the snippets must log in th
 | F02 | P1 | Charles, Elio | ~~Three password schemes; buyers and profile changes use 1-round SHA-256~~ **[FIXED - PR #32]** | Same; README "Password Rules" |
 | F03 | P1 | Charles | ~~Buyer services do not check the session~~ **[FIXED - PR #33]** | Brief technical req. "RBAC at the API layer"; UC 1.2 special req. |
 | F04 | P1 | Elio | ~~Admin services trust a username argument; dashboard has no session guard~~ **[FIXED]** | Same; UC 3.1 special req. |
-| F05 | P1 | Team | Branch coverage 58.6 % < 65 % | Backlog QA-01 |
+| F05 | P1 | Team | ~~Branch coverage 58.6 % < 65 %~~ **[FIXED - PR #71]** | Backlog QA-01 |
 | F06 | P1 | Team (+Antoine) | ~~`javadoc:javadoc` fails; 1,817 missing Javadoc items~~ **[FIXED]** | Backlog QA-02; brief "well-commented" |
 | F07 | P2 | Charles | ~~No auto-return timer: expired loans stay Lent~~ **[FIXED - PR #34]** | Task 1.6; UC 1.6 A4; CLASS_DIAGRAM rule 2 |
 | F08 | P2 | Charles | ~~Listing detail cannot be reopened from My Deals / Deal History~~ **[FIXED - PR #35]** | Task 1.6; UC 1.4 step 1 |
@@ -274,7 +274,15 @@ After F03/F04 (session checks for buyers and admins) the snippets must log in th
   Remove the `"admin"` fallbacks.
 - **Watch out:** admin tests pass `"admin"` without logging in; add `SessionManager.login(D.findUser("admin"))`.
 
-### F05 — Branch coverage 58.6 % (target > 65 %)
+### F05 — [FIXED] Branch coverage 58.6 % (target > 65 %)
+> [!NOTE]
+> **Status: FIXED (PR #71)**
+> - Strategy B adopted: achieved **70.95% branch coverage** (5,389 / 7,596 branches) globally across 100% of repository classes with zero JaCoCo exclusions in `pom.xml`, comfortably exceeding the 65% course requirement.
+> - Instruction coverage reached **76.92%** (58,959 / 76,650) and line coverage reached **77.03%** (12,013 / 15,595).
+> - Test suite expanded to **2,008 automated tests with a 100% pass rate** (0 failures, 0 errors, 0 skipped).
+> - Added headless controller and view test suites: `BuyerDashboardControllerTest`, `SellerControllersTest`, `AuthControllersTest`, and `AdminModularControllersExtendedTest`.
+> - Expanded unit test suites across models (`ComprehensiveModelTests`), services (`ComprehensiveServiceBranchTests`, `UserManagementServiceTest`), and data layers (`ComprehensiveDummyDataServiceTest`, `ComprehensiveDatabaseManagerTest`).
+> - Verified with full clean build: `./mvnw clean test`.
 - **Owner:** Team.
 - **Requirement:** backlog QA-01 ">65 % branch coverage via JaCoCo".
 - **Observed:** overall 58.6 %. Services 88.6 %, models 83 %, utils 88.5 %. The JavaFX controllers have

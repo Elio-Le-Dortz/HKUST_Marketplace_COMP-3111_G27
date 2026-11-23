@@ -64,12 +64,37 @@ import java.util.function.Supplier;
  */
 public class SellerDashboardController {
 
+    /** Main content container where active screens are mounted. */
     @FXML private StackPane contentPane;
+    /** Header title displaying the active screen name. */
     @FXML private Label pageTitle;
+    /** Greeting label displaying the seller's full name. */
     @FXML private Label welcomeLabel;
-    @FXML private Button btnListings, btnOffers, btnMessages, btnCreate, btnStats, btnReviews, btnNotifications, btnProfile;
+    /** Sidebar navigation button for My Listings. */
+    @FXML private Button btnListings;
+    /** Sidebar navigation button for Offers and Requests. */
+    @FXML private Button btnOffers;
+    /** Sidebar navigation button for Messages. */
+    @FXML private Button btnMessages;
+    /** Sidebar navigation button for Create Listing. */
+    @FXML private Button btnCreate;
+    /** Sidebar navigation button for Seller Stats. */
+    @FXML private Button btnStats;
+    /** Sidebar navigation button for Reviews and Feedback. */
+    @FXML private Button btnReviews;
+    /** Sidebar navigation button for Notifications. */
+    @FXML private Button btnNotifications;
+    /** Sidebar navigation button for Seller Profile. */
+    @FXML private Button btnProfile;
 
+    /** Currently active sidebar button. */
     private Button currentActiveBtn;
+
+    /**
+     * Default constructor for FXML loader instantiation.
+     */
+    public SellerDashboardController() {
+    }
 
     /** Business logic of the Offers &amp; Requests screen (use case 2.5, US-S05). */
     private final OfferManagementService offerService = new OfferManagementService();
@@ -123,6 +148,12 @@ public class SellerDashboardController {
         showMyListings();
     }
 
+    /**
+     * Marks the given sidebar button as active, applies styling, and updates the header title.
+     *
+     * @param btn   the button to activate
+     * @param title the page title to display
+     */
     private void setActive(Button btn, String title) {
         if (currentActiveBtn != null) currentActiveBtn.getStyleClass().remove("sidebar-btn-active");
         btn.getStyleClass().add("sidebar-btn-active");
@@ -4255,6 +4286,9 @@ public class SellerDashboardController {
         return listing != null && listing.getTitle() != null ? listing.getTitle() : offer.getListingTitle();
     }
 
+    /**
+     * Logs out the current seller session and navigates back to the welcome portal.
+     */
     @FXML
     private void logout() {
         SessionManager.logout();

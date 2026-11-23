@@ -28,6 +28,13 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+/**
+ * Controller for the Buyer Portal dashboard (Task 1: US-B01 to US-B11).
+ *
+ * <p>Coordinates marketplace browsing, item filtering and search, listing details, offer submission,
+ * borrow requests, atomic giveaway claims, private chat messaging, deal management, seller reviews,
+ * notifications board, transaction history, and buyer profile settings.</p>
+ */
 public class BuyerDashboardController {
 
     @FXML private StackPane contentPane;

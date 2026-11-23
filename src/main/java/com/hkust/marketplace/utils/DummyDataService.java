@@ -132,8 +132,26 @@ public class DummyDataService {
         reviews.clear();
 
         users.putAll(databaseManager.loadAllUsers());
-        if (!users.containsKey(SEEDED_ADMIN_USERNAME)) {
+        User seededAdmin = users.get(SEEDED_ADMIN_USERNAME);
+        if (seededAdmin == null) {
             seedAdmin();
+        } else if (SEEDED_ADMIN_PASSWORD.equals(seededAdmin.getPasswordHash())
+                || (seededAdmin.getPasswordHash() != null
+                    && !seededAdmin.getPasswordHash().startsWith("pbkdf2_sha256")
+                    && !seededAdmin.getPasswordHash().contains(":"))) {
+            // Self-heal legacy unhashed admin password from older database seeds
+            seededAdmin.setPasswordHash(SEED_ADMIN_HASH);
+            if (databaseManager != null && persistenceEnabled) {
+                databaseManager.saveUser(seededAdmin);
+            }
+        }
+        for (User u : users.values()) {
+            if ("password1".equals(u.getPasswordHash())) {
+                u.setPasswordHash(SEED_USER_HASH);
+                if (databaseManager != null && persistenceEnabled) {
+                    databaseManager.saveUser(u);
+                }
+            }
         }
         listings.putAll(databaseManager.loadAllListings());
         deals.addAll(databaseManager.loadAllDeals());

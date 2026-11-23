@@ -249,4 +249,30 @@ class DummyDataServicePersistenceTest {
 
         tempDbFile.delete();
     }
+
+    @Test
+    @DisplayName("Legacy plaintext admin password in database is automatically migrated to PBKDF2 hash on load")
+    void testLegacyPlaintextAdminPasswordAutoMigratesOnLoad() {
+        // Force plaintext password into SQLite as if from an older database seed
+        Admin legacyAdmin = new Admin("admin", "HKUST Marketplace Admin", "admin123");
+        db.saveUser(legacyAdmin);
+        assertEquals("admin123", db.loadAllUsers().get("admin").getPasswordHash());
+
+        // Restart service, which calls loadFromDatabase()
+        DummyDataService restartedService = new DummyDataService(db);
+        User migratedAdmin = restartedService.findUser("admin");
+        assertNotNull(migratedAdmin);
+        assertNotEquals("admin123", migratedAdmin.getPasswordHash());
+        assertTrue(migratedAdmin.getPasswordHash().startsWith("pbkdf2_sha256$"));
+        assertTrue(PasswordUtil.verifyPassword("admin123", migratedAdmin.getPasswordHash()));
+
+        // Check it was also persisted back to SQLite
+        assertEquals(migratedAdmin.getPasswordHash(), db.loadAllUsers().get("admin").getPasswordHash());
+
+        // Verify AdminLoginService authenticates successfully
+        com.hkust.marketplace.services.AdminLoginService loginService =
+                new com.hkust.marketplace.services.AdminLoginService(restartedService);
+        LoginResult result = loginService.authenticate("admin", "admin123");
+        assertTrue(result.isSuccess(), "Admin login must succeed with 'admin123' after migration");
+    }
 }

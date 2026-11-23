@@ -157,6 +157,73 @@ class UserManagementServiceTest {
             assertFalse(r5.isSuccess());
             assertEquals(UserManagementStatus.CANNOT_MODIFY_ADMIN, r5.getStatus());
         }
+
+        @Test
+        @DisplayName("EditUser: seller details, preferred meetups, and buyer residence branches")
+        void testEditUserSellerAndBuyerBranches() {
+            Seller seller = new Seller("seller_edit_target", "Old Name", "Pass1234!");
+            dataService.registerUserIfAbsent(seller);
+
+            Listing l = new Listing();
+            l.setId("L_SELLER_EDIT");
+            l.setSellerUsername("seller_edit_target");
+            l.setSellerFullName("Old Name");
+            dataService.addListing(l);
+
+            UserEditRequest req1 = UserEditRequest.builder()
+                    .targetUsername("seller_edit_target")
+                    .adminUsername("admin")
+                    .newFullName("New Name")
+                    .bio("Updated Bio")
+                    .preferredMeetups(List.of(MeetupLocation.LIBRARY))
+                    .build();
+
+            UserManagementResult res1 = service.editUser(req1);
+            assertTrue(res1.isSuccess());
+            assertEquals("New Name", l.getSellerFullName());
+            assertEquals("Updated Bio", seller.getBio());
+
+            // Second edit with same name (renameListings skips)
+            UserEditRequest req2 = UserEditRequest.builder()
+                    .targetUsername("seller_edit_target")
+                    .adminUsername("admin")
+                    .newFullName("New Name")
+                    .build();
+            UserManagementResult res2 = service.editUser(req2);
+            assertTrue(res2.isSuccess());
+
+            // Edit buyer with residence
+            Buyer buyer = new Buyer("buyer_edit_target", "Old Buyer", "Pass1234!");
+            dataService.registerUserIfAbsent(buyer);
+
+            UserEditRequest req3 = UserEditRequest.builder()
+                    .targetUsername("buyer_edit_target")
+                    .adminUsername("admin")
+                    .newFullName("New Buyer")
+                    .residence("UG Hall 1")
+                    .build();
+            UserManagementResult res3 = service.editUser(req3);
+            assertTrue(res3.isSuccess());
+            assertEquals("UG Hall 1", buyer.getResidence());
+
+            // Edit target is deleted
+            buyer.setAccountStatus(AccountStatus.DELETED);
+            assertEquals(UserManagementStatus.ALREADY_IN_STATE, service.editUser(req3).getStatus());
+        }
+
+        @Test
+        @DisplayName("getUser and getActiveDealsForUser null and empty branches")
+        void testGetUserAndActiveDealsBranches() {
+            assertTrue(service.getUser(null).isEmpty());
+            assertTrue(service.getUser("").isEmpty());
+            assertTrue(service.getUser("admin").isEmpty());
+            assertTrue(service.getUser("nonexistent").isEmpty());
+            assertTrue(service.getUser("alice").isPresent());
+
+            assertTrue(service.getActiveDealsForUser(null).isEmpty());
+            assertTrue(service.getActiveDealsForUser("  ").isEmpty());
+            assertFalse(service.getActiveDealsForUser("alice").isEmpty());
+        }
     }
 
     @Nested
@@ -454,6 +521,26 @@ class UserManagementServiceTest {
             assertFalse(res.isSuccess());
             assertEquals(UserManagementStatus.ALREADY_IN_STATE, res.getStatus());
         }
+
+        @Test
+        @DisplayName("ChangeAccountStatus: input validation and unauthorized branches")
+        void testChangeAccountStatusInputValidation() {
+            assertEquals(UserManagementStatus.INVALID_INPUT, service.changeAccountStatus(null, AccountStatus.ACTIVE, "admin").getStatus());
+            assertEquals(UserManagementStatus.INVALID_INPUT, service.changeAccountStatus("  ", AccountStatus.ACTIVE, "admin").getStatus());
+            assertEquals(UserManagementStatus.UNAUTHORIZED, service.changeAccountStatus("alice", AccountStatus.ACTIVE, null).getStatus());
+            assertEquals(UserManagementStatus.UNAUTHORIZED, service.changeAccountStatus("alice", AccountStatus.ACTIVE, "  ").getStatus());
+            assertEquals(UserManagementStatus.INVALID_INPUT, service.changeAccountStatus("alice", null, "admin").getStatus());
+            assertEquals(UserManagementStatus.INVALID_INPUT, service.changeAccountStatus("alice", AccountStatus.DELETED, "admin").getStatus());
+
+            // Unauthorized admin
+            assertEquals(UserManagementStatus.UNAUTHORIZED, service.changeAccountStatus("alice", AccountStatus.ACTIVE, "bob").getStatus());
+
+            // Target not found
+            assertEquals(UserManagementStatus.USER_NOT_FOUND, service.changeAccountStatus("nonexistent_user", AccountStatus.ACTIVE, "admin").getStatus());
+
+            // Target is admin
+            assertEquals(UserManagementStatus.CANNOT_MODIFY_ADMIN, service.changeAccountStatus("admin", AccountStatus.ACTIVE, "admin").getStatus());
+        }
     }
 
     @Nested
@@ -575,6 +662,57 @@ class UserManagementServiceTest {
                     && n.getMessage().contains("soft-deleted account @buyer_clean")));
 
             assertEquals("Deleted user", cleanBuyer.getDisplayName());
+        }
+
+        @Test
+        @DisplayName("DeleteUser: input validation and edge branches")
+        void testDeleteUserInputValidationAndEdgeBranches() {
+            // Null target
+            assertEquals(UserManagementStatus.INVALID_INPUT, service.deleteUser(null, "admin").getStatus());
+            assertEquals(UserManagementStatus.INVALID_INPUT, service.deleteUser("   ", "admin").getStatus());
+
+            // Null admin
+            assertEquals(UserManagementStatus.UNAUTHORIZED, service.deleteUser("alice", null).getStatus());
+            assertEquals(UserManagementStatus.UNAUTHORIZED, service.deleteUser("alice", "   ").getStatus());
+
+            // Admin unauthorized / mismatch
+            assertEquals(UserManagementStatus.UNAUTHORIZED, service.deleteUser("alice", "bob").getStatus());
+
+            // Target not found
+            assertEquals(UserManagementStatus.USER_NOT_FOUND, service.deleteUser("unknown_user_999", "admin").getStatus());
+
+            // Target is admin
+            assertEquals(UserManagementStatus.CANNOT_MODIFY_ADMIN, service.deleteUser("admin", "admin").getStatus());
+
+            // Seller with COUNTERED offer and null/empty buyerUsername, CLOSED listing
+            Seller sellerWithCountered = new Seller("seller_countered", "Countered Seller", "Pass1234!");
+            dataService.registerUserIfAbsent(sellerWithCountered);
+
+            Listing closedListing = new Listing();
+            closedListing.setId("L_CLOSED_1");
+            closedListing.setSellerUsername("seller_countered");
+            closedListing.setStatus(ListingStatus.SOLD);
+            dataService.addListing(closedListing);
+
+            Offer counteredOffer = new Offer("O_COUNTERED_1", OfferType.PRICE_OFFER, "L_CLOSED_1", null, "seller_countered");
+            counteredOffer.setStatus(OfferStatus.COUNTERED);
+            dataService.addOffer(counteredOffer);
+
+            UserManagementResult sResult = service.deleteUser("seller_countered", "admin");
+            assertTrue(sResult.isSuccess());
+            assertEquals(OfferStatus.DECLINED, counteredOffer.getStatus());
+
+            // Buyer with COUNTERED offer and empty sellerUsername
+            Buyer buyerWithCountered = new Buyer("buyer_countered", "Countered Buyer", "Pass1234!");
+            dataService.registerUserIfAbsent(buyerWithCountered);
+
+            Offer buyerCounteredOffer = new Offer("O_BUYER_COUNTERED", OfferType.PRICE_OFFER, "L_CLOSED_1", "buyer_countered", "  ");
+            buyerCounteredOffer.setStatus(OfferStatus.COUNTERED);
+            dataService.addOffer(buyerCounteredOffer);
+
+            UserManagementResult bResult = service.deleteUser("buyer_countered", "admin");
+            assertTrue(bResult.isSuccess());
+            assertEquals(OfferStatus.WITHDRAWN, buyerCounteredOffer.getStatus());
         }
 
         @Test

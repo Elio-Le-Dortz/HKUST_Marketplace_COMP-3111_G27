@@ -5,8 +5,8 @@ Implements all 28 use cases across the **Buyer**, **Seller**, and **Admin** port
 
 > [!IMPORTANT]
 > **COMP 3111 Assessment & TA Grading Deliverables**:  
-> For the comprehensive final submission report integrating the **Unit Testing Report (100% pass)**, **Coverage Test Report (70.95% branch coverage)**, **JavaDoc Documentation**, **Execution Walkthrough / Screenshots Guide**, and **Supplementary Notes (WoW factors & algorithms)**, please refer directly to:  
-> 📄 **[Final Project Submission & Assessment Report](docs/SUBMISSION_REPORT.md)**.
+> For the linked collection of submission deliverables (**Application Execution Screenshots**, **Unit Testing Report — 100% pass**, **JaCoCo Coverage Report — 70.94% branch coverage**, **JavaDoc Documentation**, and **Supplementary Notes**), please refer to:  
+> 📄 **[Submission Deliverables Hub](submission/README.md)**.
 
 ## Prerequisites
 
@@ -88,8 +88,8 @@ When a password is rejected, the user is told every rule it breaks.
 
 ### Password Hashing Schemes
 Passwords are never stored in plaintext:
-- **Seller Portal**: `utils/PasswordHasher.java` stores a salted **PBKDF2-HMAC-SHA256** hash (600,000 iterations, random 16-byte salt per password).
-- **Buyer & Admin Portals / Profiles**: `utils/PasswordUtil.java` stores a salted **SHA-256** hash (`[salt_hex]:[hash_hex]`).
+- **Unified Hashing Across All Portals**: `utils/PasswordHasher.java` stores a salted **PBKDF2-HMAC-SHA256** hash (`600,000` iterations, random 16-byte salt per password, formatted as `pbkdf2_sha256$<iterations>$<salt>$<hash>`) across Buyer, Seller, and Admin registration, seeding, and profile password changes (`DummyDataService`, `BuyerProfileService`, `SellerRegistrationService`, `SellerProfileService`, `AdminProfileService`).
+- **Verification & Legacy Compatibility**: `utils/PasswordUtil.verifyPassword(...)` delegates `pbkdf2_sha256$...` hashes to `PasswordHasher.verify(...)`, supports verifying legacy salted SHA-256 (`[salt_hex]:[hash_hex]`) records, and strictly rejects plaintext passwords and unsalted hashes. `DummyDataService.loadFromDatabase()` also migrates legacy unhashed seeded demo/admin passwords in older SQLite files to PBKDF2 on startup.
 
 ---
 
@@ -97,7 +97,7 @@ Passwords are never stored in plaintext:
 
 ## Buyer Registration (US-B01)
 - **Validation**: Username is required, at least 3 characters long, contains no whitespace, and is unique across all user roles (case-insensitive); full name and campus residence hall are required; password must satisfy the password policy; confirm password must match exactly.
-- **Security**: Passwords are securely hashed with a random 16-byte salt using SHA-256 (`PasswordUtil.hashPassword`).
+- **Security**: Passwords are securely hashed with a random 16-byte salt using PBKDF2-HMAC-SHA256 (`PasswordHasher.hash`, 600,000 iterations).
 - **Feedback**: All invalid fields are validated simultaneously with descriptive error messages. On success, the user is redirected to Buyer login.
 - **Architecture**: Handled by `DummyDataService.registerBuyer(...)`, tested by `BuyerRegistrationTest` (boundary validations, duplicate username rejection, whitespace sanitization).
 
@@ -108,7 +108,7 @@ Passwords are never stored in plaintext:
   3. **Role-Based Access Control**: Valid seller or admin credentials attempting login are refused and instructed to use their respective portals (`MSG_WRONG_PORTAL_SELLER`, `MSG_WRONG_PORTAL_ADMIN`).
   4. **Deactivation check**: Accounts deactivated by an administrator are blocked from logging in.
 - **Session**: On successful authentication, a Buyer session is established via `SessionManager.login(user)`.
-- **Architecture**: Handled by `BuyerLoginService` / `DummyDataService.loginBuyer(...)`, tested by `BuyerLoginTest` (all normal/alternative/exception flows and concurrent logins).
+- **Architecture**: Handled by `DummyDataService.loginBuyer(...)`, tested by `BuyerLoginTest` (all normal/alternative/exception flows and concurrent logins).
 
 ## Marketplace Browse & Filtering (US-B03)
 - **Live Catalog**: Real-time display of active listings in `LIVE` status across the HKUST campus.
@@ -561,9 +561,9 @@ declines, seller rating moderation (hidden reviews and dismissed flags), admin p
 - **Frontend / UI**: JavaFX 21 (FXML + Controller architecture, custom CSS theme with HKUST palette `#003974` and `#A68137`, Ikonli Material Design icons).
 - **Core Platform**: Java 17, Maven 3 build toolchain.
 - **Persistence & Services**: Thread-safe in-memory domain model with synchronized concurrent operations, complemented by embedded SQLite database support (`DatabaseManager`).
-- **Security & Authorization**: Session-based RBAC (`SessionManager`), PBKDF2-HMAC-SHA256 and salted SHA-256 password hashing, PasswordPolicy validator.
+- **Security & Authorization**: Session-based RBAC (`SessionManager`), PBKDF2-HMAC-SHA256 (600,000 iterations) password hashing across all portals with legacy salted SHA-256 verification support, `PasswordPolicy` validator.
 - **Background Tasks**: Periodic auto-return daemon (`AutoReturnScheduler`) for borrowed item lifecycle.
-- **Testing & Verification**: JUnit 5, Mockito, AssertJ, and JaCoCo coverage (2,008 unit and integration tests passing, 70.95% branch coverage exceeding the >65% requirement).
+- **Testing & Verification**: JUnit 5, Mockito, AssertJ, and JaCoCo coverage (2,008 unit and integration tests passing, 70.94% branch coverage exceeding the >65% requirement).
 
 ### Summary of Implemented Use Cases (28 / 28 Complete)
 
@@ -580,9 +580,9 @@ HKUST-Marketplace/
 ├── mvnw / mvnw.cmd          ← Maven Wrapper
 ├── pom.xml
 ├── README.md
-├── docs/                    ← Project Management, Sprint Backlog & Code Review
-│   ├── CODE_REVIEW.md
-│   └── project_management/
+├── submission/              ← Assessment Deliverables (Screenshots, Test, Coverage, JavaDoc, Notes)
+│   ├── README.md
+│   └── screenshots/
 ├── .run/                    ← Shared IntelliJ run configurations
 └── src/
     ├── main/
@@ -603,7 +603,7 @@ HKUST-Marketplace/
 ## Quality Assurance & Verification
 
 - **Automated Test Suite**: 2,008 automated tests covering normal flows, alternative flows, exception flows, input validation boundaries, UI controllers, and multi-threaded race conditions.
-- **Coverage**: Global branch coverage reaches **70.95%** (5,389 / 7,596 branches), instruction coverage **76.92%**, and line coverage **77.03%** across 100% of repository classes with zero JaCoCo exclusions, surpassing the course requirement (>65% branch coverage).
+- **Coverage**: Global branch coverage reaches **70.94%** (5,390 / 7,598 branches), instruction coverage **76.89%**, and line coverage **76.98%** across 100% of repository classes with zero JaCoCo exclusions, surpassing the course requirement (>65% branch coverage).
 - **Run Tests**:
   ```bash
   ./mvnw clean test

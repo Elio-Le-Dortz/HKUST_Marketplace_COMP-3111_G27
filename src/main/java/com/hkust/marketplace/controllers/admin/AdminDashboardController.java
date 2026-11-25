@@ -13,7 +13,7 @@ import javafx.scene.layout.StackPane;
 /**
  * Main coordinator controller for the Admin Dashboard View.
  *
- * <p>Delegates each tab's view creation and lifecycle to dedicated, modular sub-controllers:
+ * <p>Delegates each tab's view creation and lifecycle to dedicated, modular sub-controllers:</p>
  * <ul>
  *   <li>{@link AdminReviewController} - Listing Review Queue (US-A02)</li>
  *   <li>{@link AdminListingsController} - Platform Listings Management (US-A07)</li>
@@ -23,7 +23,6 @@ import javafx.scene.layout.StackPane;
  *   <li>{@link AdminNotificationsController} - Admin Notification Board (US-A06)</li>
  *   <li>{@link AdminProfileController} - Administrator Profile &amp; Security (US-A01)</li>
  * </ul>
- * </p>
  */
 public class AdminDashboardController {
 

@@ -55,21 +55,24 @@ public class SceneManager {
             }
             System.out.println("[SceneManager] Switched to: " + fxmlName);
         } catch (Exception e) {
-            e.printStackTrace();
             Throwable cause = e.getCause() != null ? e.getCause() : e;
             String msg = "Failed to load: " + fxmlName + "\n\n" + cause.getClass().getSimpleName()
                     + ": " + cause.getMessage();
-            System.err.println("[SceneManager] " + msg);
 
-            // Show a dialog so the error is visible without reading the console
-            try {
-                Alert alert = new Alert(Alert.AlertType.ERROR);
-                alert.setTitle("Navigation Error");
-                alert.setHeaderText("Could not open screen");
-                alert.setContentText(msg);
-                alert.showAndWait();
-            } catch (Exception ignored) {
-                // If even the alert fails, at least we printed to console
+            if (primaryStage != null) {
+                e.printStackTrace();
+                System.err.println("[SceneManager] " + msg);
+
+                // Show a dialog so the error is visible without reading the console
+                try {
+                    Alert alert = new Alert(Alert.AlertType.ERROR);
+                    alert.setTitle("Navigation Error");
+                    alert.setHeaderText("Could not open screen");
+                    alert.setContentText(msg);
+                    alert.showAndWait();
+                } catch (Exception ignored) {
+                    // If even the alert fails, at least we printed to console
+                }
             }
             throw new RuntimeException(msg, e);
         }

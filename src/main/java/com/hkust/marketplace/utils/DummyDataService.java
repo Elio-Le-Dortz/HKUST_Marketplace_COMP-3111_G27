@@ -27,7 +27,6 @@ import java.util.stream.Collectors;
 /**
  * In-memory data store for the frontend demo.
  * All data is lost when the application closes.
- * TODO: Replace this service with real repositories / API clients.
  */
 public class DummyDataService {
 

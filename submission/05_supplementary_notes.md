@@ -1,8 +1,8 @@
-# 5. Supplementary Notes: System Architecture, Assumptions & TA Guide
+# 5. Supplementary Notes: System Architecture, WoW Factors, Algorithms & Assumptions
 
 [← JavaDoc Documentation](04_javadoc_documentation.md) · [Submission Hub](README.md)
 
-This document provides technical context to assist TAs in evaluating the architecture, assumptions, and demo workflows of **HKUST Marketplace**.
+This document provides technical context to assist TAs in evaluating the architecture, non-functional guarantees, algorithms, and design choices of **HKUST Marketplace**.
 
 ---
 
@@ -39,7 +39,44 @@ The application follows a **4-tier layered architecture** in **Java 17** and **J
 
 ---
 
-## 2. Specific Assumptions & Documented Limitations
+## 2. "WoW" Factors & Engineering Highlights
+
+1. **PBKDF2-HMAC-SHA256 (600,000 Iterations) & Seeded Record Migration (`PasswordHasher`, `PasswordUtil`):**
+   - Passwords across all 3 portals are hashed using `PasswordHasher.hash(...)` with **600,000 PBKDF2-HMAC-SHA256 iterations** (OWASP recommendation) and a random 16-byte `SecureRandom` salt, verified in constant time via `MessageDigest.isEqual`.
+   - `PasswordUtil.verifyPassword(...)` delegates PBKDF2 hashes to `PasswordHasher`, retains verification compatibility for legacy salted SHA-256 (`saltHex:hashHex`) hashes, and strictly rejects plaintext or unsalted hashes.
+   - `DummyDataService.loadFromDatabase()` automatically upgrades legacy unhashed seeded demo/admin passwords in older SQLite files to PBKDF2 on startup.
+2. **Content-Addressed Local Photo Storage (`ListingPhotoStorage`):**
+   - Seller-uploaded photos (1–6 images, max 10 MB, verified by both file extension and magic-byte header for PNG/JPEG/GIF/BMP) are copied atomically into `data/uploads/listings/` named `<16-hex-sha256>-<safe-name>`.
+   - Listings remain intact even if the seller moves or deletes their original files, and identical images are deduplicated without creating redundant copies.
+3. **Autonomous Background Loan Auto-Return Daemon (`AutoReturnScheduler`):**
+   - Runs a daemon `ScheduledExecutorService` every 1 second calling `DummyDataService.processAutoReturns()`, automatically transitioning expired `LEND` deals (`>= 5` seconds minimum for live TA demos) to `RETURNED`, restoring listings to `LIVE`, and notifying both buyer and seller.
+4. **Thread-Safe Atomic Concurrency & Deadlock Prevention:**
+   - All check-and-mutate operations (atomic giveaway claims, simultaneous offer acceptance vs. listing deletion, admin takedowns, concurrent username registration, and formal chat offers) execute inside a consistent single-lock monitor (`synchronized (dataService)`), eliminating lock-order inversion deadlocks.
+5. **Soft-Delete Cascade & Audit Integrity:**
+   - Deleting a user with active deals is blocked; otherwise, soft-deletion sets `AccountStatus.DELETED` and preserves historical deals, chat threads, and reviews cleanly without breaking relational integrity.
+6. **Searchable In-Thread Chat History:**
+   - Real-time keyword search filters and highlights matching messages inside private buyer-seller chat threads while keeping full chronological history.
+
+---
+
+## 3. Algorithm Analysis & Design Justifications
+
+### 3.1 Multi-Attribute Listing Filter & Sort (`ListingFilterService`)
+- **Behavior:** Streams candidate listings, retains only `ListingStatus.LIVE`, evaluates conjunctions across keyword substring (`title` or `description`, case-insensitive), `Category`, `ListingType`, `Condition`, and inclusive `[minPrice, maxPrice]` bounds, and sorts dynamically (`NEWEST_FIRST`, `OLDEST_FIRST`, `PRICE_LOW_TO_HIGH`, `PRICE_HIGH_TO_LOW`, `MOST_POPULAR` by `viewCount`).
+- **Complexity:** $O(N)$ filtering pass followed by $O(K \log K)$ comparison sort on the $K \le N$ matching listings ($O(N \log N)$ worst case).
+- **Justification:** Single-pass predicate evaluation avoids intermediate list allocations and cleanly separates filter state (`ListingFilterCriteria`) from JavaFX controls.
+
+### 3.2 Atomic First-Come Giveaway Claim (`ActOnListingService.submitClaim`)
+- **Behavior:** Under `synchronized (dataService)`, verifies listing is `GIVEAWAY` and `LIVE`, then invokes `isGiveawayClaimed(listingId)` to check both `listing.getStatus() != ListingStatus.LIVE` and any existing `OfferType.CLAIM` with status `PENDING` or `ACCEPTED`.
+- **Correctness:** Because check-and-insert runs atomically inside the `dataService` monitor, under $T$ concurrent claimant threads, **at most 1 thread** can insert a `PENDING` claim offer; all $T - 1$ remaining threads receive `alreadyClaimed(...)` deterministically.
+
+### 3.3 Dynamic Seller Rating Calculation Excluding Hidden Reviews
+- **Behavior:** Seller average rating and review count are dynamically recomputed from non-hidden `Review` records (`!review.isHidden()`).
+- **Justification:** Hiding or unhiding a review in the Admin Portal (`AdminRatingService`) immediately reflects across Buyer listing details, Seller Stats, and Seller Reviews without stale cached totals.
+
+---
+
+## 4. Specific Assumptions & Documented Limitations
 
 1. **Photo Storage Scope:**
    - Seller-created and edited listings copy images into `data/uploads/listings/` via `ListingPhotoStorage`. Listings added directly by an Admin on behalf of a seller retain the selected local filesystem paths.
@@ -53,7 +90,7 @@ The application follows a **4-tier layered architecture** in **Java 17** and **J
 
 ---
 
-## 3. Demo Accounts for TA Assessment
+## 5. Demo Accounts for TA Assessment
 
 | Role | Username | Password | Suggested Workflows to Test |
 |---|---|---|---|

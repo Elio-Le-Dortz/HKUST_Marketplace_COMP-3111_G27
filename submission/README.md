@@ -15,7 +15,7 @@ Welcome to the assessment deliverables hub for **HKUST Marketplace**. All **28 u
 | **2** | **Unit Testing Report** *(100% pass)* | [**Unit Testing Report**](02_unit_testing_report.md) | **2,008 / 2,008 tests passing** (`0` failures, `0` errors, `0` skipped) across **94 test files**. |
 | **3** | **Coverage Test Report** *(>65% branch coverage)* | [**JaCoCo Code Coverage Report**](03_coverage_report.md) | **70.94% global branch coverage** (`5,390 / 7,598`), **76.98% line**, **100% class** (`190 / 190`) with zero JaCoCo exclusions. |
 | **4** | **JavaDoc Documentation** | [**JavaDoc API Documentation Guide**](04_javadoc_documentation.md) | Full class/method/enum Javadoc with HTML5 doclint compliance (`./mvnw javadoc:javadoc`). |
-| **5** | **Supplementary Notes** | [**Supplementary Notes**](05_supplementary_notes.md) | System architecture, assumptions/limitations, and TA demo accounts. |
+| **5** | **Supplementary Notes** *(WoW factors, algorithms, assumptions)* | [**Supplementary Notes**](05_supplementary_notes.md) | System architecture, WoW innovations, algorithm & concurrency analyses, assumptions/limitations, and TA demo accounts. |
 
 ---
 
